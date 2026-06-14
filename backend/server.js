@@ -23,11 +23,15 @@ app.use('/api/produits', produitsRouter);
 app.use('/api/fournisseurs', fournisseursRouter);
 app.use('/api/ventes', ventesRouter);
 
+// Vérification automatique des stocks
+const { demarrerVerificationStock } = require('./services/stockVerifier');
+
 // Connexion MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ Connecté à MongoDB');
-    app.listen(5000, () => {
+    demarrerVerificationStock();
+    app.listen(process.env.PORT || 5000, () => {
       console.log('✅ Serveur démarré sur https://boutique-stock-production.up.railway.app');
     });
   })
