@@ -5,12 +5,18 @@ require('dotenv').config();
 
 const app = express();
 
-// Middlewares
-app.use(cors({
-  origin: ['https://boutique-stock.vercel.app', 'http://localhost:3000', 'http://localhost:3001'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Middlewares CORS - doit être AVANT tout
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(cors());
 app.use(express.json());
 
 // Route de test
