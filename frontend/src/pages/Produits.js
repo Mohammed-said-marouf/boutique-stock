@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { exportProduitsPDF } from '../components/ExportPDF';
 
-const API = 'http://localhost:5000/api/produits';
+const API = 'https://boutique-stock-production.up.railway.app/api/produits';
 
 const inputStyle = {
   width: '100%', padding: '10px', borderRadius: '8px',

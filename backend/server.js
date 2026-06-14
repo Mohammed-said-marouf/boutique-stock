@@ -28,7 +28,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ Connecté à MongoDB');
     app.listen(5000, () => {
-      console.log('✅ Serveur démarré sur http://localhost:5000');
+      console.log('✅ Serveur démarré sur https://boutique-stock-production.up.railway.app');
     });
   })
   .catch((err) => console.log('❌ Erreur MongoDB :', err));
