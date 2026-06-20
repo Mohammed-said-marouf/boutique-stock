@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://boutique-stock-production.up.railway.app/api/:path*"
+      "destination": "https://boutique-stock-api.onrender.com/api/:path*"
     }
   ]
 }
