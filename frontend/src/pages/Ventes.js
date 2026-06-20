@@ -11,8 +11,8 @@ function Ventes() {
 
   const fetchData = async () => {
     const [v, p] = await Promise.all([
-      axios.get('https://boutique-stock-production.up.railway.app/api/ventes'),
-      axios.get('https://boutique-stock-production.up.railway.app/api/produits')
+      axios.get('/api/ventes'),
+      axios.get('/api/produits')
     ]);
     setVentes(v.data);
     setProduits(p.data);
@@ -30,7 +30,7 @@ function Ventes() {
     e.preventDefault();
     if (!produitSelectionne) return;
     const montantTotal = produitSelectionne.prix * form.quantite;
-    await axios.post('https://boutique-stock-production.up.railway.app/api/ventes', {
+    await axios.post('/api/ventes', {
       produits: [{ produit: form.produitId, quantite: form.quantite, prixUnitaire: produitSelectionne.prix }],
       montantTotal,
       typeVente: form.typeVente

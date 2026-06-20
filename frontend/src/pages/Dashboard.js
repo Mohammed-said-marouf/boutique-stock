@@ -20,12 +20,12 @@ function Dashboard() {
     const fetchStats = async () => {
       try {
         const [produits, ventes, fournisseurs] = await Promise.all([
-          axios.get('https://boutique-stock-production.up.railway.app/api/produits'),
-          axios.get('https://boutique-stock-production.up.railway.app/api/ventes'),
-          axios.get('https://boutique-stock-production.up.railway.app/api/fournisseurs')
+          axios.get('/api/produits'),
+          axios.get('/api/ventes'),
+          axios.get('/api/fournisseurs')
         ]);
 
-        const statsVentes = await axios.get('https://boutique-stock-production.up.railway.app/api/ventes/stats');
+        const statsVentes = await axios.get('/api/ventes/stats');
 
         setStats({
           totalProduits: produits.data.length,

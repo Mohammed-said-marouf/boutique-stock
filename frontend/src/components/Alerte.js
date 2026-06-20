@@ -5,7 +5,7 @@ function Alerte() {
   const [alertes, setAlertes] = useState([]);
 
   useEffect(() => {
-    axios.get('https://boutique-stock-production.up.railway.app/api/produits/alertes')
+    axios.get('/api/produits/alertes')
       .then(res => setAlertes(res.data))
       .catch(err => console.log(err));
   }, []);
