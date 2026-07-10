@@ -7,7 +7,11 @@ const venteSchema = new mongoose.Schema({
     prixUnitaire: { type: Number, required: true }
   }],
   montantTotal: { type: Number, required: true },
-  typeVente: { type: String, enum: ['en_ligne', 'presentiel'], required: true },
+  typeVente: { type: String, enum: ['en_ligne', 'presentiel'], default: 'presentiel' },
+  vendeur: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  nomVendeur: { type: String },
+  clientNom: { type: String, default: 'Client anonyme' },
+  numFacture: { type: String },
   dateVente: { type: Date, default: Date.now },
   notes: { type: String }
 });

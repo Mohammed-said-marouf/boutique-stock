@@ -1,0 +1,929 @@
+import { useState, useEffect } from 'react';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useIcones, Icone } from '../context/IconesContext';
+
+const menuItems = [
+  { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
+  { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
+  { path: '/admin/stocks', iconKey: 'stock', label: 'Stocks' },
+  { path: '/admin/ventes', iconKey: 'ventes', label: 'Ventes' },
+  { path: '/admin/clients', iconKey: 'clients', label: 'Clients' },
+  { path: '/admin/fournisseurs', iconKey: 'produits', label: 'Fournisseurs' },
+  { path: '/admin/vendeurs', iconKey: 'utilisateurs', label: 'Utilisateurs (Vendeurs)' },
+  { path: '/admin/factures', iconKey: 'ventes', label: 'Factures' },
+  { path: '/admin/rapports', iconKey: 'dashboard', label: 'Rapports' },
+  { path: '/admin/parametres', iconKey: 'parametres', label: 'Paramètres' },
+];
+
+export default function AdminLayout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5' }}>
+      {/* Sidebar */}
+      <div style={{
+        width: collapsed ? '70px' : '240px', background: '#0f172a',
+        display: 'flex', flexDirection: 'column', transition: 'width 0.3s',
+        overflow: 'hidden', flexShrink: 0
+      }}>
+        <div style={{ padding: '20px 16px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '36px', height: '36px', background: '#2563eb',
+            borderRadius: '8px', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '18px', flexShrink: 0
+          }}>
+            <Icone nom="boutiques" size={20} />
+          </div>
+          {!collapsed && (
+            <div>
+              <div style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>
+                {user?.boutique?.nom || 'Ma Boutique'}
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: '11px' }}>Admin</div>
+            </div>
+          )}
+        </div>
+
+        <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
+          <div style={{ color: '#3b82f6', fontSize: '10px', fontWeight: '700', padding: '8px 8px 4px', letterSpacing: '1px' }}>
+            {!collapsed && 'MENU PRINCIPAL'}
+          </div>
+          {menuItems.map(item => (
+            <NavLink key={item.path} to={item.path} end={item.path === '/admin'}
+              style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '10px 8px', borderRadius: '8px', marginBottom: '2px',
+                textDecoration: 'none', color: isActive ? 'white' : '#94a3b8',
+                background: isActive ? '#2563eb' : 'transparent',
+                transition: 'all 0.2s', fontSize: '14px'
+              })}>
+              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icone nom={item.iconKey} size={22} />
+              </div>
+              {!collapsed && <span>{item.label}</span>}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div style={{ padding: '12px', borderTop: '1px solid #1e293b' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '8px', background: '#2563eb',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontSize: '16px', flexShrink: 0
+            }}>
+              <Icone nom="boutiques" size={20} />
+            </div>
+            {!collapsed && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: 'white', fontSize: '13px', fontWeight: '600' }}>
+                    {user?.boutique?.nom || 'Ma Boutique'}
+                  </span>
+                  <span style={{ background: '#16a34a', color: 'white', fontSize: '9px', padding: '1px 6px', borderRadius: '10px' }}>Active</span>
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>ID: #BTQ-001</div>
+              </div>
+            )}
+            {!collapsed && (
+              <button onClick={handleLogout}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px' }}>
+                <Icone nom="deconnexion" size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{
+          background: 'white', padding: '0 24px', height: '64px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button onClick={() => setCollapsed(!collapsed)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#666' }}>
+              ☰
+            </button>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>Tableau de bord</h2>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <input placeholder="Rechercher un produit, une facture..." style={{
+              padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '20px',
+              fontSize: '14px', outline: 'none', width: '260px'
+            }} />
+            <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', fontWeight: '700'
+              }}>{user?.nom?.charAt(0) || 'A'}</div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{user?.nom}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Propriétaire</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+          <Routes>
+            <Route path="" element={<AdminDashboard />} />
+            <Route path="produits" element={<AdminProduits />} />
+            <Route path="stocks" element={<AdminStocks />} />
+            <Route path="ventes" element={<AdminVentes />} />
+            <Route path="clients" element={<AdminClients />} />
+            <Route path="fournisseurs" element={<AdminFournisseurs />} />
+            <Route path="vendeurs" element={<AdminVendeurs />} />
+            <Route path="factures" element={<AdminFactures />} />
+            <Route path="rapports" element={<AdminRapports />} />
+            <Route path="parametres" element={<AdminParametres user={user} />} />
+            <Route path="*" element={<div><h2>Page en construction</h2></div>} />
+          </Routes>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminDashboard() {
+  const [statsVentes, setStatsVentes] = useState({ caJour: 0, ventesJour: 0, caMois: 0, ventesMois: 0 });
+  const [statsProduits, setStatsProduits] = useState({ total: 0, rupture: 0, faible: 0, alertes: [] });
+  const [ventesRecentes, setVentesRecentes] = useState([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const h = { Authorization: `Bearer ${token}` };
+
+    fetch('http://localhost:5000/api/ventes/stats', { headers: h })
+      .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
+
+    fetch('http://localhost:5000/api/produits/stats', { headers: h })
+      .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
+
+    fetch('http://localhost:5000/api/ventes', { headers: h })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 5)); });
+  }, []);
+
+  const cartes = [
+    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'caisse', color: '#dbeafe' },
+    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'dashboard', color: '#dcfce7' },
+    { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', color: '#ede9fe' },
+    { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', color: '#fef9c3' },
+    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'ventes', color: '#dcfce7' },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        {cartes.map((s, i) => (
+          <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icone nom={s.iconKey} size={24} />
+              </div>
+              <span style={{ fontSize: '12px', color: '#666' }}>{s.label}</span>
+            </div>
+            <div style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{s.value}</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
+          {statsProduits.alertes.length === 0 ? (
+            <div style={{ color: '#16a34a', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>✅ Aucune alerte de stock</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: '600' }}>Produit</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Stock</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Seuil</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsProduits.alertes.map((a, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '8px 0', color: '#333' }}>{a.nom}</td>
+                    <td style={{ textAlign: 'center', color: '#333' }}>{a.quantite}</td>
+                    <td style={{ textAlign: 'center', color: '#666' }}>{a.seuilAlerte}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        background: a.quantite === 0 ? '#fee2e2' : '#fef9c3',
+                        color: a.quantite === 0 ? '#dc2626' : '#ca8a04',
+                        padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
+                      }}>{a.quantite === 0 ? 'Rupture' : 'Faible'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>🛒 Ventes récentes</h3>
+          {ventesRecentes.length === 0 ? (
+            <div style={{ color: '#666', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>Aucune vente enregistrée</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: '600' }}>N° Facture</th>
+                  <th style={{ textAlign: 'left', fontWeight: '600' }}>Client</th>
+                  <th style={{ textAlign: 'right', fontWeight: '600' }}>Montant</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventesRecentes.map((v, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '8px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
+                    <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
+                    <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        background: '#dcfce7', color: '#16a34a',
+                        padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
+                      }}>Payée</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>⚡ Actions rapides</h3>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {[
+            { iconKey: 'produits', label: 'Ajouter un produit' },
+            { iconKey: 'ajouter', label: 'Entrée de stock' },
+            { iconKey: 'caisse', label: 'Nouvelle vente' },
+            { iconKey: 'utilisateurs', label: 'Ajouter un vendeur' },
+            { iconKey: 'clients', label: 'Ajouter un client' },
+            { iconKey: 'ventes', label: 'Nouvelle facture' },
+            { iconKey: 'dashboard', label: 'Rapport des ventes' },
+          ].map((a, i) => (
+            <button key={i} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+              padding: '16px 20px', background: '#f8fafc', border: '1px solid #e2e8f0',
+              borderRadius: '10px', cursor: 'pointer', fontSize: '12px', color: '#444',
+              minWidth: '90px'
+            }}>
+              <Icone nom={a.iconKey} size={28} />
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Les autres composants restent identiques (AdminProduits, AdminStocks, etc.)
+// Je les copie tel quel ci-dessous...
+
+function AdminProduits() {
+  const [recherche, setRecherche] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [produits, setProduits] = useState([]);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [envoi, setEnvoi] = useState(false);
+  const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+
+  const token = localStorage.getItem('token');
+
+  const charger = () => {
+    fetch('http://localhost:5000/api/produits', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
+  };
+
+  useEffect(() => { charger(); }, []);
+
+  const handleImage = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const ajouter = async () => {
+    if (!form.nom || !form.prix) return;
+    setEnvoi(true);
+    const formData = new FormData();
+    Object.keys(form).forEach(k => formData.append(k, form[k]));
+    if (imageFile) formData.append('image', imageFile);
+    await fetch('http://localhost:5000/api/produits', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+    setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false);
+    charger();
+  };
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer ce produit ?')) return;
+    await fetch(`http://localhost:5000/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    charger();
+  };
+
+  const filtres = produits.filter(p => p.nom.toLowerCase().includes(recherche.toLowerCase()));
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="produits" size={28} /> Gestion des Produits
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+          + Ajouter un produit
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>Nouveau produit</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+            <div>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Photo du produit</label>
+              <div onClick={() => document.getElementById('photoInput').click()} style={{
+                width: '100%', height: '160px', border: '2px dashed #e2e8f0', borderRadius: '10px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', background: '#f8fafc', overflow: 'hidden'
+              }}>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                ) : (
+                  <>
+                    <span style={{ fontSize: '32px', marginBottom: '8px' }}>📷</span>
+                    <span style={{ fontSize: '13px', color: '#666' }}>Cliquer pour ajouter une photo</span>
+                    <span style={{ fontSize: '11px', color: '#999' }}>JPG, PNG, WEBP — max 5MB</span>
+                  </>
+                )}
+              </div>
+              <input id="photoInput" type="file" accept="image/*" onChange={handleImage} style={{ display: 'none' }} />
+              {imagePreview && (
+                <button onClick={() => { setImageFile(null); setImagePreview(null); }}
+                  style={{ marginTop: '8px', width: '100%', padding: '6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                  🗑️ Supprimer la photo
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {[
+                { key: 'nom', label: 'Nom du produit', ph: 'Ex: Ballerine' },
+                { key: 'categorie', label: 'Catégorie', ph: 'Ex: Chaussures' },
+                { key: 'ref', label: 'Référence', ph: 'Ex: BAL001' },
+                { key: 'prix', label: 'Prix (FCFA)', ph: '0', type: 'number' },
+                { key: 'quantite', label: 'Stock initial', ph: '0', type: 'number' },
+                { key: 'seuilAlerte', label: "Seuil d'alerte", ph: '5', type: 'number' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
+                  <input type={f.type || 'text'} value={form[f.key] || ''} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    placeholder={f.ph} style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              ))}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Description</label>
+                <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Description du produit..."
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', resize: 'vertical', height: '60px' }} />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+            <button onClick={ajouter} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1 }}>
+              {envoi ? 'Enregistrement...' : '✅ Enregistrer le produit'}
+            </button>
+            <button onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); }}
+              style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher un produit..."
+          style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '280px', marginBottom: '16px' }} />
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['Photo', 'Réf', 'Nom', 'Catégorie', 'Prix', 'Stock', 'Statut', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtres.map((p, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '8px' }}>
+                  {p.photo ? (
+                    <img src={p.photo} alt={p.nom}
+                      style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                  ) : (
+                    <div style={{ width: '44px', height: '44px', borderRadius: '8px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                      <Icone nom="produits" size={24} />
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '10px 8px', color: '#2563eb', fontSize: '13px', fontWeight: '500' }}>{p.ref || '—'}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{p.categorie}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{Number(p.prix).toLocaleString()} FCFA</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{p.quantite}</td>
+                <td style={{ padding: '10px 8px' }}>
+                  <span style={{
+                    background: p.quantite <= p.seuilAlerte ? (p.quantite === 0 ? '#fee2e2' : '#fef9c3') : '#dcfce7',
+                    color: p.quantite <= p.seuilAlerte ? (p.quantite === 0 ? '#dc2626' : '#ca8a04') : '#16a34a',
+                    padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
+                  }}>{p.quantite === 0 ? 'Rupture' : p.quantite <= p.seuilAlerte ? 'Faible' : 'Disponible'}</span>
+                </td>
+                <td style={{ padding: '10px 8px' }}>
+                  <button onClick={() => supprimer(p._id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                    <Icone nom="supprimer" size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filtres.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#999' }}>Aucun produit trouvé</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Les fonctions suivantes restent identiques
+function AdminStocks() {
+  const mouvements = [
+    { date: '24/06/2026', produit: 'Ballerine', type: 'Entrée', qte: 50, reste: 55, note: 'Commande fournisseur' },
+    { date: '24/06/2026', produit: 'Abaya noire', type: 'Sortie', qte: 3, reste: 2, note: 'Vente #VTE-000145' },
+    { date: '23/06/2026', produit: 'Sac à main', type: 'Entrée', qte: 20, reste: 23, note: 'Réapprovisionnement' },
+    { date: '23/06/2026', produit: 'Chaussure homme', type: 'Sortie', qte: 2, reste: 7, note: 'Vente #VTE-000143' },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="stock" size={28} /> Gestion des Stocks
+        </h2>
+        <button style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+          + Entrée de stock
+        </button>
+      </div>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>📋 Historique des mouvements</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['Date', 'Produit', 'Type', 'Quantité', 'Stock restant', 'Note'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mouvements.map((m, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{m.date}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{m.produit}</td>
+                <td style={{ padding: '10px 8px' }}>
+                  <span style={{
+                    background: m.type === 'Entrée' ? '#dcfce7' : '#fee2e2',
+                    color: m.type === 'Entrée' ? '#16a34a' : '#dc2626',
+                    padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
+                  }}>{m.type}</span>
+                </td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.qte}</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{m.reste}</td>
+                <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{m.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminVentes() {
+  const ventes = [
+    { num: '#VTE-000145', client: 'Mariam Diop', vendeur: 'Moussa Diallo', montant: 245000, statut: 'Payée', date: '24/06/2026' },
+    { num: '#VTE-000144', client: 'Ibrahima Diallo', vendeur: 'Moussa Diallo', montant: 85000, statut: 'Payée', date: '24/06/2026' },
+    { num: '#VTE-000143', client: 'Aissata Camara', vendeur: 'Moussa Diallo', montant: 120000, statut: 'Payée', date: '23/06/2026' },
+    { num: '#VTE-000142', client: 'Omar Sy', vendeur: 'Moussa Diallo', montant: 65000, statut: 'En attente', date: '13/06/2026' },
+  ];
+
+  const total = ventes.reduce((s, v) => s + v.montant, 0);
+
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Icone nom="ventes" size={28} /> Ventes
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
+        {[
+          { label: 'Total ventes', value: `${total.toLocaleString()} FCFA`, iconKey: 'ventes', color: '#dcfce7' },
+          { label: 'Nombre de ventes', value: ventes.length, iconKey: 'caisse', color: '#dbeafe' },
+          { label: 'Ventes payées', value: ventes.filter(v => v.statut === 'Payée').length, iconKey: 'actif', color: '#ede9fe' },
+        ].map((s, i) => (
+          <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icone nom={s.iconKey} size={28} />
+            </div>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>{s.value}</div>
+              <div style={{ fontSize: '13px', color: '#666' }}>{s.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['N° Vente', 'Client', 'Vendeur', 'Montant', 'Statut', 'Date'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ventes.map((v, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{v.num}</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{v.client}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{v.vendeur}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{v.montant.toLocaleString()} FCFA</td>
+                <td style={{ padding: '10px 8px' }}>
+                  <span style={{
+                    background: v.statut === 'Payée' ? '#dcfce7' : '#fef9c3',
+                    color: v.statut === 'Payée' ? '#16a34a' : '#ca8a04',
+                    padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
+                  }}>{v.statut}</span>
+                </td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{v.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminClients() {
+  const [showForm, setShowForm] = useState(false);
+  const [clients, setClients] = useState([
+    { id: 1, nom: 'Mariam Diop', telephone: '77 123 45 67', email: 'mariam@email.com', achats: 3, total: 245000 },
+    { id: 2, nom: 'Ibrahima Diallo', telephone: '76 234 56 78', email: '', achats: 1, total: 85000 },
+    { id: 3, nom: 'Aissata Camara', telephone: '70 345 67 89', email: 'aissata@email.com', achats: 2, total: 120000 },
+  ]);
+  const [form, setForm] = useState({ nom: '', telephone: '', email: '' });
+
+  const ajouterClient = () => {
+    if (!form.nom) return;
+    setClients(prev => [...prev, { ...form, id: Date.now(), achats: 0, total: 0 }]);
+    setForm({ nom: '', telephone: '', email: '' });
+    setShowForm(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="clients" size={28} /> Clients
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>+ Nouveau client</button>
+      </div>
+      {showForm && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+            {[{ key: 'nom', label: 'Nom', ph: 'Nom complet' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'email', label: 'Email', ph: 'email@exemple.com' }].map(f => (
+              <div key={f.key} style={{ flex: 1 }}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
+                <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+          <button onClick={ajouterClient} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
+          <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+        </div>
+      )}
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['Nom', 'Téléphone', 'Email', 'Achats', 'Total dépensé'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{c.telephone}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{c.email || '-'}</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{c.achats}</td>
+                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{c.total.toLocaleString()} FCFA</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminFournisseurs() {
+  const [showForm, setShowForm] = useState(false);
+  const [fournisseurs, setFournisseurs] = useState([
+    { id: 1, nom: 'Dakar Mode', telephone: '33 821 00 00', email: 'dakar@mode.com', categorie: 'Vêtements', solde: 120000 },
+    { id: 2, nom: 'Chaussures Pro', telephone: '77 456 78 90', email: '', categorie: 'Chaussures', solde: 0 },
+    { id: 3, nom: 'Accessoires SA', telephone: '70 111 22 33', email: 'acc@sa.com', categorie: 'Accessoires', solde: 45000 },
+  ]);
+  const [form, setForm] = useState({ nom: '', telephone: '', email: '', categorie: '' });
+
+  const ajouterFournisseur = () => {
+    if (!form.nom) return;
+    setFournisseurs(prev => [...prev, { ...form, id: Date.now(), solde: 0 }]);
+    setForm({ nom: '', telephone: '', email: '', categorie: '' });
+    setShowForm(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a' }}>🚚 Fournisseurs</h2>
+        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>+ Nouveau fournisseur</button>
+      </div>
+      {showForm && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            {[{ key: 'nom', label: 'Nom', ph: 'Nom du fournisseur' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'email', label: 'Email', ph: 'email@exemple.com' }, { key: 'categorie', label: 'Catégorie', ph: 'Ex: Vêtements' }].map(f => (
+              <div key={f.key}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
+                <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+          <button onClick={ajouterFournisseur} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
+          <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+        </div>
+      )}
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['Nom', 'Téléphone', 'Email', 'Catégorie', 'Solde dû'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {fournisseurs.map((f, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{f.nom}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{f.telephone}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{f.email || '-'}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{f.categorie}</td>
+                <td style={{ padding: '10px 8px', color: f.solde > 0 ? '#dc2626' : '#16a34a', fontWeight: '600' }}>
+                  {f.solde > 0 ? `${f.solde.toLocaleString()} FCFA` : 'Soldé'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminVendeurs() {
+  const [showForm, setShowForm] = useState(false);
+  const [vendeurs, setVendeurs] = useState([
+    { id: 1, nom: 'Moussa Diallo', email: 'vendeur@boutique.com', telephone: '77 000 11 22', ventes: 12, actif: true },
+  ]);
+  const [form, setForm] = useState({ nom: '', email: '', telephone: '', motDePasse: '' });
+
+  const ajouterVendeur = () => {
+    if (!form.nom || !form.email) return;
+    setVendeurs(prev => [...prev, { ...form, id: Date.now(), ventes: 0, actif: true }]);
+    setForm({ nom: '', email: '', telephone: '', motDePasse: '' });
+    setShowForm(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="utilisateurs" size={28} /> Vendeurs
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>+ Ajouter un vendeur</button>
+      </div>
+      {showForm && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            {[{ key: 'nom', label: 'Nom complet', ph: 'Nom du vendeur' }, { key: 'email', label: 'Email', ph: 'email@boutique.com' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'motDePasse', label: 'Mot de passe', ph: '••••••••', type: 'password' }].map(f => (
+              <div key={f.key}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
+                <input type={f.type || 'text'} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+          <button onClick={ajouterVendeur} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
+          <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+        </div>
+      )}
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['Nom', 'Email', 'Téléphone', 'Ventes', 'Statut', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {vendeurs.map((v, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{v.nom}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{v.email}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{v.telephone || '-'}</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{v.ventes} vente(s)</td>
+                <td style={{ padding: '10px 8px' }}>
+                  <span style={{ background: v.actif ? '#dcfce7' : '#fee2e2', color: v.actif ? '#16a34a' : '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
+                    {v.actif ? 'Actif' : 'Inactif'}
+                  </span>
+                </td>
+                <td style={{ padding: '10px 8px' }}>
+                  <button style={{ padding: '4px 10px', background: v.actif ? '#fef2f2' : '#dcfce7', border: `1px solid ${v.actif ? '#fecaca' : '#bbf7d0'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: v.actif ? '#dc2626' : '#16a34a' }}
+                    onClick={() => setVendeurs(prev => prev.map(u => u.id === v.id ? { ...u, actif: !u.actif } : u))}>
+                    {v.actif ? '🔒 Désactiver' : '✅ Activer'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminFactures() {
+  const factures = [
+    { num: 'FAC-250001', client: 'Mariam Diop', vendeur: 'Moussa Diallo', montant: 39500, date: '24/06/2026', statut: 'Payée' },
+    { num: 'FAC-250002', client: 'Ibrahima Diallo', vendeur: 'Moussa Diallo', montant: 63000, date: '24/06/2026', statut: 'Payée' },
+    { num: 'FAC-249998', client: 'Aissata Camara', vendeur: 'Moussa Diallo', montant: 25000, date: '23/06/2026', statut: 'Payée' },
+  ];
+
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#0f172a' }}>🧾 Factures</h2>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut', 'Action'].map(h => (
+                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {factures.map((f, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{f.num}</td>
+                <td style={{ padding: '10px 8px', color: '#333' }}>{f.client}</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{f.vendeur}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{f.montant.toLocaleString()} FCFA</td>
+                <td style={{ padding: '10px 8px', color: '#666' }}>{f.date}</td>
+                <td style={{ padding: '10px 8px' }}>
+                  <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>{f.statut}</span>
+                </td>
+                <td style={{ padding: '10px 8px' }}>
+                  <button style={{ padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb' }}>
+                    <Icone nom="imprimer" size={14} /> Imprimer
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminRapports() {
+  const rapports = [
+    { titre: 'Rapport des ventes — Juin 2026', date: '24/06/2026', type: 'Ventes' },
+    { titre: 'État des stocks — Juin 2026', date: '24/06/2026', type: 'Stock' },
+    { titre: 'Rapport fournisseurs — Juin 2026', date: '23/06/2026', type: 'Fournisseurs' },
+    { titre: 'Rapport des ventes — Mai 2026', date: '31/05/2026', type: 'Ventes' },
+  ];
+
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Icone nom="dashboard" size={28} /> Rapports
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        {[
+          { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe' },
+          { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7' },
+          { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Commandes et paiements', color: '#ede9fe' },
+        ].map((r, i) => (
+          <button key={i} style={{
+            background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            border: '1px solid #e2e8f0', cursor: 'pointer', textAlign: 'left'
+          }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: r.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <Icone nom={r.iconKey} size={28} />
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{r.label}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{r.desc}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>📋 Rapports générés</h3>
+        {rapports.map((r, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < rapports.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>{r.titre}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>{r.date}</div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{r.type}</span>
+              <button style={{ padding: '6px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#444' }}>
+                <Icone nom="exporter" size={14} /> Télécharger
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminParametres({ user }) {
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Icone nom="parametres" size={28} /> Paramètres
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>👤 Mon compte</h3>
+          {[{ label: 'Nom', value: user?.nom }, { label: 'Email', value: user?.email }, { label: 'Rôle', value: 'Administrateur' }].map((item, i) => (
+            <div key={i} style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{item.label}</label>
+              <div style={{ padding: '10px 16px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#333' }}>{item.value}</div>
+            </div>
+          ))}
+          <button style={{ width: '100%', padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            🔒 Changer le mot de passe
+          </button>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>🏪 Ma boutique</h3>
+          {[{ label: 'Nom de la boutique', value: user?.boutique?.nom || 'Ma Boutique' }, { label: 'Adresse', value: 'Yaoundé, Cameroun' }, { label: 'Téléphone', value: '+237 6XX XXX XXX' }, { label: 'Abonnement', value: 'Standard' }].map((item, i) => (
+            <div key={i} style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{item.label}</label>
+              <div style={{ padding: '10px 16px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#333' }}>{item.value}</div>
+            </div>
+          ))}
+          <button style={{ width: '100%', padding: '12px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            <Icone nom="modifier" size={16} /> Modifier les infos
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

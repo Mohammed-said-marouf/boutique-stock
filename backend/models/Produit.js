@@ -7,7 +7,9 @@ const produitSchema = new mongoose.Schema({
   quantite: { type: Number, required: true, default: 0 },
   categorie: { type: String, required: true },
   fournisseur: { type: mongoose.Schema.Types.ObjectId, ref: 'Fournisseur' },
-  seuilAlerte: { type: Number, default: 5 }, // alerte si quantite < seuilAlerte
+  boutiqueId: { type: mongoose.Schema.Types.ObjectId, ref: 'Boutique', default: null },
+  seuilAlerte: { type: Number, default: 5 },
+  ref: { type: String },
   image: { type: String },
   dateAjout: { type: Date, default: Date.now }
 });

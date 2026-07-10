@@ -1,40 +1,64 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Dashboard from './pages/Dashboard';
-import Produits from './pages/Produits';
-import Ventes from './pages/Ventes';
-import Fournisseurs from './pages/Fournisseurs';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
-import './App.css';
 
-function App() {
-  const [isAuth, setIsAuth] = useState(localStorage.getItem('auth') === 'true');
+// Layouts
+import SuperAdminLayout from './layouts/SuperAdminLayout';
+import AdminLayout from './layouts/AdminLayout';
+import VendeurLayout from './layouts/VendeurLayout';
 
-  const handleLogin = () => setIsAuth(true);
+// Route protégée selon le rôle
+const ProtectedRoute = ({ children, roles }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh'}}>Chargement...</div>;
+  if (!user) return <Navigate to="/login" />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/login" />;
+  return children;
+};
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth');
-    setIsAuth(false);
-  };
-
-  if (!isAuth) return <Login onLogin={handleLogin} />;
+function AppRoutes() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
 
   return (
-    <Router>
-      <div className="app">
-        <Navbar onLogout={handleLogout} />
-        <div className="content">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/produits" element={<Produits />} />
-            <Route path="/ventes" element={<Ventes />} />
-            <Route path="/fournisseurs" element={<Fournisseurs />} />
-          </Routes>
-        </div>
-      </div>
-    </Router>
+    <Routes>
+      <Route path="/login" element={!user ? <Login /> : <Navigate to={
+        user.role === 'superadmin' ? '/superadmin' :
+        user.role === 'admin' ? '/admin' : '/vendeur'
+      } />} />
+
+      <Route path="/superadmin/*" element={
+        <ProtectedRoute roles={['superadmin']}>
+          <SuperAdminLayout />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/admin/*" element={
+        <ProtectedRoute roles={['admin']}>
+          <AdminLayout />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/vendeur/*" element={
+        <ProtectedRoute roles={['vendeur']}>
+          <VendeurLayout />
+        </ProtectedRoute>
+      } />
+
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <IconesProvider>
+          <AppRoutes />
+        </IconesProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
