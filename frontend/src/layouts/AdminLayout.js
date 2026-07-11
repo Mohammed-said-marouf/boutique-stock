@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useIcones, Icone } from '../context/IconesContext';
+import { Icone } from '../context/IconesContext';
 
 const menuItems = [
   { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
@@ -295,9 +295,6 @@ function AdminDashboard() {
   );
 }
 
-// Les autres composants restent identiques (AdminProduits, AdminStocks, etc.)
-// Je les copie tel quel ci-dessous...
-
 function AdminProduits() {
   const [recherche, setRecherche] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -314,6 +311,7 @@ function AdminProduits() {
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { charger(); }, []);
 
   const handleImage = (e) => {
@@ -474,7 +472,6 @@ function AdminProduits() {
   );
 }
 
-// Les fonctions suivantes restent identiques
 function AdminStocks() {
   const mouvements = [
     { date: '24/06/2026', produit: 'Ballerine', type: 'Entrée', qte: 50, reste: 55, note: 'Commande fournisseur' },

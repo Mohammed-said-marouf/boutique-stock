@@ -1,23 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useIcones, Icone } from '../context/IconesContext';
+import { Icone, useIcones } from '../context/IconesContext';
+import axios from 'axios';
 
 const menuItems = [
   { path: '/superadmin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/superadmin/boutiques', iconKey: 'boutiques', label: 'Boutiques' },
   { path: '/superadmin/utilisateurs', iconKey: 'utilisateurs', label: 'Utilisateurs' },
-  { path: '/superadmin/abonnements', iconKey: 'ventes', label: 'Abonnements' },
-  { path: '/superadmin/transactions', iconKey: 'ventes', label: 'Transactions' },
-  { path: '/superadmin/rapports', iconKey: 'dashboard', label: 'Rapports' },
+  { path: '/superadmin/abonnements', icon: '💳', label: 'Abonnements' },
+  { path: '/superadmin/transactions', icon: '💰', label: 'Transactions' },
+  { path: '/superadmin/rapports', icon: '📈', label: 'Rapports' },
   { path: '/superadmin/parametres', iconKey: 'parametres', label: 'Paramètres système' },
-  { path: '/superadmin/journal', iconKey: 'dashboard', label: "Journal d'activités" },
+  { path: '/superadmin/journal', icon: '📋', label: "Journal d'activités" },
 ];
 
 const outilsItems = [
-  { path: '/superadmin/notifications', iconKey: 'ajouter', label: 'Notifications' },
-  { path: '/superadmin/sauvegardes', iconKey: 'exporter', label: 'Sauvegardes' },
-  { path: '/superadmin/maintenance', iconKey: 'parametres', label: 'Maintenance' },
+  { path: '/superadmin/notifications', icon: '🔔', label: 'Notifications' },
+  { path: '/superadmin/sauvegardes', icon: '💾', label: 'Sauvegardes' },
+  { path: '/superadmin/maintenance', icon: '🔧', label: 'Maintenance' },
 ];
 
 export default function SuperAdminLayout() {
@@ -63,8 +64,8 @@ export default function SuperAdminLayout() {
                 background: isActive ? '#4f46e5' : 'transparent',
                 transition: 'all 0.2s', fontSize: '14px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icone nom={item.iconKey} size={22} />
+              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '18px' }}>
+                {item.iconKey ? <Icone nom={item.iconKey} size={22} /> : item.icon}
               </div>
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
@@ -81,8 +82,8 @@ export default function SuperAdminLayout() {
                 textDecoration: 'none', color: isActive ? 'white' : '#a5b4fc',
                 background: isActive ? '#4f46e5' : 'transparent', fontSize: '14px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icone nom={item.iconKey} size={22} />
+              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '18px' }}>
+                {item.iconKey ? <Icone nom={item.iconKey} size={22} /> : item.icon}
               </div>
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
@@ -206,8 +207,8 @@ function SuperAdminDashboard() {
         {cartes.map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                <Icone nom={s.iconKey} size={26} />
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icone nom={s.iconKey} size={22} />
               </div>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: '500' }}>{s.label}</span>
             </div>
@@ -259,6 +260,7 @@ function BoutiquesAdmin() {
       .catch(() => setLoading(false));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { chargerBoutiques(); }, []);
 
   const ajouter = async () => {
@@ -311,7 +313,7 @@ function BoutiquesAdmin() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="boutiques" size={28} /> Gestion des Boutiques
+          <Icone nom="boutiques" size={26} /> Gestion des Boutiques
         </h2>
         <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
           + Nouvelle boutique
@@ -374,7 +376,7 @@ function BoutiquesAdmin() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '44px', height: '44px', background: '#e0e7ff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icone nom="boutiques" size={26} />
+                    <Icone nom="boutiques" size={22} />
                   </div>
                   <div>
                     <div style={{ fontWeight: '700', color: '#1e1b4b', fontSize: '15px' }}>{b.nom}</div>
@@ -398,7 +400,9 @@ function BoutiquesAdmin() {
                   border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
                   color: b.actif ? '#dc2626' : '#16a34a', fontWeight: '600'
                 }}>{b.actif ? '🔒 Désactiver' : '✅ Activer'}</button>
-                <button onClick={() => supprimer(b._id)} style={{ padding: '8px 12px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>🗑️</button>
+                <button onClick={() => supprimer(b._id)} style={{ padding: '8px 12px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                  <Icone nom="supprimer" size={14} />
+                </button>
               </div>
             </div>
           ))}
@@ -426,7 +430,7 @@ function UtilisateursAdmin() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="utilisateurs" size={28} /> Gestion des Utilisateurs
+          <Icone nom="utilisateurs" size={26} /> Gestion des Utilisateurs
         </h2>
         <div style={{ display: 'flex', gap: '8px' }}>
           {['Tous', 'Admin', 'Vendeur'].map(f => (
@@ -469,7 +473,9 @@ function UtilisateursAdmin() {
                       {u.actif ? 'Désactiver' : 'Activer'}
                     </button>
                     <button onClick={() => setUtilisateurs(p => p.filter(x => x.id !== u.id))}
-                      style={{ padding: '5px 10px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>🗑️</button>
+                      style={{ padding: '5px 10px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                      <Icone nom="supprimer" size={14} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -498,11 +504,15 @@ function AbonnementsAdmin() {
 
   return (
     <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>💳 Abonnements</h2>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        💳 Abonnements
+      </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {plans.map((p, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: `2px solid ${p.bg}` }}>
-            <div style={{ width: '44px', height: '44px', background: p.bg, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', marginBottom: '12px' }}>💳</div>
+            <div style={{ width: '44px', height: '44px', background: p.bg, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <span style={{fontSize:"22px"}}>💳</span>
+            </div>
             <div style={{ fontSize: '18px', fontWeight: '700', color: p.color, marginBottom: '4px' }}>{p.nom}</div>
             <div style={{ fontSize: '16px', fontWeight: '700', color: '#1e1b4b', marginBottom: '12px' }}>{p.prix}</div>
             {p.features.map((f, j) => (
@@ -554,15 +564,19 @@ function TransactionsAdmin() {
 
   return (
     <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>💰 Transactions</h2>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        💰 Transactions
+      </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Revenus totaux', value: '300 000 FCFA', icon: '💰', color: '#dcfce7' },
-          { label: 'Transactions réussies', value: '2', icon: '✅', color: '#dbeafe' },
-          { label: 'Transactions échouées', value: '1', icon: '❌', color: '#fee2e2' },
+          { label: 'Revenus totaux', value: '300 000 FCFA', color: '#dcfce7' },
+          { label: 'Transactions réussies', value: '2', color: '#dbeafe' },
+          { label: 'Transactions échouées', value: '1', color: '#fee2e2' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>{s.icon}</div>
+            <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{fontSize:"26px"}}>💰</span>
+            </div>
             <div>
               <div style={{ fontSize: '13px', color: '#666' }}>{s.label}</div>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#1e1b4b' }}>{s.value}</div>
@@ -603,13 +617,15 @@ function TransactionsAdmin() {
 function RapportsSuperAdmin() {
   return (
     <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>📈 Rapports globaux</h2>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        📈 Rapports globaux
+      </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Rapport global des ventes', icon: '🛒', sub: 'Toutes boutiques confondues', color: '#e0e7ff' },
-          { label: 'Rapport des abonnements', icon: '💳', sub: 'Revenus et renouvellements', color: '#dcfce7' },
-          { label: 'Rapport des utilisateurs', icon: '👥', sub: 'Activité et connexions', color: '#fce7f3' },
-          { label: 'Rapport financier global', icon: '💰', sub: "Chiffre d'affaires consolidé", color: '#fef9c3' },
+          { label: 'Rapport global des ventes', sub: 'Toutes boutiques confondues', color: '#e0e7ff' },
+          { label: 'Rapport des abonnements', sub: 'Revenus et renouvellements', color: '#dcfce7' },
+          { label: 'Rapport des utilisateurs', sub: 'Activité et connexions', color: '#fce7f3' },
+          { label: 'Rapport financier global', sub: "Chiffre d'affaires consolidé", color: '#fef9c3' },
         ].map((r, i) => (
           <button key={i} style={{
             background: 'white', borderRadius: '12px', padding: '24px',
@@ -617,7 +633,9 @@ function RapportsSuperAdmin() {
             alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0',
             cursor: 'pointer', textAlign: 'left'
           }}>
-            <div style={{ width: '56px', height: '56px', background: r.color, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0 }}>{r.icon}</div>
+            <div style={{ width: '56px', height: '56px', background: r.color, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{fontSize:"28px"}}>📈</span>
+            </div>
             <div>
               <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e1b4b', marginBottom: '4px' }}>{r.label}</div>
               <div style={{ fontSize: '13px', color: '#666' }}>{r.sub}</div>
@@ -629,387 +647,151 @@ function RapportsSuperAdmin() {
   );
 }
 
-// ===================== PARAMETRES SYSTEME =====================
-function ParametresSuperAdmin({ user }) {
-  const [onglet, setOnglet] = useState('systeme');
-  const [icones, setIcones] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [newValue, setNewValue] = useState('');
-  const [uploadType, setUploadType] = useState('emoji');
-  const { refresh } = useIcones();
+// ===================== PARAMETRES =====================
+function EditeurIcones() {
+  const { icones, loading, refresh } = useIcones();
+  const [brouillon, setBrouillon] = useState({});
+  const [enregistrement, setEnregistrement] = useState(null);
+  const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    if (onglet === 'icones') {
-      chargerIcones();
-    }
-  }, [onglet]);
+  useEffect(() => { setBrouillon(icones); }, [icones]);
 
-  const chargerIcones = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('http://localhost:5000/api/icones');
-      const data = await res.json();
-      setIcones(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const modifier = (cle, valeur) => setBrouillon(p => ({ ...p, [cle]: valeur }));
 
-  const modifierIcone = async (id, valeur) => {
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`http://localhost:5000/api/icones/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ valeur })
-      });
-      chargerIcones();
-      refresh(); // 🔄 Rafraîchit les icônes globalement
-      setEditingId(null);
-      setNewValue('');
-      setUploadType('emoji');
-    } catch (err) {
-      alert('❌ Erreur : ' + err.message);
-    }
-  };
-
-  const handleImageUpload = (e, iconeId) => {
+  const handleFichier = (cle, e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (file.size > 500000) {
-      alert('⚠️ Image trop grande (max 500KB). Veuillez choisir une image plus petite.');
-      return;
-    }
-
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target.result;
-      modifierIcone(iconeId, base64);
-    };
+    reader.onload = (ev) => modifier(cle, ev.target.result);
     reader.readAsDataURL(file);
   };
 
-  const groupedIcones = icones.reduce((acc, icone) => {
-    if (!acc[icone.categorie]) acc[icone.categorie] = [];
-    acc[icone.categorie].push(icone);
-    return acc;
-  }, {});
+  const enregistrerUne = async (cle) => {
+    setEnregistrement(cle);
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`http://localhost:5000/api/icones/${cle}`,
+        { valeur: brouillon[cle] },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      refresh();
+      setMessage(`✅ Icône "${cle}" mise à jour.`);
+    } catch (err) {
+      setMessage('❌ Erreur : ' + (err.response?.data?.message || err.message) + ' — vérifiez le format de la route backend/routes/icones.js');
+    } finally {
+      setEnregistrement(null);
+    }
+  };
+
+  if (loading) return <div style={{ color: '#666', padding: '20px' }}>Chargement des icônes...</div>;
+
+  const cles = Object.keys(icones).sort();
 
   return (
-    <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>⚙️ Paramètres système</h2>
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginTop: '20px' }}>
+      <h3 style={{ margin: '0 0 8px', color: '#1e1b4b' }}>🎨 Icônes de l'application</h3>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '20px' }}>
+        Tapez un emoji, ou cliquez sur l'image pour uploader un fichier, puis cliquez sur 💾. Les changements s'appliquent à tous les comptes.
+      </p>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid #f1f5f9' }}>
-        <button
-          onClick={() => setOnglet('systeme')}
-          style={{
-            padding: '12px 24px',
-            background: onglet === 'systeme' ? '#4f46e5' : 'transparent',
-            color: onglet === 'systeme' ? 'white' : '#666',
-            border: 'none',
-            borderBottom: onglet === 'systeme' ? '3px solid #4f46e5' : '3px solid transparent',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            borderRadius: '8px 8px 0 0',
-            transition: 'all 0.2s'
-          }}
-        >
-          🔧 Configuration système
-        </button>
-        <button
-          onClick={() => setOnglet('icones')}
-          style={{
-            padding: '12px 24px',
-            background: onglet === 'icones' ? '#4f46e5' : 'transparent',
-            color: onglet === 'icones' ? 'white' : '#666',
-            border: 'none',
-            borderBottom: onglet === 'icones' ? '3px solid #4f46e5' : '3px solid transparent',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            borderRadius: '8px 8px 0 0',
-            transition: 'all 0.2s'
-          }}
-        >
-          🎨 Gestion des icônes
-        </button>
+      {message && (
+        <div style={{
+          padding: '10px 16px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px',
+          background: message.startsWith('✅') ? '#dcfce7' : '#fee2e2',
+          color: message.startsWith('✅') ? '#16a34a' : '#dc2626'
+        }}>{message}</div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+        {cles.map(cle => {
+          const valeur = brouillon[cle] || '';
+          const estImage = valeur.startsWith('data:image') || valeur.startsWith('http');
+          const inputId = `icone-file-${cle}`;
+          return (
+            <div key={cle} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+              <label htmlFor={inputId} style={{
+                width: '40px', height: '40px', flexShrink: 0, borderRadius: '6px',
+                border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+              }} title="Cliquer pour changer l'image">
+                {estImage ? (
+                  <img src={valeur} alt={cle} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <span style={{ fontSize: '20px' }}>{valeur || '❓'}</span>
+                )}
+              </label>
+              <input id={inputId} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => handleFichier(cle, e)} />
+
+              <input
+                value={estImage ? '' : valeur}
+                placeholder={estImage ? '(image)' : '🙂'}
+                onChange={e => modifier(cle, e.target.value)}
+                style={{ width: '48px', padding: '6px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '14px', textAlign: 'center', outline: 'none', flexShrink: 0 }} />
+
+              <span style={{ fontSize: '12px', color: '#333', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cle}</span>
+
+              <button onClick={() => enregistrerUne(cle)} disabled={enregistrement === cle}
+                style={{ padding: '4px 10px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', flexShrink: 0 }}>
+                {enregistrement === cle ? '...' : '💾'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ParametresSuperAdmin({ user }) {
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Icone nom="parametres" size={26} /> Paramètres système
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔧 Configuration générale</h3>
+          {[
+            { label: "Nom de l'application", val: 'Boutique Stock' },
+            { label: 'Email de contact', val: 'contact@boutique-stock.com' },
+            { label: 'Devise', val: 'FCFA' },
+            { label: 'Fuseau horaire', val: 'Africa/Douala' },
+          ].map((f, i) => (
+            <div key={i} style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
+              <input defaultValue={f.val} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+          ))}
+          <button style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>💾 Sauvegarder</button>
+        </div>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔒 Mon compte Super Admin</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: '#f8fafc', borderRadius: '10px' }}>
+            <div style={{ width: '56px', height: '56px', background: '#4f46e5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: '700' }}>
+              {user?.nom?.charAt(0) || 'S'}
+            </div>
+            <div>
+              <div style={{ fontWeight: '700', color: '#1e1b4b', fontSize: '16px' }}>{user?.nom}</div>
+              <div style={{ color: '#666', fontSize: '14px' }}>{user?.email}</div>
+              <span style={{ background: '#e0e7ff', color: '#4f46e5', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>Super Admin</span>
+            </div>
+          </div>
+          {[
+            { label: 'Nouveau mot de passe', type: 'password', ph: '••••••••' },
+            { label: 'Confirmer le mot de passe', type: 'password', ph: '••••••••' },
+          ].map((f, i) => (
+            <div key={i} style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
+              <input type={f.type} placeholder={f.ph} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+          ))}
+          <button style={{ padding: '10px 24px', background: '#1e1b4b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🔒 Changer le mot de passe</button>
+        </div>
       </div>
 
-      {onglet === 'systeme' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔧 Configuration générale</h3>
-            {[
-              { label: "Nom de l'application", val: 'Boutique Stock' },
-              { label: 'Email de contact', val: 'contact@boutique-stock.com' },
-              { label: 'Devise', val: 'FCFA' },
-              { label: 'Fuseau horaire', val: 'Africa/Douala' },
-            ].map((f, i) => (
-              <div key={i} style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-                <input defaultValue={f.val} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-            ))}
-            <button style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>💾 Sauvegarder</button>
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔒 Mon compte Super Admin</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: '#f8fafc', borderRadius: '10px' }}>
-              <div style={{ width: '56px', height: '56px', background: '#4f46e5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: '700' }}>
-                {user?.nom?.charAt(0) || 'S'}
-              </div>
-              <div>
-                <div style={{ fontWeight: '700', color: '#1e1b4b', fontSize: '16px' }}>{user?.nom}</div>
-                <div style={{ color: '#666', fontSize: '14px' }}>{user?.email}</div>
-                <span style={{ background: '#e0e7ff', color: '#4f46e5', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>Super Admin</span>
-              </div>
-            </div>
-            {[
-              { label: 'Nouveau mot de passe', type: 'password', ph: '••••••••' },
-              { label: 'Confirmer le mot de passe', type: 'password', ph: '••••••••' },
-            ].map((f, i) => (
-              <div key={i} style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-                <input type={f.type} placeholder={f.ph} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-            ))}
-            <button style={{ padding: '10px 24px', background: '#1e1b4b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🔒 Changer le mot de passe</button>
-          </div>
-        </div>
-      )}
-
-      {onglet === 'icones' && (
-        <div>
-          {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>⏳ Chargement des icônes...</div>
-          ) : (
-            <>
-              <div style={{ background: '#e0e7ff', padding: '16px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', color: '#4f46e5' }}>
-                💡 <strong>Astuce :</strong> Cliquez sur "✏️ Modifier" puis choisissez entre utiliser un emoji ou uploader votre propre image (PNG, JPG, SVG - max 500KB). Les changements s'appliquent instantanément partout dans l'application !
-              </div>
-
-              {Object.entries(groupedIcones).map(([categorie, iconesCategorie]) => (
-                <div key={categorie} style={{ marginBottom: '40px' }}>
-                  <h3 style={{
-                    color: '#4f46e5',
-                    borderBottom: '2px solid #e0e7ff',
-                    paddingBottom: '10px',
-                    textTransform: 'uppercase',
-                    fontSize: '14px',
-                    fontWeight: '700',
-                    letterSpacing: '1px',
-                    marginBottom: '16px'
-                  }}>
-                    {categorie}
-                  </h3>
-
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '16px'
-                  }}>
-                    {iconesCategorie.map(icone => (
-                      <div key={icone._id} style={{
-                        padding: '16px',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '12px',
-                        background: '#fff',
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: editingId === icone._id ? '12px' : '0' }}>
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            background: '#f0f7ff',
-                            borderRadius: '10px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '28px',
-                            flexShrink: 0,
-                            overflow: 'hidden'
-                          }}>
-                            {icone.valeur && icone.valeur.startsWith('data:image') ? (
-                              <img src={icone.valeur} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              icone.valeur
-                            )}
-                          </div>
-
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: '700', marginBottom: '4px', color: '#1e1b4b', fontSize: '14px' }}>
-                              {icone.description}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>
-                              Clé: <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>{icone.cle}</code>
-                            </div>
-                          </div>
-
-                          {editingId === icone._id ? (
-                            <button
-                              onClick={() => {
-                                setEditingId(null);
-                                setNewValue('');
-                                setUploadType('emoji');
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                background: '#dc2626',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '14px'
-                              }}
-                            >
-                              ✕
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setEditingId(icone._id);
-                                setNewValue(icone.valeur && icone.valeur.startsWith('data:image') ? '' : icone.valeur);
-                                setUploadType(icone.valeur && icone.valeur.startsWith('data:image') ? 'image' : 'emoji');
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                background: '#e0e7ff',
-                                color: '#4f46e5',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                              }}
-                            >
-                              ✏️ Modifier
-                            </button>
-                          )}
-                        </div>
-
-                        {editingId === icone._id && (
-                          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                              <button
-                                onClick={() => setUploadType('emoji')}
-                                style={{
-                                  flex: 1,
-                                  padding: '8px',
-                                  background: uploadType === 'emoji' ? '#4f46e5' : '#f1f5f9',
-                                  color: uploadType === 'emoji' ? 'white' : '#666',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '13px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                😀 Emoji
-                              </button>
-                              <button
-                                onClick={() => setUploadType('image')}
-                                style={{
-                                  flex: 1,
-                                  padding: '8px',
-                                  background: uploadType === 'image' ? '#4f46e5' : '#f1f5f9',
-                                  color: uploadType === 'image' ? 'white' : '#666',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '13px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                🖼️ Image
-                              </button>
-                            </div>
-
-                            {uploadType === 'emoji' ? (
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <input
-                                  type="text"
-                                  value={newValue}
-                                  onChange={(e) => setNewValue(e.target.value)}
-                                  placeholder="🎯"
-                                  autoFocus
-                                  style={{
-                                    flex: 1,
-                                    padding: '8px',
-                                    border: '2px solid #4f46e5',
-                                    borderRadius: '6px',
-                                    fontSize: '18px',
-                                    textAlign: 'center',
-                                    outline: 'none'
-                                  }}
-                                />
-                                <button
-                                  onClick={() => modifierIcone(icone._id, newValue)}
-                                  disabled={!newValue}
-                                  style={{
-                                    padding: '8px 16px',
-                                    background: newValue ? '#16a34a' : '#cbd5e1',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: newValue ? 'pointer' : 'not-allowed',
-                                    fontWeight: '600',
-                                    fontSize: '14px'
-                                  }}
-                                >
-                                  ✓ Valider
-                                </button>
-                              </div>
-                            ) : (
-                              <div>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleImageUpload(e, icone._id)}
-                                  style={{ display: 'none' }}
-                                  id={`upload-${icone._id}`}
-                                />
-                                <label
-                                  htmlFor={`upload-${icone._id}`}
-                                  style={{
-                                    display: 'block',
-                                    padding: '12px',
-                                    background: '#f0f7ff',
-                                    border: '2px dashed #4f46e5',
-                                    borderRadius: '8px',
-                                    textAlign: 'center',
-                                    cursor: 'pointer',
-                                    color: '#4f46e5',
-                                    fontWeight: '600',
-                                    fontSize: '13px'
-                                  }}
-                                >
-                                  📤 Cliquez pour uploader une image
-                                  <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', fontWeight: '400' }}>
-                                    PNG, JPG, SVG - Max 500KB
-                                  </div>
-                                </label>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      <EditeurIcones />
     </div>
   );
 }
@@ -1031,7 +813,9 @@ function JournalAdmin() {
 
   return (
     <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>📋 Journal d'activités</h2>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        📋 Journal d'activités
+      </h2>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         {events.map((e, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 0', borderBottom: i < events.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
@@ -1066,7 +850,9 @@ function NotificationsAdmin() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0, color: '#1e1b4b' }}>🔔 Notifications</h2>
+        <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          🔔 Notifications
+        </h2>
         <button onClick={() => setNotifs(p => p.map(n => ({ ...n, lu: true })))}
           style={{ padding: '8px 16px', background: '#e0e7ff', color: '#4f46e5', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
           Tout marquer comme lu
@@ -1103,7 +889,9 @@ function SauvegardesAdmin() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0, color: '#1e1b4b' }}>💾 Sauvegardes</h2>
+        <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          💾 Sauvegardes
+        </h2>
         <button style={{ padding: '10px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
           💾 Sauvegarder maintenant
         </button>
@@ -1144,7 +932,9 @@ function MaintenanceAdmin() {
 
   return (
     <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔧 Maintenance</h2>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        🔧 Maintenance
+      </h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔴 Mode maintenance</h3>
