@@ -163,13 +163,13 @@ function AdminDashboard() {
     const token = localStorage.getItem('token');
     const h = { Authorization: `Bearer ${token}` };
 
-    fetch('http://localhost:5000/api/ventes/stats', { headers: h })
+    fetch('https://boutique-stock-api.onrender.com/api/ventes/stats', { headers: h })
       .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
 
-    fetch('http://localhost:5000/api/produits/stats', { headers: h })
+    fetch('https://boutique-stock-api.onrender.com/api/produits/stats', { headers: h })
       .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
 
-    fetch('http://localhost:5000/api/ventes', { headers: h })
+    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: h })
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 5)); });
   }, []);
 
@@ -307,7 +307,7 @@ function AdminProduits() {
   const token = localStorage.getItem('token');
 
   const charger = () => {
-    fetch('http://localhost:5000/api/produits', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('https://boutique-stock-api.onrender.com/api/produits', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
   };
 
@@ -327,7 +327,7 @@ function AdminProduits() {
     const formData = new FormData();
     Object.keys(form).forEach(k => formData.append(k, form[k]));
     if (imageFile) formData.append('image', imageFile);
-    await fetch('http://localhost:5000/api/produits', {
+    await fetch('https://boutique-stock-api.onrender.com/api/produits', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData
@@ -339,7 +339,7 @@ function AdminProduits() {
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer ce produit ?')) return;
-    await fetch(`http://localhost:5000/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`https://boutique-stock-api.onrender.com/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     charger();
   };
 

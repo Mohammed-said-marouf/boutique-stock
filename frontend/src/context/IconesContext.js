@@ -8,7 +8,7 @@ export function IconesProvider({ children }) {
 
   const chargerIcones = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/icones');
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/icones');
       const data = await res.json();
       
       // Transformer en objet { cle: valeur } pour un accès rapide

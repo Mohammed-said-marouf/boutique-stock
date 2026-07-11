@@ -150,13 +150,13 @@ function VendeurDashboard({ user }) {
   const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/ventes/stats', authHeaders())
+    axios.get('https://boutique-stock-api.onrender.com/api/ventes/stats', authHeaders())
       .then(res => setStats(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
       .then(res => {
         const disponibles = res.data.filter(p => p.image && p.quantite > 0);
         setProduits(disponibles);
@@ -172,7 +172,7 @@ function VendeurDashboard({ user }) {
     return () => clearInterval(interval);
   }, [produits]);
 
-  const getImageUrl = (img) => img.startsWith('http') ? img : `http://localhost:5000${img}`;
+  const getImageUrl = (img) => img.startsWith('http') ? img : `https://boutique-stock-api.onrender.com${img}`;
   const produitVedette = produits[slideIndex];
 
   const cartes = [
@@ -333,7 +333,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
   const [erreur, setErreur] = useState('');
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
       .then(res => {
         setProduits(res.data.filter(p => p.quantite > 0));
         setChargement(false);
@@ -393,7 +393,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
         clientNom: clientNom || 'Client anonyme',
       };
 
-      const res = await axios.post('http://localhost:5000/api/ventes', venteData, authHeaders());
+      const res = await axios.post('https://boutique-stock-api.onrender.com/api/ventes', venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
       const doc = new jsPDF();
@@ -497,7 +497,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
                 }}>
                   {p.image ? (
                     <img
-                      src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
+                      src={p.image.startsWith('http') ? p.image : `https://boutique-stock-api.onrender.com${p.image}`}
                       alt={p.nom}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -615,7 +615,7 @@ function ProduitsVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
       .then(res => { setProduits(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -665,7 +665,7 @@ function ProduitsVendeur() {
               }}>
                 {p.image ? (
                   <img
-                    src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
+                    src={p.image.startsWith('http') ? p.image : `https://boutique-stock-api.onrender.com${p.image}`}
                     alt={p.nom}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -696,7 +696,7 @@ function FacturesVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/ventes', authHeaders())
+    axios.get('https://boutique-stock-api.onrender.com/api/ventes', authHeaders())
       .then(res => { setVentes(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);

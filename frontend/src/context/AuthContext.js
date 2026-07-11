@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, motDePasse) => {
-   const res = await axios.post('http://localhost:5000/api/auth/login', { email, motDePasse });
+   const res = await axios.post('https://boutique-stock-api.onrender.com/api/auth/login', { email, motDePasse });
     const { token, user } = res.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

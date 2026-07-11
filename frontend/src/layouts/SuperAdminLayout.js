@@ -184,7 +184,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch('http://localhost:5000/api/ventes/stats-globales', {
+    fetch('https://boutique-stock-api.onrender.com/api/ventes/stats-globales', {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.json())
@@ -254,7 +254,7 @@ function BoutiquesAdmin() {
 
   const chargerBoutiques = () => {
     setLoading(true);
-    fetch('http://localhost:5000/api/boutiques', authHeaders)
+    fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders)
       .then(r => r.json())
       .then(data => { setBoutiques(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -271,7 +271,7 @@ function BoutiquesAdmin() {
     }
     setEnvoi(true);
     try {
-      const res = await fetch('http://localhost:5000/api/boutiques/creer-complete', {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/boutiques/creer-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -290,7 +290,7 @@ function BoutiquesAdmin() {
   };
 
   const toggleActif = async (b) => {
-    await fetch(`http://localhost:5000/api/boutiques/${b._id}`, {
+    await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${b._id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ actif: !b.actif })
@@ -300,7 +300,7 @@ function BoutiquesAdmin() {
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer cette boutique ?')) return;
-    await fetch(`http://localhost:5000/api/boutiques/${id}`, {
+    await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -671,7 +671,7 @@ function EditeurIcones() {
     setMessage('');
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/icones/${cle}`,
+      await axios.put(`https://boutique-stock-api.onrender.com/api/icones/${cle}`,
         { valeur: brouillon[cle] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
