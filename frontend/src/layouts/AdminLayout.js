@@ -1016,44 +1016,51 @@ function AdminVendeurs() {
 }
 
 function AdminFactures() {
-  const factures = [
-    { num: 'FAC-250001', client: 'Mariam Diop', vendeur: 'Moussa Diallo', montant: 39500, date: '24/06/2026', statut: 'Payée' },
-    { num: 'FAC-250002', client: 'Ibrahima Diallo', vendeur: 'Moussa Diallo', montant: 63000, date: '24/06/2026', statut: 'Payée' },
-    { num: 'FAC-249998', client: 'Aissata Camara', vendeur: 'Moussa Diallo', montant: 25000, date: '23/06/2026', statut: 'Payée' },
-  ];
+  const [factures, setFactures] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setFactures(Array.isArray(d) ? d : []); setChargement(false); })
+      .catch(() => setChargement(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a' }}>🧾 Factures</h2>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut', 'Action'].map(h => (
-                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {factures.map((f, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{f.num}</td>
-                <td style={{ padding: '10px 8px', color: '#333' }}>{f.client}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{f.vendeur}</td>
-                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{f.montant.toLocaleString()} FCFA</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{f.date}</td>
-                <td style={{ padding: '10px 8px' }}>
-                  <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>{f.statut}</span>
-                </td>
-                <td style={{ padding: '10px 8px' }}>
-                  <button style={{ padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb' }}>
-                    <Icone nom="imprimer" size={14} /> Imprimer
-                  </button>
-                </td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : factures.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune facture enregistrée.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut'].map(h => (
+                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {factures.map((f) => (
+                <tr key={f._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{f.numFacture || '—'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333' }}>{f.clientNom || 'Client anonyme'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{f.nomVendeur || '—'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(f.montantTotal || 0).toLocaleString()} FCFA</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{f.dateVente ? new Date(f.dateVente).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>Payée</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
