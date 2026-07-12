@@ -759,6 +759,7 @@ function ClientsVendeur() {
       .catch(() => setChargement(false));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { charger(); }, []);
 
   const ajouterClient = async () => {
