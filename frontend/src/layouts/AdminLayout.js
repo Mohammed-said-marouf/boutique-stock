@@ -791,18 +791,45 @@ function AdminClients() {
 
 function AdminFournisseurs() {
   const [showForm, setShowForm] = useState(false);
-  const [fournisseurs, setFournisseurs] = useState([
-    { id: 1, nom: 'Dakar Mode', telephone: '33 821 00 00', email: 'dakar@mode.com', categorie: 'Vêtements', solde: 120000 },
-    { id: 2, nom: 'Chaussures Pro', telephone: '77 456 78 90', email: '', categorie: 'Chaussures', solde: 0 },
-    { id: 3, nom: 'Accessoires SA', telephone: '70 111 22 33', email: 'acc@sa.com', categorie: 'Accessoires', solde: 45000 },
-  ]);
-  const [form, setForm] = useState({ nom: '', telephone: '', email: '', categorie: '' });
+  const [fournisseurs, setFournisseurs] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
+  const [form, setForm] = useState({ nom: '', telephone: '', email: '', adresse: '' });
 
-  const ajouterFournisseur = () => {
+  const token = localStorage.getItem('token');
+
+  const charger = () => {
+    setChargement(true);
+    fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setFournisseurs(Array.isArray(d) ? d : []); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { charger(); }, []);
+
+  const ajouterFournisseur = async () => {
     if (!form.nom) return;
-    setFournisseurs(prev => [...prev, { ...form, id: Date.now(), solde: 0 }]);
-    setForm({ nom: '', telephone: '', email: '', categorie: '' });
-    setShowForm(false);
+    setEnvoi(true);
+    setErreur('');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreur(data.message || 'Erreur'); setEnvoi(false); return; }
+      setForm({ nom: '', telephone: '', email: '', adresse: '' });
+      setShowForm(false);
+      charger();
+    } catch (err) {
+      setErreur(err.message);
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (
@@ -814,7 +841,7 @@ function AdminFournisseurs() {
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            {[{ key: 'nom', label: 'Nom', ph: 'Nom du fournisseur' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'email', label: 'Email', ph: 'email@exemple.com' }, { key: 'categorie', label: 'Catégorie', ph: 'Ex: Vêtements' }].map(f => (
+            {[{ key: 'nom', label: 'Nom', ph: 'Nom du fournisseur' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'email', label: 'Email', ph: 'email@exemple.com' }, { key: 'adresse', label: 'Adresse', ph: 'Ex: Dakar, Sénégal' }].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
                 <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
@@ -822,33 +849,40 @@ function AdminFournisseurs() {
               </div>
             ))}
           </div>
-          <button onClick={ajouterFournisseur} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
+          {erreur && <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '10px' }}>⚠️ {erreur}</div>}
+          <button onClick={ajouterFournisseur} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', marginRight: '10px', opacity: envoi ? 0.7 : 1 }}>
+            {envoi ? '...' : 'Enregistrer'}
+          </button>
           <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
         </div>
       )}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Nom', 'Téléphone', 'Email', 'Catégorie', 'Solde dû'].map(h => (
-                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {fournisseurs.map((f, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{f.nom}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{f.telephone}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{f.email || '-'}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{f.categorie}</td>
-                <td style={{ padding: '10px 8px', color: f.solde > 0 ? '#dc2626' : '#16a34a', fontWeight: '600' }}>
-                  {f.solde > 0 ? `${f.solde.toLocaleString()} FCFA` : 'Soldé'}
-                </td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : fournisseurs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun fournisseur pour le moment.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Nom', 'Téléphone', 'Email', 'Adresse', 'Produits liés'].map(h => (
+                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fournisseurs.map((f) => (
+                <tr key={f._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{f.nom}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{f.telephone || '-'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{f.email || '-'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{f.adresse || '-'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333' }}>{f.produits?.length || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
