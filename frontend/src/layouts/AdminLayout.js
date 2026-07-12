@@ -525,14 +525,19 @@ function AdminStocks() {
 }
 
 function AdminVentes() {
-  const ventes = [
-    { num: '#VTE-000145', client: 'Mariam Diop', vendeur: 'Moussa Diallo', montant: 245000, statut: 'Payée', date: '24/06/2026' },
-    { num: '#VTE-000144', client: 'Ibrahima Diallo', vendeur: 'Moussa Diallo', montant: 85000, statut: 'Payée', date: '24/06/2026' },
-    { num: '#VTE-000143', client: 'Aissata Camara', vendeur: 'Moussa Diallo', montant: 120000, statut: 'Payée', date: '23/06/2026' },
-    { num: '#VTE-000142', client: 'Omar Sy', vendeur: 'Moussa Diallo', montant: 65000, statut: 'En attente', date: '13/06/2026' },
-  ];
+  const [ventes, setVentes] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const token = localStorage.getItem('token');
 
-  const total = ventes.reduce((s, v) => s + v.montant, 0);
+  useEffect(() => {
+    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setVentes(Array.isArray(d) ? d : []); setChargement(false); })
+      .catch(() => setChargement(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const total = ventes.reduce((s, v) => s + (v.montantTotal || 0), 0);
 
   return (
     <div>
@@ -543,7 +548,7 @@ function AdminVentes() {
         {[
           { label: 'Total ventes', value: `${total.toLocaleString()} FCFA`, iconKey: 'ventes', color: '#dcfce7' },
           { label: 'Nombre de ventes', value: ventes.length, iconKey: 'caisse', color: '#dbeafe' },
-          { label: 'Ventes payées', value: ventes.filter(v => v.statut === 'Payée').length, iconKey: 'actif', color: '#ede9fe' },
+          { label: 'Ventes payées', value: ventes.length, iconKey: 'actif', color: '#ede9fe' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -557,33 +562,35 @@ function AdminVentes() {
         ))}
       </div>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['N° Vente', 'Client', 'Vendeur', 'Montant', 'Statut', 'Date'].map(h => (
-                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {ventes.map((v, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{v.num}</td>
-                <td style={{ padding: '10px 8px', color: '#333' }}>{v.client}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{v.vendeur}</td>
-                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{v.montant.toLocaleString()} FCFA</td>
-                <td style={{ padding: '10px 8px' }}>
-                  <span style={{
-                    background: v.statut === 'Payée' ? '#dcfce7' : '#fef9c3',
-                    color: v.statut === 'Payée' ? '#16a34a' : '#ca8a04',
-                    padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
-                  }}>{v.statut}</span>
-                </td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{v.date}</td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : ventes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune vente enregistrée.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['N° Vente', 'Client', 'Vendeur', 'Montant', 'Statut', 'Date'].map(h => (
+                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {ventes.map((v) => (
+                <tr key={v._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{v.numFacture || '—'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333' }}>{v.clientNom || 'Client anonyme'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{v.nomVendeur || '—'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>Payée</span>
+                  </td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
