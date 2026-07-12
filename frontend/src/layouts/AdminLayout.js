@@ -721,16 +721,59 @@ function AdminFournisseurs() {
 
 function AdminVendeurs() {
   const [showForm, setShowForm] = useState(false);
-  const [vendeurs, setVendeurs] = useState([
-    { id: 1, nom: 'Moussa Diallo', email: 'vendeur@boutique.com', telephone: '77 000 11 22', ventes: 12, actif: true },
-  ]);
+  const [vendeurs, setVendeurs] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState('');
+  const [envoi, setEnvoi] = useState(false);
   const [form, setForm] = useState({ nom: '', email: '', telephone: '', motDePasse: '' });
 
-  const ajouterVendeur = () => {
-    if (!form.nom || !form.email) return;
-    setVendeurs(prev => [...prev, { ...form, id: Date.now(), ventes: 0, actif: true }]);
-    setForm({ nom: '', email: '', telephone: '', motDePasse: '' });
-    setShowForm(false);
+  const token = localStorage.getItem('token');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const charger = () => {
+    setChargement(true);
+    fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders)
+      .then(r => r.json())
+      .then(data => { setVendeurs(Array.isArray(data) ? data : []); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { charger(); }, []);
+
+  const ajouterVendeur = async () => {
+    setErreur('');
+    if (!form.nom || !form.email || !form.motDePasse) {
+      setErreur('Nom, email et mot de passe sont requis.');
+      return;
+    }
+    setEnvoi(true);
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreur(data.message || "Erreur lors de la création"); setEnvoi(false); return; }
+
+      setForm({ nom: '', email: '', telephone: '', motDePasse: '' });
+      setShowForm(false);
+      setEnvoi(false);
+      charger();
+    } catch (err) {
+      setErreur('Erreur réseau : ' + err.message);
+      setEnvoi(false);
+    }
+  };
+
+  const toggleActif = async (v) => {
+    await fetch(`https://boutique-stock-api.onrender.com/api/users/${v._id}/statut`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ actif: !v.actif })
+    });
+    charger();
   };
 
   return (
@@ -752,41 +795,52 @@ function AdminVendeurs() {
               </div>
             ))}
           </div>
-          <button onClick={ajouterVendeur} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
-          <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+          {erreur && (
+            <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 16px', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
+              ⚠️ {erreur}
+            </div>
+          )}
+          <button onClick={ajouterVendeur} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', marginRight: '10px', opacity: envoi ? 0.7 : 1 }}>
+            {envoi ? 'Création...' : 'Enregistrer'}
+          </button>
+          <button onClick={() => { setShowForm(false); setErreur(''); }} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
         </div>
       )}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Nom', 'Email', 'Téléphone', 'Ventes', 'Statut', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {vendeurs.map((v, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{v.nom}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{v.email}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{v.telephone || '-'}</td>
-                <td style={{ padding: '10px 8px', color: '#333' }}>{v.ventes} vente(s)</td>
-                <td style={{ padding: '10px 8px' }}>
-                  <span style={{ background: v.actif ? '#dcfce7' : '#fee2e2', color: v.actif ? '#16a34a' : '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
-                    {v.actif ? 'Actif' : 'Inactif'}
-                  </span>
-                </td>
-                <td style={{ padding: '10px 8px' }}>
-                  <button style={{ padding: '4px 10px', background: v.actif ? '#fef2f2' : '#dcfce7', border: `1px solid ${v.actif ? '#fecaca' : '#bbf7d0'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: v.actif ? '#dc2626' : '#16a34a' }}
-                    onClick={() => setVendeurs(prev => prev.map(u => u.id === v.id ? { ...u, actif: !u.actif } : u))}>
-                    {v.actif ? '🔒 Désactiver' : '✅ Activer'}
-                  </button>
-                </td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : vendeurs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun vendeur pour le moment.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Nom', 'Email', 'Statut', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {vendeurs.map((v) => (
+                <tr key={v._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{v.nom}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{v.email}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <span style={{ background: v.actif ? '#dcfce7' : '#fee2e2', color: v.actif ? '#16a34a' : '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
+                      {v.actif ? 'Actif' : 'Inactif'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <button style={{ padding: '4px 10px', background: v.actif ? '#fef2f2' : '#dcfce7', border: `1px solid ${v.actif ? '#fecaca' : '#bbf7d0'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: v.actif ? '#dc2626' : '#16a34a' }}
+                      onClick={() => toggleActif(v)}>
+                      {v.actif ? '🔒 Désactiver' : '✅ Activer'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
