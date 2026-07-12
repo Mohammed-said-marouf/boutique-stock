@@ -150,13 +150,13 @@ function VendeurDashboard({ user }) {
   const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
-    axios.get('https://boutique-stock-api.onrender.com/api/ventes/stats', authHeaders())
+    axios.get('http://localhost:5000/api/ventes/stats', authHeaders())
       .then(res => setStats(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
+    axios.get('http://localhost:5000/api/produits', authHeaders())
       .then(res => {
         const disponibles = res.data.filter(p => p.image && p.quantite > 0);
         setProduits(disponibles);
@@ -172,7 +172,7 @@ function VendeurDashboard({ user }) {
     return () => clearInterval(interval);
   }, [produits]);
 
-  const getImageUrl = (img) => img.startsWith('http') ? img : `https://boutique-stock-api.onrender.com${img}`;
+  const getImageUrl = (img) => img.startsWith('http') ? img : `http://localhost:5000${img}`;
   const produitVedette = produits[slideIndex];
 
   const cartes = [
@@ -333,7 +333,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
   const [erreur, setErreur] = useState('');
 
   useEffect(() => {
-    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
+    axios.get('http://localhost:5000/api/produits', authHeaders())
       .then(res => {
         setProduits(res.data.filter(p => p.quantite > 0));
         setChargement(false);
@@ -393,7 +393,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
         clientNom: clientNom || 'Client anonyme',
       };
 
-      const res = await axios.post('https://boutique-stock-api.onrender.com/api/ventes', venteData, authHeaders());
+      const res = await axios.post('http://localhost:5000/api/ventes', venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
       const doc = new jsPDF();
@@ -497,7 +497,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
                 }}>
                   {p.image ? (
                     <img
-                      src={p.image.startsWith('http') ? p.image : `https://boutique-stock-api.onrender.com${p.image}`}
+                      src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
                       alt={p.nom}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -615,7 +615,7 @@ function ProduitsVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('https://boutique-stock-api.onrender.com/api/produits', authHeaders())
+    axios.get('http://localhost:5000/api/produits', authHeaders())
       .then(res => { setProduits(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -665,7 +665,7 @@ function ProduitsVendeur() {
               }}>
                 {p.image ? (
                   <img
-                    src={p.image.startsWith('http') ? p.image : `https://boutique-stock-api.onrender.com${p.image}`}
+                    src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
                     alt={p.nom}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -696,7 +696,7 @@ function FacturesVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('https://boutique-stock-api.onrender.com/api/ventes', authHeaders())
+    axios.get('http://localhost:5000/api/ventes', authHeaders())
       .then(res => { setVentes(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -748,16 +748,32 @@ function ClientsVendeur() {
   const [nouveau, setNouveau] = useState(false);
   const [nom, setNom] = useState('');
   const [telephone, setTelephone] = useState('');
-  const [clients, setClients] = useState([
-    { id: 1, nom: 'Mariam Diop', telephone: '77 123 45 67', achats: 3, total: 245000 },
-    { id: 2, nom: 'Ibrahima Diallo', telephone: '76 234 56 78', achats: 1, total: 85000 },
-    { id: 3, nom: 'Aissata Camara', telephone: '70 345 67 89', achats: 2, total: 120000 },
-  ]);
+  const [clients, setClients] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
 
-  const ajouterClient = () => {
-    if (!nom || !telephone) return;
-    setClients(prev => [...prev, { id: Date.now(), nom, telephone, achats: 0, total: 0 }]);
-    setNom(''); setTelephone(''); setNouveau(false);
+  const charger = () => {
+    axios.get('https://boutique-stock-api.onrender.com/api/clients', authHeaders())
+      .then(res => { setClients(res.data); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  useEffect(() => { charger(); }, []);
+
+  const ajouterClient = async () => {
+    if (!nom) return;
+    setEnvoi(true);
+    setErreur('');
+    try {
+      await axios.post('https://boutique-stock-api.onrender.com/api/clients', { nom, telephone }, authHeaders());
+      setNom(''); setTelephone(''); setNouveau(false);
+      charger();
+    } catch (err) {
+      setErreur(err.response?.data?.message || err.message);
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (
@@ -779,34 +795,41 @@ function ClientsVendeur() {
             <input value={telephone} onChange={e => setTelephone(e.target.value)} placeholder="Téléphone" style={{
               padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', flex: 1
             }} />
-            <button onClick={ajouterClient} style={{
+            <button onClick={ajouterClient} disabled={envoi} style={{
               padding: '10px 20px', background: '#059669', color: 'white',
-              border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'
-            }}>Enregistrer</button>
+              border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1
+            }}>{envoi ? '...' : 'Enregistrer'}</button>
           </div>
+          {erreur && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '8px' }}>⚠️ {erreur}</div>}
         </div>
       )}
 
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Nom', 'Téléphone', 'Achats', 'Total dépensé'].map(h => (
-                <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '12px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
-                <td style={{ padding: '12px 8px', color: '#666' }}>{c.telephone}</td>
-                <td style={{ padding: '12px 8px', color: '#333' }}>{c.achats} achat(s)</td>
-                <td style={{ padding: '12px 8px', color: '#059669', fontWeight: '600' }}>{c.total.toLocaleString()} FCFA</td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>⏳ Chargement...</div>
+        ) : clients.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun client pour le moment.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Nom', 'Téléphone', 'Achats', 'Total dépensé'].map(h => (
+                  <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
+                  <td style={{ padding: '12px 8px', color: '#666' }}>{c.telephone || '—'}</td>
+                  <td style={{ padding: '12px 8px', color: '#333' }}>{c.achats || 0} achat(s)</td>
+                  <td style={{ padding: '12px 8px', color: '#059669', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

@@ -591,18 +591,43 @@ function AdminVentes() {
 
 function AdminClients() {
   const [showForm, setShowForm] = useState(false);
-  const [clients, setClients] = useState([
-    { id: 1, nom: 'Mariam Diop', telephone: '77 123 45 67', email: 'mariam@email.com', achats: 3, total: 245000 },
-    { id: 2, nom: 'Ibrahima Diallo', telephone: '76 234 56 78', email: '', achats: 1, total: 85000 },
-    { id: 3, nom: 'Aissata Camara', telephone: '70 345 67 89', email: 'aissata@email.com', achats: 2, total: 120000 },
-  ]);
+  const [clients, setClients] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
   const [form, setForm] = useState({ nom: '', telephone: '', email: '' });
 
-  const ajouterClient = () => {
+  const token = localStorage.getItem('token');
+
+  const charger = () => {
+    fetch('https://boutique-stock-api.onrender.com/api/clients', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setClients(Array.isArray(d) ? d : []); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  useEffect(() => { charger(); }, []);
+
+  const ajouterClient = async () => {
     if (!form.nom) return;
-    setClients(prev => [...prev, { ...form, id: Date.now(), achats: 0, total: 0 }]);
-    setForm({ nom: '', telephone: '', email: '' });
-    setShowForm(false);
+    setEnvoi(true);
+    setErreur('');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreur(data.message || 'Erreur'); setEnvoi(false); return; }
+      setForm({ nom: '', telephone: '', email: '' });
+      setShowForm(false);
+      charger();
+    } catch (err) {
+      setErreur(err.message);
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (
@@ -624,31 +649,40 @@ function AdminClients() {
               </div>
             ))}
           </div>
-          <button onClick={ajouterClient} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', marginRight: '10px' }}>Enregistrer</button>
+          {erreur && <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '10px' }}>⚠️ {erreur}</div>}
+          <button onClick={ajouterClient} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', marginRight: '10px', opacity: envoi ? 0.7 : 1 }}>
+            {envoi ? '...' : 'Enregistrer'}
+          </button>
           <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
         </div>
       )}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Nom', 'Téléphone', 'Email', 'Achats', 'Total dépensé'].map(h => (
-                <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{c.telephone}</td>
-                <td style={{ padding: '10px 8px', color: '#666' }}>{c.email || '-'}</td>
-                <td style={{ padding: '10px 8px', color: '#333' }}>{c.achats}</td>
-                <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{c.total.toLocaleString()} FCFA</td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : clients.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun client pour le moment.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Nom', 'Téléphone', 'Email', 'Achats', 'Total dépensé'].map(h => (
+                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{c.telephone || '-'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666' }}>{c.email || '-'}</td>
+                  <td style={{ padding: '10px 8px', color: '#333' }}>{c.achats || 0}</td>
+                  <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

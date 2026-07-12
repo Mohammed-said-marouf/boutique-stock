@@ -22,6 +22,7 @@ app.get('/', (req, res) => {
 
 // Routes existantes
 app.use('/api/produits', require('./routes/produits'));
+app.use('/api/clients', require('./routes/clients'));
 app.use('/api/fournisseurs', require('./routes/fournisseurs'));
 app.use('/api/ventes', require('./routes/ventes'));
 app.use('/api/auth', require('./routes/auth'));
