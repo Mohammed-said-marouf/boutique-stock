@@ -1067,11 +1067,76 @@ function AdminFactures() {
 }
 
 function AdminRapports() {
+  const [export_, setExport_] = useState('');
+  const token = localStorage.getItem('token');
+
+  const telechargerCSV = (nomFichier, lignes) => {
+    const contenu = lignes.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + contenu], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomFichier;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exporterVentes = async () => {
+    setExport_('ventes');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } });
+      const ventes = await res.json();
+      const lignes = [['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date']];
+      (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
+        v.numFacture || '', v.clientNom || '', v.nomVendeur || '', v.montantTotal || 0,
+        v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''
+      ]));
+      telechargerCSV(`rapport-ventes-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const exporterStocks = async () => {
+    setExport_('stocks');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/produits', { headers: { Authorization: `Bearer ${token}` } });
+      const produits = await res.json();
+      const lignes = [['Nom', 'Référence', 'Catégorie', 'Prix', 'Stock', "Seuil d'alerte"]];
+      (Array.isArray(produits) ? produits : []).forEach(p => lignes.push([
+        p.nom || '', p.ref || '', p.categorie || '', p.prix || 0, p.quantite || 0, p.seuilAlerte || 0
+      ]));
+      telechargerCSV(`etat-stocks-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const exporterFournisseurs = async () => {
+    setExport_('fournisseurs');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', { headers: { Authorization: `Bearer ${token}` } });
+      const fournisseurs = await res.json();
+      const lignes = [['Nom', 'Téléphone', 'Email', 'Adresse']];
+      (Array.isArray(fournisseurs) ? fournisseurs : []).forEach(f => lignes.push([
+        f.nom || '', f.telephone || '', f.email || '', f.adresse || ''
+      ]));
+      telechargerCSV(`rapport-fournisseurs-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
   const rapports = [
-    { titre: 'Rapport des ventes — Juin 2026', date: '24/06/2026', type: 'Ventes' },
-    { titre: 'État des stocks — Juin 2026', date: '24/06/2026', type: 'Stock' },
-    { titre: 'Rapport fournisseurs — Juin 2026', date: '23/06/2026', type: 'Fournisseurs' },
-    { titre: 'Rapport des ventes — Mai 2026', date: '31/05/2026', type: 'Ventes' },
+    { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe', action: exporterVentes, key: 'ventes' },
+    { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7', action: exporterStocks, key: 'stocks' },
+    { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Liste des fournisseurs', color: '#ede9fe', action: exporterFournisseurs, key: 'fournisseurs' },
   ];
 
   return (
@@ -1079,39 +1144,22 @@ function AdminRapports() {
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <Icone nom="dashboard" size={28} /> Rapports
       </h2>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
+        Cliquez sur une carte pour télécharger un export CSV à jour de vos données.
+      </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {[
-          { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe' },
-          { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7' },
-          { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Commandes et paiements', color: '#ede9fe' },
-        ].map((r, i) => (
-          <button key={i} style={{
+        {rapports.map((r, i) => (
+          <button key={i} onClick={r.action} disabled={export_ === r.key} style={{
             background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            border: '1px solid #e2e8f0', cursor: 'pointer', textAlign: 'left'
+            border: '1px solid #e2e8f0', cursor: export_ === r.key ? 'not-allowed' : 'pointer', textAlign: 'left',
+            opacity: export_ === r.key ? 0.6 : 1
           }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: r.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
               <Icone nom={r.iconKey} size={28} />
             </div>
             <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{r.label}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{r.desc}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Génération...' : r.desc}</div>
           </button>
-        ))}
-      </div>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>📋 Rapports générés</h3>
-        {rapports.map((r, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < rapports.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>{r.titre}</div>
-              <div style={{ fontSize: '12px', color: '#666' }}>{r.date}</div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span style={{ background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{r.type}</span>
-              <button style={{ padding: '6px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#444' }}>
-                <Icone nom="exporter" size={14} /> Télécharger
-              </button>
-            </div>
-          </div>
         ))}
       </div>
     </div>
