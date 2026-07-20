@@ -126,7 +126,7 @@ const styles = {
   card: {
     position: 'relative',
     zIndex: 1,
-    width: 'min(90%, 400px)',
+    width: 'min(86%, 360px)',
     maxHeight: '96vh',
     overflowY: 'auto',
     background: 'rgba(255,255,255,0.06)',
