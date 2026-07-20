@@ -101,14 +101,14 @@ export default function Login() {
 const styles = {
   page: {
     position: 'relative',
-    minHeight: '100vh',
+    height: '100vh',
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    padding: '4vh 4vw'
+    padding: '2vh 4vw'
   },
   bgImage: {
     position: 'absolute',
@@ -126,64 +126,65 @@ const styles = {
   card: {
     position: 'relative',
     zIndex: 1,
-    width: 'min(92%, 420px)',
-    maxHeight: '92vh',
+    width: 'min(90%, 400px)',
+    maxHeight: '96vh',
     overflowY: 'auto',
     background: 'rgba(255,255,255,0.06)',
     backdropFilter: 'blur(18px)',
     WebkitBackdropFilter: 'blur(18px)',
     border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 'clamp(16px, 3vw, 24px)',
-    padding: 'clamp(28px, 5vw, 44px) clamp(22px, 6vw, 40px)',
+    borderRadius: 'clamp(14px, 2.5vw, 20px)',
+    padding: 'clamp(18px, 3.5vh, 30px) clamp(20px, 5vw, 32px)',
     boxShadow: '0 25px 60px rgba(0,0,0,0.45)',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center'
+    alignItems: 'center',
+    boxSizing: 'border-box'
   },
   logoWrap: {
     width: '100%',
     display: 'flex',
     justifyContent: 'center',
-    marginBottom: '14px'
+    marginBottom: '10px'
   },
   logo: {
-    width: 'clamp(56px, 12vw, 68px)',
-    height: 'clamp(56px, 12vw, 68px)',
-    borderRadius: '18px',
+    width: 'clamp(42px, 8vh, 52px)',
+    height: 'clamp(42px, 8vh, 52px)',
+    borderRadius: '14px',
     background: 'linear-gradient(135deg, #4361ee, #7209b7)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 'clamp(24px, 5vw, 30px)',
+    fontSize: 'clamp(18px, 4vh, 24px)',
     boxShadow: '0 10px 24px rgba(67,97,238,0.35)'
   },
   title: {
     margin: 0,
-    fontSize: 'clamp(20px, 4.5vw, 26px)',
+    fontSize: 'clamp(18px, 3.2vh, 22px)',
     fontWeight: 700,
     color: '#ffffff',
     textAlign: 'center'
   },
   subtitle: {
-    margin: '6px 0 28px',
+    margin: '4px 0 16px',
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 'clamp(13px, 3vw, 14.5px)',
+    fontSize: 'clamp(12px, 2vh, 13.5px)',
     textAlign: 'center'
   },
   label: {
     display: 'block',
-    marginBottom: '8px',
+    marginBottom: '5px',
     fontWeight: 600,
     color: 'rgba(255,255,255,0.85)',
-    fontSize: '13.5px'
+    fontSize: '13px'
   },
   input: {
     width: '100%',
-    padding: '13px 16px',
-    marginBottom: '20px',
+    padding: 'clamp(9px, 1.6vh, 12px) 14px',
+    marginBottom: '12px',
     border: '1px solid rgba(255,255,255,0.16)',
-    borderRadius: '10px',
-    fontSize: '15px',
+    borderRadius: '9px',
+    fontSize: '14px',
     outline: 'none',
     boxSizing: 'border-box',
     background: 'rgba(255,255,255,0.08)',
@@ -192,7 +193,7 @@ const styles = {
   pwdWrap: {
     position: 'relative',
     width: '100%',
-    marginBottom: '16px'
+    marginBottom: '10px'
   },
   eyeBtn: {
     position: 'absolute',
@@ -210,13 +211,13 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
     color: 'rgba(255,255,255,0.75)',
-    fontSize: '13.5px',
-    marginBottom: '22px',
+    fontSize: '13px',
+    marginBottom: '14px',
     cursor: 'pointer'
   },
   checkbox: {
-    width: '16px',
-    height: '16px',
+    width: '15px',
+    height: '15px',
     accentColor: '#4361ee',
     cursor: 'pointer'
   },
@@ -224,19 +225,19 @@ const styles = {
     background: 'rgba(233,69,96,0.12)',
     border: '1px solid rgba(233,69,96,0.35)',
     color: '#ff8fa3',
-    padding: '12px 16px',
-    borderRadius: '10px',
-    marginBottom: '20px',
-    fontSize: '13.5px'
+    padding: '10px 14px',
+    borderRadius: '9px',
+    marginBottom: '14px',
+    fontSize: '13px'
   },
   submitBtn: {
     width: '100%',
-    padding: '14px',
+    padding: 'clamp(10px, 1.8vh, 13px)',
     background: 'linear-gradient(135deg, #4361ee, #7209b7)',
     color: 'white',
     border: 'none',
-    borderRadius: '10px',
-    fontSize: '16px',
+    borderRadius: '9px',
+    fontSize: '15px',
     fontWeight: 600
   }
 };
