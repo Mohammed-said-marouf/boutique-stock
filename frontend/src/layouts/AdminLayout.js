@@ -191,117 +191,112 @@ function AdminDashboard() {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: '14px', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
-      {/* Colonne principale */}
-      <div style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'hidden' }}>
-        {/* Cartes stats — couleurs distinctes, une seule ligne */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '10px' }}>
-          {cartes.map((s, i) => (
-            <div key={i} style={{
-              background: s.bg, borderRadius: '12px', padding: '14px 16px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.12)', color: 'white',
-              display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icone nom={s.iconKey} size={18} />
-                </div>
-                <span style={{ fontSize: '11.5px', opacity: 0.9 }}>{s.label}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+      {/* Cartes stats — couleurs distinctes, une seule ligne */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '10px', flexShrink: 0 }}>
+        {cartes.map((s, i) => (
+          <div key={i} style={{
+            background: s.bg, borderRadius: '12px', padding: '14px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)', color: 'white',
+            display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icone nom={s.iconKey} size={18} />
               </div>
-              <div style={{ fontSize: '17px', fontWeight: '700', marginBottom: '2px', lineHeight: 1.2 }}>{s.value}</div>
-              <div style={{ fontSize: '11px', opacity: 0.85 }}>{s.sub}</div>
+              <span style={{ fontSize: '11.5px', opacity: 0.9 }}>{s.label}</span>
             </div>
-          ))}
+            <div style={{ fontSize: '17px', fontWeight: '700', marginBottom: '2px', lineHeight: 1.2 }}>{s.value}</div>
+            <div style={{ fontSize: '11px', opacity: 0.85 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tableaux */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', flex: '1 1 0%', minHeight: 0 }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
+          {statsProduits.alertes.length === 0 ? (
+            <div style={{ color: '#16a34a', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>✅ Aucune alerte de stock</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+              <thead>
+                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                  <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>Produit</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Stock</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Seuil</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsProduits.alertes.map((a, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '6px 0', color: '#333' }}>{a.nom}</td>
+                    <td style={{ textAlign: 'center', color: '#333' }}>{a.quantite}</td>
+                    <td style={{ textAlign: 'center', color: '#666' }}>{a.seuilAlerte}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        background: a.quantite === 0 ? '#fee2e2' : '#fef9c3',
+                        color: a.quantite === 0 ? '#dc2626' : '#ca8a04',
+                        padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
+                      }}>{a.quantite === 0 ? 'Rupture' : 'Faible'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* Tableaux */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', flex: 1, minHeight: 0 }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
-            {statsProduits.alertes.length === 0 ? (
-              <div style={{ color: '#16a34a', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>✅ Aucune alerte de stock</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
-                <thead>
-                  <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
-                    <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>Produit</th>
-                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Stock</th>
-                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Seuil</th>
-                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>🛒 Ventes récentes</h3>
+          {ventesRecentes.length === 0 ? (
+            <div style={{ color: '#666', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>Aucune vente enregistrée</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+              <thead>
+                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                  <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>N° Facture</th>
+                  <th style={{ textAlign: 'left', fontWeight: '600' }}>Client</th>
+                  <th style={{ textAlign: 'right', fontWeight: '600' }}>Montant</th>
+                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventesRecentes.map((v, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '6px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
+                    <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
+                    <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        background: '#dcfce7', color: '#16a34a',
+                        padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
+                      }}>Payée</span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {statsProduits.alertes.map((a, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '6px 0', color: '#333' }}>{a.nom}</td>
-                      <td style={{ textAlign: 'center', color: '#333' }}>{a.quantite}</td>
-                      <td style={{ textAlign: 'center', color: '#666' }}>{a.seuilAlerte}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span style={{
-                          background: a.quantite === 0 ? '#fee2e2' : '#fef9c3',
-                          color: a.quantite === 0 ? '#dc2626' : '#ca8a04',
-                          padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
-                        }}>{a.quantite === 0 ? 'Rupture' : 'Faible'}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>🛒 Ventes récentes</h3>
-            {ventesRecentes.length === 0 ? (
-              <div style={{ color: '#666', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>Aucune vente enregistrée</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
-                <thead>
-                  <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
-                    <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>N° Facture</th>
-                    <th style={{ textAlign: 'left', fontWeight: '600' }}>Client</th>
-                    <th style={{ textAlign: 'right', fontWeight: '600' }}>Montant</th>
-                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ventesRecentes.map((v, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '6px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
-                      <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
-                      <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span style={{
-                          background: '#dcfce7', color: '#16a34a',
-                          padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
-                        }}>Payée</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Panneau sombre à droite — Actions rapides */}
+      {/* Rangée sombre en bas — Actions rapides horizontales */}
       <div style={{
-        width: '190px', minWidth: '190px', maxWidth: '190px', flexShrink: 0,
-        background: '#0f172a', borderRadius: '12px',
-        padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '8px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.15)', boxSizing: 'border-box',
-        height: '100%', overflowY: 'auto'
+        background: '#0f172a', borderRadius: '12px', padding: '12px 16px',
+        display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.15)', overflowX: 'auto'
       }}>
-        <h3 style={{ margin: '0 0 2px', fontSize: '12.5px', color: 'white', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <span style={{ fontSize: '12.5px', color: 'white', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, paddingRight: '4px' }}>
           ⚡ Actions rapides
-        </h3>
+        </span>
         {quickActions.map((a, i) => (
           <button key={i} style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '9px 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '8px', cursor: 'pointer', fontSize: '11.5px', color: '#e2e8f0', textAlign: 'left',
-            flexShrink: 0
+            display: 'flex', alignItems: 'center', gap: '7px',
+            padding: '9px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px', cursor: 'pointer', fontSize: '11.5px', color: '#e2e8f0',
+            whiteSpace: 'nowrap', flexShrink: 0
           }}>
             <Icone nom={a.iconKey} size={16} />
             {a.label}
