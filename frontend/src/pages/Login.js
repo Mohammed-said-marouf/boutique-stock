@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
+  const [seSouvenir, setSeSouvenir] = useState(true);
+  const [voirMdp, setVoirMdp] = useState(false);
   const [erreur, setErreur] = useState('');
   const [chargement, setChargement] = useState(false);
   const { login } = useAuth();
@@ -27,74 +29,66 @@ export default function Login() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
-    }}>
-      <div style={{
-        background: 'white', borderRadius: '16px', padding: '48px',
-        width: '100%', maxWidth: '420px', boxShadow: '0 25px 50px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '64px', height: '64px', borderRadius: '16px',
-            background: 'linear-gradient(135deg, #667eea, #764ba2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', fontSize: '28px'
-          }}>🏪</div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#1a1a2e' }}>
-            Boutique Stock
-          </h1>
-          <p style={{ margin: '8px 0 0', color: '#666', fontSize: '14px' }}>
-            Connectez-vous à votre espace
-          </p>
+    <div style={styles.page}>
+      {/* Fond image + voile sombre */}
+      <div style={styles.bgImage} />
+      <div style={styles.bgOverlay} />
+
+      <div style={styles.card}>
+        <div style={styles.logoWrap}>
+          <div style={styles.logo}>🏪</div>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>
-              Email
-            </label>
+        <h1 style={styles.title}>Boutique Stock</h1>
+        <p style={styles.subtitle}>Connectez-vous à votre espace</p>
+
+        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+          <label style={styles.label}>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="votre@email.com"
+            required
+            style={styles.input}
+          />
+
+          <label style={styles.label}>Mot de passe</label>
+          <div style={styles.pwdWrap}>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="votre@email.com" required
-              style={{
-                width: '100%', padding: '12px 16px', border: '2px solid #e2e8f0',
-                borderRadius: '8px', fontSize: '15px', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color 0.2s'
-              }}
+              type={voirMdp ? 'text' : 'password'}
+              value={motDePasse}
+              onChange={e => setMotDePasse(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{ ...styles.input, marginBottom: 0, paddingRight: '44px' }}
             />
+            <button
+              type="button"
+              onClick={() => setVoirMdp(v => !v)}
+              style={styles.eyeBtn}
+              aria-label={voirMdp ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            >
+              {voirMdp ? '🙈' : '👁️'}
+            </button>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>
-              Mot de passe
-            </label>
+          <label style={styles.checkRow}>
             <input
-              type="password" value={motDePasse} onChange={e => setMotDePasse(e.target.value)}
-              placeholder="••••••••" required
-              style={{
-                width: '100%', padding: '12px 16px', border: '2px solid #e2e8f0',
-                borderRadius: '8px', fontSize: '15px', outline: 'none',
-                boxSizing: 'border-box'
-              }}
+              type="checkbox"
+              checked={seSouvenir}
+              onChange={e => setSeSouvenir(e.target.checked)}
+              style={styles.checkbox}
             />
-          </div>
+            Se souvenir de moi
+          </label>
 
-          {erreur && (
-            <div style={{
-              background: '#fff5f5', border: '1px solid #fed7d7', color: '#c53030',
-              padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px'
-            }}>
-              ⚠️ {erreur}
-            </div>
-          )}
+          {erreur && <div style={styles.erreur}>⚠️ {erreur}</div>}
 
           <button type="submit" disabled={chargement} style={{
-            width: '100%', padding: '14px', background: 'linear-gradient(135deg, #667eea, #764ba2)',
-            color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px',
-            fontWeight: '600', cursor: chargement ? 'not-allowed' : 'pointer',
-            opacity: chargement ? 0.7 : 1
+            ...styles.submitBtn,
+            opacity: chargement ? 0.7 : 1,
+            cursor: chargement ? 'not-allowed' : 'pointer'
           }}>
             {chargement ? 'Connexion...' : 'Se connecter'}
           </button>
@@ -103,3 +97,146 @@ export default function Login() {
     </div>
   );
 }
+
+const styles = {
+  page: {
+    position: 'relative',
+    minHeight: '100vh',
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+    padding: '4vh 4vw'
+  },
+  bgImage: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: "url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1600&q=80')",
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    filter: 'saturate(0.9)'
+  },
+  bgOverlay: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(160deg, rgba(15,20,35,0.92) 0%, rgba(20,30,55,0.88) 55%, rgba(10,15,25,0.94) 100%)'
+  },
+  card: {
+    position: 'relative',
+    zIndex: 1,
+    width: 'min(92%, 420px)',
+    maxHeight: '92vh',
+    overflowY: 'auto',
+    background: 'rgba(255,255,255,0.06)',
+    backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 'clamp(16px, 3vw, 24px)',
+    padding: 'clamp(28px, 5vw, 44px) clamp(22px, 6vw, 40px)',
+    boxShadow: '0 25px 60px rgba(0,0,0,0.45)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
+  },
+  logoWrap: {
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '14px'
+  },
+  logo: {
+    width: 'clamp(56px, 12vw, 68px)',
+    height: 'clamp(56px, 12vw, 68px)',
+    borderRadius: '18px',
+    background: 'linear-gradient(135deg, #4361ee, #7209b7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 'clamp(24px, 5vw, 30px)',
+    boxShadow: '0 10px 24px rgba(67,97,238,0.35)'
+  },
+  title: {
+    margin: 0,
+    fontSize: 'clamp(20px, 4.5vw, 26px)',
+    fontWeight: 700,
+    color: '#ffffff',
+    textAlign: 'center'
+  },
+  subtitle: {
+    margin: '6px 0 28px',
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 'clamp(13px, 3vw, 14.5px)',
+    textAlign: 'center'
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: '13.5px'
+  },
+  input: {
+    width: '100%',
+    padding: '13px 16px',
+    marginBottom: '20px',
+    border: '1px solid rgba(255,255,255,0.16)',
+    borderRadius: '10px',
+    fontSize: '15px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#ffffff'
+  },
+  pwdWrap: {
+    position: 'relative',
+    width: '100%',
+    marginBottom: '16px'
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: '10px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'transparent',
+    border: 'none',
+    fontSize: '17px',
+    cursor: 'pointer',
+    padding: '4px'
+  },
+  checkRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: '13.5px',
+    marginBottom: '22px',
+    cursor: 'pointer'
+  },
+  checkbox: {
+    width: '16px',
+    height: '16px',
+    accentColor: '#4361ee',
+    cursor: 'pointer'
+  },
+  erreur: {
+    background: 'rgba(233,69,96,0.12)',
+    border: '1px solid rgba(233,69,96,0.35)',
+    color: '#ff8fa3',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    marginBottom: '20px',
+    fontSize: '13.5px'
+  },
+  submitBtn: {
+    width: '100%',
+    padding: '14px',
+    background: 'linear-gradient(135deg, #4361ee, #7209b7)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '16px',
+    fontWeight: 600
+  }
+};
