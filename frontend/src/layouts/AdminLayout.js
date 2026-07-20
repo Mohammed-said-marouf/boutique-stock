@@ -170,126 +170,140 @@ function AdminDashboard() {
       .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
 
     fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: h })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 5)); });
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 4)); });
   }, []);
 
   const cartes = [
-    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'caisse', color: '#dbeafe' },
-    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'dashboard', color: '#dcfce7' },
-    { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', color: '#ede9fe' },
-    { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', color: '#fef9c3' },
-    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'ventes', color: '#dcfce7' },
+    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'caisse', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
+    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'dashboard', bg: 'linear-gradient(135deg, #16a34a, #15803d)' },
+    { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', bg: 'linear-gradient(135deg, #7c3aed, #6d28d9)' },
+    { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', bg: 'linear-gradient(135deg, #d97706, #b45309)' },
+    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'ventes', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
+  ];
+
+  const quickActions = [
+    { iconKey: 'produits', label: 'Ajouter un produit' },
+    { iconKey: 'ajouter', label: 'Entrée de stock' },
+    { iconKey: 'caisse', label: 'Nouvelle vente' },
+    { iconKey: 'utilisateurs', label: 'Ajouter un vendeur' },
+    { iconKey: 'clients', label: 'Ajouter un client' },
+    { iconKey: 'ventes', label: 'Nouvelle facture' },
   ];
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        {cartes.map((s, i) => (
-          <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icone nom={s.iconKey} size={24} />
-              </div>
-              <span style={{ fontSize: '12px', color: '#666' }}>{s.label}</span>
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{s.value}</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
-        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
-          {statsProduits.alertes.length === 0 ? (
-            <div style={{ color: '#16a34a', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>✅ Aucune alerte de stock</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: '600' }}>Produit</th>
-                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Stock</th>
-                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Seuil</th>
-                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statsProduits.alertes.map((a, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                    <td style={{ padding: '8px 0', color: '#333' }}>{a.nom}</td>
-                    <td style={{ textAlign: 'center', color: '#333' }}>{a.quantite}</td>
-                    <td style={{ textAlign: 'center', color: '#666' }}>{a.seuilAlerte}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{
-                        background: a.quantite === 0 ? '#fee2e2' : '#fef9c3',
-                        color: a.quantite === 0 ? '#dc2626' : '#ca8a04',
-                        padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
-                      }}>{a.quantite === 0 ? 'Rupture' : 'Faible'}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>🛒 Ventes récentes</h3>
-          {ventesRecentes.length === 0 ? (
-            <div style={{ color: '#666', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>Aucune vente enregistrée</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ textAlign: 'left', padding: '6px 0', fontWeight: '600' }}>N° Facture</th>
-                  <th style={{ textAlign: 'left', fontWeight: '600' }}>Client</th>
-                  <th style={{ textAlign: 'right', fontWeight: '600' }}>Montant</th>
-                  <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ventesRecentes.map((v, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                    <td style={{ padding: '8px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
-                    <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
-                    <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{
-                        background: '#dcfce7', color: '#16a34a',
-                        padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600'
-                      }}>Payée</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#0f172a' }}>⚡ Actions rapides</h3>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          {[
-            { iconKey: 'produits', label: 'Ajouter un produit' },
-            { iconKey: 'ajouter', label: 'Entrée de stock' },
-            { iconKey: 'caisse', label: 'Nouvelle vente' },
-            { iconKey: 'utilisateurs', label: 'Ajouter un vendeur' },
-            { iconKey: 'clients', label: 'Ajouter un client' },
-            { iconKey: 'ventes', label: 'Nouvelle facture' },
-            { iconKey: 'dashboard', label: 'Rapport des ventes' },
-          ].map((a, i) => (
-            <button key={i} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-              padding: '16px 20px', background: '#f8fafc', border: '1px solid #e2e8f0',
-              borderRadius: '10px', cursor: 'pointer', fontSize: '12px', color: '#444',
-              minWidth: '90px'
+    <div style={{ display: 'flex', gap: '16px', height: '100%', boxSizing: 'border-box' }}>
+      {/* Colonne principale */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Cartes stats — couleurs distinctes, une seule ligne */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+          {cartes.map((s, i) => (
+            <div key={i} style={{
+              background: s.bg, borderRadius: '12px', padding: '14px 16px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.12)', color: 'white',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
             }}>
-              <Icone nom={a.iconKey} size={28} />
-              {a.label}
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icone nom={s.iconKey} size={18} />
+                </div>
+                <span style={{ fontSize: '11.5px', opacity: 0.9 }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: '17px', fontWeight: '700', marginBottom: '2px', lineHeight: 1.2 }}>{s.value}</div>
+              <div style={{ fontSize: '11px', opacity: 0.85 }}>{s.sub}</div>
+            </div>
           ))}
         </div>
+
+        {/* Tableaux */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', flex: 1, minHeight: 0 }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
+            {statsProduits.alertes.length === 0 ? (
+              <div style={{ color: '#16a34a', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>✅ Aucune alerte de stock</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                <thead>
+                  <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                    <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>Produit</th>
+                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Stock</th>
+                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Seuil</th>
+                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsProduits.alertes.map((a, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '6px 0', color: '#333' }}>{a.nom}</td>
+                      <td style={{ textAlign: 'center', color: '#333' }}>{a.quantite}</td>
+                      <td style={{ textAlign: 'center', color: '#666' }}>{a.seuilAlerte}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          background: a.quantite === 0 ? '#fee2e2' : '#fef9c3',
+                          color: a.quantite === 0 ? '#dc2626' : '#ca8a04',
+                          padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
+                        }}>{a.quantite === 0 ? 'Rupture' : 'Faible'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>🛒 Ventes récentes</h3>
+            {ventesRecentes.length === 0 ? (
+              <div style={{ color: '#666', fontSize: '13px', padding: '14px 0', textAlign: 'center' }}>Aucune vente enregistrée</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                <thead>
+                  <tr style={{ color: '#666', borderBottom: '1px solid #f1f5f9' }}>
+                    <th style={{ textAlign: 'left', padding: '5px 0', fontWeight: '600' }}>N° Facture</th>
+                    <th style={{ textAlign: 'left', fontWeight: '600' }}>Client</th>
+                    <th style={{ textAlign: 'right', fontWeight: '600' }}>Montant</th>
+                    <th style={{ textAlign: 'center', fontWeight: '600' }}>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventesRecentes.map((v, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '6px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
+                      <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
+                      <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          background: '#dcfce7', color: '#16a34a',
+                          padding: '2px 8px', borderRadius: '10px', fontSize: '10.5px', fontWeight: '600'
+                        }}>Payée</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Panneau sombre à droite — Actions rapides */}
+      <div style={{
+        width: '230px', flexShrink: 0, background: '#0f172a', borderRadius: '12px',
+        padding: '18px 14px', display: 'flex', flexDirection: 'column', gap: '10px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
+      }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: '13.5px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          ⚡ Actions rapides
+        </h3>
+        {quickActions.map((a, i) => (
+          <button key={i} style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '10px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '9px', cursor: 'pointer', fontSize: '12.5px', color: '#e2e8f0', textAlign: 'left'
+          }}>
+            <Icone nom={a.iconKey} size={18} />
+            {a.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -832,6 +846,15 @@ function AdminFournisseurs() {
     }
   };
 
+  const supprimerFournisseur = async (id) => {
+    if (!window.confirm('Supprimer ce fournisseur ?')) return;
+    await fetch(`https://boutique-stock-api.onrender.com/api/fournisseurs/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    charger();
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -865,7 +888,7 @@ function AdminFournisseurs() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['Nom', 'Téléphone', 'Email', 'Adresse', 'Produits liés'].map(h => (
+                {['Nom', 'Téléphone', 'Email', 'Adresse', 'Produits liés', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
                 ))}
               </tr>
@@ -878,6 +901,11 @@ function AdminFournisseurs() {
                   <td style={{ padding: '10px 8px', color: '#666' }}>{f.email || '-'}</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{f.adresse || '-'}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{f.produits?.length || 0}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <button onClick={() => supprimerFournisseur(f._id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                      🗑️ Supprimer
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
