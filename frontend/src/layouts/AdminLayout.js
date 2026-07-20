@@ -31,46 +31,46 @@ export default function AdminLayout() {
         display: 'flex', flexDirection: 'column', transition: 'width 0.3s',
         overflow: 'hidden', flexShrink: 0
       }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ padding: '14px 14px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <div style={{
-            width: '36px', height: '36px', background: '#2563eb',
-            borderRadius: '8px', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: '18px', flexShrink: 0
+            width: '30px', height: '30px', background: '#2563eb',
+            borderRadius: '7px', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '16px', flexShrink: 0
           }}>
-            <Icone nom="boutiques" size={20} />
+            <Icone nom="boutiques" size={17} />
           </div>
           {!collapsed && (
             <div>
-              <div style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>
+              <div style={{ color: 'white', fontWeight: '700', fontSize: '13px' }}>
                 {user?.boutique?.nom || 'Ma Boutique'}
               </div>
-              <div style={{ color: '#94a3b8', fontSize: '11px' }}>Admin</div>
+              <div style={{ color: '#94a3b8', fontSize: '10.5px' }}>Admin</div>
             </div>
           )}
         </div>
 
-        <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
-          <div style={{ color: '#3b82f6', fontSize: '10px', fontWeight: '700', padding: '8px 8px 4px', letterSpacing: '1px' }}>
+        <nav style={{ flex: 1, padding: '8px 6px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ color: '#3b82f6', fontSize: '9.5px', fontWeight: '700', padding: '4px 6px 3px', letterSpacing: '1px' }}>
             {!collapsed && 'MENU PRINCIPAL'}
           </div>
           {menuItems.map(item => (
             <NavLink key={item.path} to={item.path} end={item.path === '/admin'}
               style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '10px 8px', borderRadius: '8px', marginBottom: '2px',
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '7px 8px', borderRadius: '7px', marginBottom: '1px',
                 textDecoration: 'none', color: isActive ? 'white' : '#94a3b8',
                 background: isActive ? '#2563eb' : 'transparent',
-                transition: 'all 0.2s', fontSize: '14px'
+                transition: 'all 0.2s', fontSize: '12.5px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icone nom={item.iconKey} size={22} />
+              <div style={{ width: '19px', height: '19px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icone nom={item.iconKey} size={19} />
               </div>
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div style={{ padding: '12px', borderTop: '1px solid #1e293b' }}>
+        <div style={{ padding: '10px', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '36px', height: '36px', borderRadius: '8px', background: '#2563eb',
@@ -191,11 +191,11 @@ function AdminDashboard() {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: '16px', height: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', gap: '14px', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
       {/* Colonne principale */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'hidden' }}>
         {/* Cartes stats — couleurs distinctes, une seule ligne */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '10px' }}>
           {cartes.map((s, i) => (
             <div key={i} style={{
               background: s.bg, borderRadius: '12px', padding: '14px 16px',
@@ -287,20 +287,23 @@ function AdminDashboard() {
 
       {/* Panneau sombre à droite — Actions rapides */}
       <div style={{
-        width: '230px', flexShrink: 0, background: '#0f172a', borderRadius: '12px',
-        padding: '18px 14px', display: 'flex', flexDirection: 'column', gap: '10px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.15)'
+        width: '190px', minWidth: '190px', maxWidth: '190px', flexShrink: 0,
+        background: '#0f172a', borderRadius: '12px',
+        padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '8px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.15)', boxSizing: 'border-box',
+        height: '100%', overflowY: 'auto'
       }}>
-        <h3 style={{ margin: '0 0 4px', fontSize: '13.5px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3 style={{ margin: '0 0 2px', fontSize: '12.5px', color: 'white', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           ⚡ Actions rapides
         </h3>
         {quickActions.map((a, i) => (
           <button key={i} style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            padding: '10px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '9px', cursor: 'pointer', fontSize: '12.5px', color: '#e2e8f0', textAlign: 'left'
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '9px 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '8px', cursor: 'pointer', fontSize: '11.5px', color: '#e2e8f0', textAlign: 'left',
+            flexShrink: 0
           }}>
-            <Icone nom={a.iconKey} size={18} />
+            <Icone nom={a.iconKey} size={16} />
             {a.label}
           </button>
         ))}
