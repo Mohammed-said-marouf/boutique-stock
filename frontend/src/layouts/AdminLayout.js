@@ -3,6 +3,12 @@ import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-d
 import { useAuth } from '../context/AuthContext';
 import { Icone } from '../context/IconesContext';
 
+const API_BASE = 'https://boutique-stock-api.onrender.com';
+const resoudreImage = (chemin) => {
+  if (!chemin) return null;
+  return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;
+};
+
 const menuItems = [
   { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
@@ -39,7 +45,7 @@ export default function AdminLayout() {
             justifyContent: 'center', fontSize: '16px', flexShrink: 0, overflow: 'hidden'
           }}>
             {user?.boutique?.logo ? (
-              <img src={user.boutique.logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <Icone nom="boutiques" size={17} />
             )}
@@ -83,7 +89,7 @@ export default function AdminLayout() {
               color: 'white', fontSize: '16px', flexShrink: 0, overflow: 'hidden'
             }}>
               {user?.boutique?.logo ? (
-                <img src={user.boutique.logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Icone nom="boutiques" size={20} />
               )}
@@ -1207,7 +1213,7 @@ function AdminRapports() {
 
 function AdminParametres({ user }) {
   const [logoFile, setLogoFile] = useState(null);
-  const [logoPreview, setLogoPreview] = useState(user?.boutique?.logo || null);
+  const [logoPreview, setLogoPreview] = useState(resoudreImage(user?.boutique?.logo) || null);
   const [envoiLogo, setEnvoiLogo] = useState(false);
   const [messageLogo, setMessageLogo] = useState('');
 
