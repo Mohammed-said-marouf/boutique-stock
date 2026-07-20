@@ -36,9 +36,13 @@ export default function AdminLayout() {
           <div style={{
             width: '30px', height: '30px', background: '#2563eb',
             borderRadius: '7px', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: '16px', flexShrink: 0
+            justifyContent: 'center', fontSize: '16px', flexShrink: 0, overflow: 'hidden'
           }}>
-            <Icone nom="boutiques" size={17} />
+            {user?.boutique?.logo ? (
+              <img src={user.boutique.logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <Icone nom="boutiques" size={17} />
+            )}
           </div>
           {!collapsed && (
             <div>
@@ -76,9 +80,13 @@ export default function AdminLayout() {
             <div style={{
               width: '36px', height: '36px', borderRadius: '8px', background: '#2563eb',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontSize: '16px', flexShrink: 0
+              color: 'white', fontSize: '16px', flexShrink: 0, overflow: 'hidden'
             }}>
-              <Icone nom="boutiques" size={20} />
+              {user?.boutique?.logo ? (
+                <img src={user.boutique.logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <Icone nom="boutiques" size={20} />
+              )}
             </div>
             {!collapsed && (
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1198,6 +1206,51 @@ function AdminRapports() {
 }
 
 function AdminParametres({ user }) {
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(user?.boutique?.logo || null);
+  const [envoiLogo, setEnvoiLogo] = useState(false);
+  const [messageLogo, setMessageLogo] = useState('');
+
+  const boutiqueId = user?.boutiqueId || user?.boutique?._id;
+  const token = localStorage.getItem('token');
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const enregistrerLogo = async () => {
+    if (!logoFile || !boutiqueId) return;
+    setEnvoiLogo(true);
+    setMessageLogo('');
+    try {
+      const formData = new FormData();
+      formData.append('logo', logoFile);
+      const res = await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${boutiqueId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) { setMessageLogo(data.message || 'Erreur'); setEnvoiLogo(false); return; }
+
+      // Mettre à jour le user stocké en local pour que le logo apparaisse après rechargement
+      try {
+        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+        stored.boutique = { ...(stored.boutique || {}), ...data };
+        localStorage.setItem('user', JSON.stringify(stored));
+      } catch (e) { /* ignore */ }
+
+      setMessageLogo('✅ Logo mis à jour. Rechargement...');
+      setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setMessageLogo('Erreur réseau : ' + err.message);
+      setEnvoiLogo(false);
+    }
+  };
+
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1219,6 +1272,44 @@ function AdminParametres({ user }) {
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>🏪 Ma boutique</h3>
+
+          {/* Logo de la boutique */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Logo / Photo de la boutique</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div
+                onClick={() => document.getElementById('logoInput').click()}
+                style={{
+                  width: '72px', height: '72px', borderRadius: '12px', border: '2px dashed #e2e8f0',
+                  background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', overflow: 'hidden', flexShrink: 0
+                }}>
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo boutique" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '22px' }}>📷</span>
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <input id="logoInput" type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
+                <button
+                  onClick={() => document.getElementById('logoInput').click()}
+                  style={{ padding: '8px 14px', background: '#f1f5f9', color: '#333', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', marginBottom: '6px' }}>
+                  Choisir une image
+                </button>
+                {logoFile && (
+                  <button
+                    onClick={enregistrerLogo}
+                    disabled={envoiLogo}
+                    style={{ marginLeft: '8px', padding: '8px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoiLogo ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: envoiLogo ? 0.7 : 1 }}>
+                    {envoiLogo ? 'Envoi...' : '✅ Enregistrer'}
+                  </button>
+                )}
+                {messageLogo && <div style={{ fontSize: '12px', color: messageLogo.startsWith('✅') ? '#16a34a' : '#dc2626', marginTop: '6px' }}>{messageLogo}</div>}
+              </div>
+            </div>
+          </div>
+
           {[{ label: 'Nom de la boutique', value: user?.boutique?.nom || 'Ma Boutique' }, { label: 'Adresse', value: 'Yaoundé, Cameroun' }, { label: 'Téléphone', value: '+237 6XX XXX XXX' }, { label: 'Abonnement', value: 'Standard' }].map((item, i) => (
             <div key={i} style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{item.label}</label>

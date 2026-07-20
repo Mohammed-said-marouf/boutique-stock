@@ -6,6 +6,7 @@ const boutiqueSchema = new mongoose.Schema({
   adresse: String,
   telephone: String,
   email: String,
+  logo: { type: String, default: null },
   abonnement: { type: String, enum: ['gratuit', 'standard', 'premium'], default: 'gratuit' },
   actif: { type: Boolean, default: true }
 }, { timestamps: true });
