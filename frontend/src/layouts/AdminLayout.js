@@ -186,7 +186,6 @@ function AdminDashboard() {
     { iconKey: 'ajouter', label: 'Entrée de stock' },
     { iconKey: 'caisse', label: 'Nouvelle vente' },
     { iconKey: 'utilisateurs', label: 'Ajouter un vendeur' },
-    { iconKey: 'clients', label: 'Ajouter un client' },
     { iconKey: 'ventes', label: 'Nouvelle facture' },
   ];
 
