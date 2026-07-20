@@ -1212,13 +1212,14 @@ function AdminRapports() {
 }
 
 function AdminParametres({ user }) {
+  const token = localStorage.getItem('token');
+  const boutiqueId = user?.boutiqueId || user?.boutique?._id;
+
+  // --- Logo boutique ---
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(resoudreImage(user?.boutique?.logo) || null);
   const [envoiLogo, setEnvoiLogo] = useState(false);
   const [messageLogo, setMessageLogo] = useState('');
-
-  const boutiqueId = user?.boutiqueId || user?.boutique?._id;
-  const token = localStorage.getItem('token');
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
@@ -1241,14 +1242,9 @@ function AdminParametres({ user }) {
       });
       const data = await res.json();
       if (!res.ok) { setMessageLogo(data.message || 'Erreur'); setEnvoiLogo(false); return; }
-
-      // Mettre à jour le user stocké en local pour que le logo apparaisse après rechargement
-      try {
-        const stored = JSON.parse(localStorage.getItem('user') || '{}');
-        stored.boutique = { ...(stored.boutique || {}), ...data };
-        localStorage.setItem('user', JSON.stringify(stored));
-      } catch (e) { /* ignore */ }
-
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      stored.boutique = { ...(stored.boutique || {}), ...data };
+      localStorage.setItem('user', JSON.stringify(stored));
       setMessageLogo('✅ Logo mis à jour. Rechargement...');
       setTimeout(() => window.location.reload(), 900);
     } catch (err) {
@@ -1256,6 +1252,105 @@ function AdminParametres({ user }) {
       setEnvoiLogo(false);
     }
   };
+
+  // --- Mon compte (nom, email) ---
+  const [compteForm, setCompteForm] = useState({ nom: user?.nom || '', email: user?.email || '' });
+  const [envoiCompte, setEnvoiCompte] = useState(false);
+  const [messageCompte, setMessageCompte] = useState('');
+
+  const enregistrerCompte = async () => {
+    setEnvoiCompte(true);
+    setMessageCompte('');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/users/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(compteForm)
+      });
+      const data = await res.json();
+      if (!res.ok) { setMessageCompte(data.message || 'Erreur'); setEnvoiCompte(false); return; }
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      stored.nom = data.nom; stored.email = data.email;
+      localStorage.setItem('user', JSON.stringify(stored));
+      setMessageCompte('✅ Infos mises à jour. Rechargement...');
+      setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setMessageCompte('Erreur réseau : ' + err.message);
+      setEnvoiCompte(false);
+    }
+  };
+
+  // --- Changer le mot de passe ---
+  const [showPwdForm, setShowPwdForm] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ ancienMotDePasse: '', nouveauMotDePasse: '', confirmation: '' });
+  const [envoiPwd, setEnvoiPwd] = useState(false);
+  const [messagePwd, setMessagePwd] = useState('');
+
+  const changerMotDePasse = async () => {
+    setMessagePwd('');
+    if (!pwdForm.ancienMotDePasse || !pwdForm.nouveauMotDePasse) {
+      setMessagePwd('Remplissez tous les champs.');
+      return;
+    }
+    if (pwdForm.nouveauMotDePasse !== pwdForm.confirmation) {
+      setMessagePwd('La confirmation ne correspond pas au nouveau mot de passe.');
+      return;
+    }
+    setEnvoiPwd(true);
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/users/me/motdepasse', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ancienMotDePasse: pwdForm.ancienMotDePasse,
+          nouveauMotDePasse: pwdForm.nouveauMotDePasse
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { setMessagePwd(data.message || 'Erreur'); setEnvoiPwd(false); return; }
+      setMessagePwd('✅ Mot de passe mis à jour.');
+      setPwdForm({ ancienMotDePasse: '', nouveauMotDePasse: '', confirmation: '' });
+      setEnvoiPwd(false);
+      setTimeout(() => { setShowPwdForm(false); setMessagePwd(''); }, 1500);
+    } catch (err) {
+      setMessagePwd('Erreur réseau : ' + err.message);
+      setEnvoiPwd(false);
+    }
+  };
+
+  // --- Ma boutique (nom, adresse, téléphone) ---
+  const [boutiqueForm, setBoutiqueForm] = useState({
+    nom: user?.boutique?.nom || '',
+    adresse: user?.boutique?.adresse || '',
+    telephone: user?.boutique?.telephone || ''
+  });
+  const [envoiBoutique, setEnvoiBoutique] = useState(false);
+  const [messageBoutique, setMessageBoutique] = useState('');
+
+  const enregistrerBoutique = async () => {
+    if (!boutiqueId) return;
+    setEnvoiBoutique(true);
+    setMessageBoutique('');
+    try {
+      const res = await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${boutiqueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(boutiqueForm)
+      });
+      const data = await res.json();
+      if (!res.ok) { setMessageBoutique(data.message || 'Erreur'); setEnvoiBoutique(false); return; }
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      stored.boutique = { ...(stored.boutique || {}), ...data };
+      localStorage.setItem('user', JSON.stringify(stored));
+      setMessageBoutique('✅ Boutique mise à jour. Rechargement...');
+      setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setMessageBoutique('Erreur réseau : ' + err.message);
+      setEnvoiBoutique(false);
+    }
+  };
+
+  const inputStyle = { width: '100%', padding: '10px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', color: '#333', outline: 'none', boxSizing: 'border-box' };
 
   return (
     <div>
@@ -1265,15 +1360,50 @@ function AdminParametres({ user }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>👤 Mon compte</h3>
-          {[{ label: 'Nom', value: user?.nom }, { label: 'Email', value: user?.email }, { label: 'Rôle', value: 'Administrateur' }].map((item, i) => (
-            <div key={i} style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{item.label}</label>
-              <div style={{ padding: '10px 16px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#333' }}>{item.value}</div>
-            </div>
-          ))}
-          <button style={{ width: '100%', padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-            🔒 Changer le mot de passe
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Nom</label>
+            <input value={compteForm.nom} onChange={e => setCompteForm(p => ({ ...p, nom: e.target.value }))} style={inputStyle} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Email</label>
+            <input type="email" value={compteForm.email} onChange={e => setCompteForm(p => ({ ...p, email: e.target.value }))} style={inputStyle} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Rôle</label>
+            <div style={{ padding: '10px 16px', background: '#f1f5f9', borderRadius: '8px', fontSize: '14px', color: '#666' }}>Administrateur</div>
+          </div>
+
+          {messageCompte && <div style={{ fontSize: '12.5px', color: messageCompte.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: '10px' }}>{messageCompte}</div>}
+
+          <button onClick={enregistrerCompte} disabled={envoiCompte} style={{ width: '100%', padding: '12px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: envoiCompte ? 'not-allowed' : 'pointer', fontWeight: '600', marginBottom: '10px', opacity: envoiCompte ? 0.7 : 1 }}>
+            {envoiCompte ? 'Enregistrement...' : '✅ Modifier les infos'}
           </button>
+
+          <button onClick={() => { setShowPwdForm(v => !v); setMessagePwd(''); }} style={{ width: '100%', padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            🔒 {showPwdForm ? 'Annuler' : 'Changer le mot de passe'}
+          </button>
+
+          {showPwdForm && (
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Mot de passe actuel</label>
+                <input type="password" value={pwdForm.ancienMotDePasse} onChange={e => setPwdForm(p => ({ ...p, ancienMotDePasse: e.target.value }))} style={inputStyle} placeholder="••••••••" />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Nouveau mot de passe</label>
+                <input type="password" value={pwdForm.nouveauMotDePasse} onChange={e => setPwdForm(p => ({ ...p, nouveauMotDePasse: e.target.value }))} style={inputStyle} placeholder="Au moins 6 caractères" />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Confirmer le nouveau mot de passe</label>
+                <input type="password" value={pwdForm.confirmation} onChange={e => setPwdForm(p => ({ ...p, confirmation: e.target.value }))} style={inputStyle} placeholder="••••••••" />
+              </div>
+              {messagePwd && <div style={{ fontSize: '12.5px', color: messagePwd.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: '10px' }}>{messagePwd}</div>}
+              <button onClick={changerMotDePasse} disabled={envoiPwd} style={{ width: '100%', padding: '11px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoiPwd ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoiPwd ? 0.7 : 1 }}>
+                {envoiPwd ? 'Enregistrement...' : 'Enregistrer le nouveau mot de passe'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -1316,14 +1446,27 @@ function AdminParametres({ user }) {
             </div>
           </div>
 
-          {[{ label: 'Nom de la boutique', value: user?.boutique?.nom || 'Ma Boutique' }, { label: 'Adresse', value: 'Yaoundé, Cameroun' }, { label: 'Téléphone', value: '+237 6XX XXX XXX' }, { label: 'Abonnement', value: 'Standard' }].map((item, i) => (
-            <div key={i} style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{item.label}</label>
-              <div style={{ padding: '10px 16px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#333' }}>{item.value}</div>
-            </div>
-          ))}
-          <button style={{ width: '100%', padding: '12px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-            <Icone nom="modifier" size={16} /> Modifier les infos
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Nom de la boutique</label>
+            <input value={boutiqueForm.nom} onChange={e => setBoutiqueForm(p => ({ ...p, nom: e.target.value }))} style={inputStyle} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Adresse</label>
+            <input value={boutiqueForm.adresse} onChange={e => setBoutiqueForm(p => ({ ...p, adresse: e.target.value }))} style={inputStyle} placeholder="Ex: Yaoundé, Cameroun" />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Téléphone</label>
+            <input value={boutiqueForm.telephone} onChange={e => setBoutiqueForm(p => ({ ...p, telephone: e.target.value }))} style={inputStyle} placeholder="Ex: +237 6XX XXX XXX" />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Abonnement</label>
+            <div style={{ padding: '10px 16px', background: '#f1f5f9', borderRadius: '8px', fontSize: '14px', color: '#666', textTransform: 'capitalize' }}>{user?.boutique?.abonnement || 'Standard'}</div>
+          </div>
+
+          {messageBoutique && <div style={{ fontSize: '12.5px', color: messageBoutique.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: '10px' }}>{messageBoutique}</div>}
+
+          <button onClick={enregistrerBoutique} disabled={envoiBoutique} style={{ width: '100%', padding: '12px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: envoiBoutique ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoiBoutique ? 0.7 : 1 }}>
+            <Icone nom="modifier" size={16} /> {envoiBoutique ? 'Enregistrement...' : 'Modifier les infos'}
           </button>
         </div>
       </div>
