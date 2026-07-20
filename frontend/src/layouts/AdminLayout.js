@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icone } from '../context/IconesContext';
 
@@ -27,10 +27,11 @@ export default function AdminLayout() {
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5' }}>
       {/* Sidebar */}
       <div style={{
-        width: collapsed ? '70px' : '240px', background: '#0f172a',
+        width: collapsed ? '0px' : '240px', background: '#0f172a',
         display: 'flex', flexDirection: 'column', transition: 'width 0.3s',
         overflow: 'hidden', flexShrink: 0
       }}>
+        <div style={{ width: '240px', height: '100%', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '14px 14px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <div style={{
             width: '30px', height: '30px', background: '#2563eb',
@@ -98,6 +99,7 @@ export default function AdminLayout() {
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {/* Main */}
@@ -155,6 +157,7 @@ export default function AdminLayout() {
 }
 
 function AdminDashboard() {
+  const navigate = useNavigate();
   const [statsVentes, setStatsVentes] = useState({ caJour: 0, ventesJour: 0, caMois: 0, ventesMois: 0 });
   const [statsProduits, setStatsProduits] = useState({ total: 0, rupture: 0, faible: 0, alertes: [] });
   const [ventesRecentes, setVentesRecentes] = useState([]);
@@ -182,11 +185,11 @@ function AdminDashboard() {
   ];
 
   const quickActions = [
-    { iconKey: 'produits', label: 'Ajouter un produit' },
-    { iconKey: 'ajouter', label: 'Entrée de stock' },
-    { iconKey: 'caisse', label: 'Nouvelle vente' },
-    { iconKey: 'utilisateurs', label: 'Ajouter un vendeur' },
-    { iconKey: 'ventes', label: 'Nouvelle facture' },
+    { iconKey: 'produits', label: 'Ajouter un produit', path: '/admin/produits', openForm: true },
+    { iconKey: 'ajouter', label: 'Entrée de stock', path: '/admin/stocks', openForm: true },
+    { iconKey: 'caisse', label: 'Nouvelle vente', path: '/admin/ventes' },
+    { iconKey: 'utilisateurs', label: 'Ajouter un vendeur', path: '/admin/vendeurs', openForm: true },
+    { iconKey: 'ventes', label: 'Nouvelle facture', path: '/admin/factures' },
   ];
 
   return (
@@ -291,7 +294,7 @@ function AdminDashboard() {
           ⚡ Actions rapides
         </span>
         {quickActions.map((a, i) => (
-          <button key={i} style={{
+          <button key={i} onClick={() => navigate(a.path, a.openForm ? { state: { openForm: true } } : undefined)} style={{
             display: 'flex', alignItems: 'center', gap: '7px',
             padding: '9px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '8px', cursor: 'pointer', fontSize: '11.5px', color: '#e2e8f0',
@@ -307,8 +310,9 @@ function AdminDashboard() {
 }
 
 function AdminProduits() {
+  const location = useLocation();
   const [recherche, setRecherche] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!location.state?.openForm);
   const [produits, setProduits] = useState([]);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -484,10 +488,11 @@ function AdminProduits() {
 }
 
 function AdminStocks() {
+  const location = useLocation();
   const [mouvements, setMouvements] = useState([]);
   const [produits, setProduits] = useState([]);
   const [chargement, setChargement] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!location.state?.openForm);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState('');
   const [form, setForm] = useState({ produit: '', type: 'entree', quantite: '', note: '' });
@@ -914,7 +919,8 @@ function AdminFournisseurs() {
 }
 
 function AdminVendeurs() {
-  const [showForm, setShowForm] = useState(false);
+  const location = useLocation();
+  const [showForm, setShowForm] = useState(!!location.state?.openForm);
   const [vendeurs, setVendeurs] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState('');
