@@ -142,7 +142,7 @@ export default function VendeurLayout() {
         <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
           <Routes>
             <Route path="" element={<VendeurDashboard user={user} />} />
-            <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} />} />
+            <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} boutique={user?.boutique} />} />
             <Route path="produits" element={<ProduitsVendeur />} />
             <Route path="factures" element={<FacturesVendeur />} />
             <Route path="clients" element={<ClientsVendeur />} />
@@ -335,7 +335,7 @@ function VendeurDashboard({ user }) {
 }
 
 // ===================== CAISSE =====================
-function CaisseVendeur({ nomVendeur, vendeurId }) {
+function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
   const [panier, setPanier] = useState([]);
   const [recherche, setRecherche] = useState('');
   const [produits, setProduits] = useState([]);
@@ -386,6 +386,28 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
 
   const total = panier.reduce((sum, p) => sum + p.prix * p.qte, 0);
 
+  // Formatte un montant avec des espaces normaux (jsPDF ne supporte pas
+  // l'espace insécable fine utilisé par toLocaleString('fr-FR'))
+  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+
+  // Charge une image distante et la convertit en base64 pour jsPDF.
+  // Retourne null si l'image ne peut pas être chargée (CORS, réseau, etc.)
+  const chargerImageBase64 = async (url) => {
+    if (!url) return null;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      return null;
+    }
+  };
+
   const genererFacture = async () => {
     if (panier.length === 0) return;
     setEncaissement(true);
@@ -408,56 +430,95 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
       const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
+      const nomBoutique = boutique?.nom || 'Boutique Stock';
+      const logoBase64 = await chargerImageBase64(resoudreImage(boutique?.logo));
+
       const doc = new jsPDF();
       const date = new Date().toLocaleDateString('fr-FR');
       const heure = new Date().toLocaleTimeString('fr-FR');
 
-      doc.setFillColor(6, 78, 59);
-      doc.rect(0, 0, 210, 35, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text('BOUTIQUE STOCK', 14, 15);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Votre boutique de confiance', 14, 22);
-      doc.text(`Facture N° ${numFacture}`, 14, 29);
+      // Dessine une copie complète de la facture à partir de yBase (mm)
+      const dessinerCopie = (yBase, labelCopie) => {
+        // Bandeau d'en-tête
+        doc.setFillColor(6, 78, 59);
+        doc.rect(0, yBase, 210, 30, 'F');
 
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(11);
-      doc.text(`Date : ${date} a ${heure}`, 120, 45);
-      doc.text(`Vendeur : ${nomVendeur || 'Vendeur'}`, 120, 52);
-      doc.text(`Client : ${clientNom || 'Client anonyme'}`, 120, 59);
+        let xTexte = 14;
+        if (logoBase64) {
+          try {
+            doc.addImage(logoBase64, 'JPEG', 14, yBase + 5, 20, 20, undefined, 'FAST');
+            xTexte = 40;
+          } catch (e) { /* image illisible, on continue sans */ }
+        }
 
-      autoTable(doc, {
-        startY: 70,
-        head: [['Produit', 'Categorie', 'Prix unitaire', 'Qte', 'Total']],
-        body: panier.map(p => [
-          p.nom,
-          p.categorie || '-',
-          `${p.prix.toLocaleString()} FCFA`,
-          p.qte,
-          `${(p.prix * p.qte).toLocaleString()} FCFA`
-        ]),
-        headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [240, 253, 244] },
-        styles: { fontSize: 10 },
-      });
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(nomBoutique, xTexte, yBase + 12);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Votre boutique de confiance', xTexte, yBase + 18);
+        doc.text(`Facture N° ${numFacture}`, xTexte, yBase + 25);
 
-      const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 120) + 10;
-      doc.setFillColor(240, 253, 244);
-      doc.rect(120, finalY, 76, 22, 'F');
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(6, 78, 59);
-      doc.text('TOTAL A PAYER :', 124, finalY + 9);
-      doc.text(`${total.toLocaleString()} FCFA`, 124, finalY + 18);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(labelCopie, 196, yBase + 12, { align: 'right' });
 
-      doc.setFontSize(9);
+        // Infos
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
+        doc.text(`Vendeur : ${nomVendeur || 'Vendeur'}`, 120, yBase + 46);
+        doc.text(`Client : ${clientNom || 'Client anonyme'}`, 120, yBase + 52);
+
+        autoTable(doc, {
+          startY: yBase + 58,
+          head: [['Produit', 'Categorie', 'Prix unitaire', 'Qte', 'Total']],
+          body: panier.map(p => [
+            p.nom,
+            p.categorie || '-',
+            formatMontant(p.prix),
+            p.qte,
+            formatMontant(p.prix * p.qte)
+          ]),
+          headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+          alternateRowStyles: { fillColor: [240, 253, 244] },
+          styles: { fontSize: 9 },
+          margin: { left: 14, right: 14 },
+        });
+
+        const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : yBase + 90) + 6;
+        doc.setFillColor(240, 253, 244);
+        doc.rect(134, finalY, 62, 18, 'F');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(6, 78, 59);
+        doc.text('TOTAL A PAYER :', 138, finalY + 7);
+        doc.text(formatMontant(total), 138, finalY + 14);
+
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Merci pour votre achat !', 105, yBase + 138, { align: 'center' });
+      };
+
+      // Copie 1 : pour la caisse
+      dessinerCopie(0, 'COPIE CAISSE');
+
+      // Ligne de coupe
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(0, 148, 210, 148);
+      doc.setLineDashPattern([], 0);
+      doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Merci pour votre achat !', 105, 285, { align: 'center' });
+      doc.text('✂ - - - - - - - - - - - - - - - - - découper ici - - - - - - - - - - - - - - - - - ✂', 105, 148, { align: 'center' });
 
+      // Copie 2 : pour le client
+      dessinerCopie(150, 'COPIE CLIENT');
+
+      doc.save(`Facture-${numFacture}.pdf`);
       doc.save(`Facture-${numFacture}.pdf`);
 
       setProduits(prev => prev.map(p => {
