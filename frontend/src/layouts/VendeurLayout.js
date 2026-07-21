@@ -6,6 +6,12 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 
+const API_BASE = 'https://boutique-stock-api.onrender.com';
+const resoudreImage = (chemin) => {
+  if (!chemin) return null;
+  return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;
+};
+
 // Helper : retourne les headers avec le token JWT
 function authHeaders() {
   const token = localStorage.getItem('token');
@@ -40,11 +46,17 @@ export default function VendeurLayout() {
         <div style={{ padding: '20px 16px', borderBottom: '1px solid #065f46', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             width: '36px', height: '36px', background: '#10b981', borderRadius: '8px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0
-          }}><Icone nom="boutiques" size={20} /></div>
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0, overflow: 'hidden'
+          }}>
+            {user?.boutique?.logo ? (
+              <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <Icone nom="boutiques" size={20} />
+            )}
+          </div>
           {!collapsed && (
             <div>
-              <div style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>Ma Boutique</div>
+              <div style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{user?.boutique?.nom || 'Ma Boutique'}</div>
               <div style={{ color: '#6ee7b7', fontSize: '11px' }}>Vendeur</div>
             </div>
           )}
@@ -150,13 +162,13 @@ function VendeurDashboard({ user }) {
   const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/ventes/stats', authHeaders())
+    axios.get(`${API_BASE}/api/ventes/stats`, authHeaders())
       .then(res => setStats(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get(`${API_BASE}/api/produits`, authHeaders())
       .then(res => {
         const disponibles = res.data.filter(p => p.image && p.quantite > 0);
         setProduits(disponibles);
@@ -172,7 +184,7 @@ function VendeurDashboard({ user }) {
     return () => clearInterval(interval);
   }, [produits]);
 
-  const getImageUrl = (img) => img.startsWith('http') ? img : `http://localhost:5000${img}`;
+  const getImageUrl = (img) => resoudreImage(img);
   const produitVedette = produits[slideIndex];
 
   const cartes = [
@@ -333,7 +345,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
   const [erreur, setErreur] = useState('');
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get(`${API_BASE}/api/produits`, authHeaders())
       .then(res => {
         setProduits(res.data.filter(p => p.quantite > 0));
         setChargement(false);
@@ -393,7 +405,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
         clientNom: clientNom || 'Client anonyme',
       };
 
-      const res = await axios.post('http://localhost:5000/api/ventes', venteData, authHeaders());
+      const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
       const doc = new jsPDF();
@@ -497,7 +509,7 @@ function CaisseVendeur({ nomVendeur, vendeurId }) {
                 }}>
                   {p.image ? (
                     <img
-                      src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
+                      src={resoudreImage(p.image)}
                       alt={p.nom}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -615,7 +627,7 @@ function ProduitsVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/produits', authHeaders())
+    axios.get(`${API_BASE}/api/produits`, authHeaders())
       .then(res => { setProduits(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -665,7 +677,7 @@ function ProduitsVendeur() {
               }}>
                 {p.image ? (
                   <img
-                    src={p.image.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
+                    src={resoudreImage(p.image)}
                     alt={p.nom}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '📦'; }}
@@ -696,7 +708,7 @@ function FacturesVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/ventes', authHeaders())
+    axios.get(`${API_BASE}/api/ventes`, authHeaders())
       .then(res => { setVentes(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -754,7 +766,7 @@ function ClientsVendeur() {
   const [erreur, setErreur] = useState('');
 
   const charger = () => {
-    axios.get('https://boutique-stock-api.onrender.com/api/clients', authHeaders())
+    axios.get(`${API_BASE}/api/clients`, authHeaders())
       .then(res => { setClients(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   };
@@ -767,7 +779,7 @@ function ClientsVendeur() {
     setEnvoi(true);
     setErreur('');
     try {
-      await axios.post('https://boutique-stock-api.onrender.com/api/clients', { nom, telephone }, authHeaders());
+      await axios.post(`${API_BASE}/api/clients`, { nom, telephone }, authHeaders());
       setNom(''); setTelephone(''); setNouveau(false);
       charger();
     } catch (err) {
