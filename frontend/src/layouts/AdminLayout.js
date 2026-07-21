@@ -331,6 +331,7 @@ function AdminProduits() {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [envoi, setEnvoi] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
 
   const token = localStorage.getItem('token');
@@ -350,19 +351,45 @@ function AdminProduits() {
     setImagePreview(URL.createObjectURL(file));
   };
 
+  const ouvrirNouveau = () => {
+    setEditId(null);
+    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+    setImageFile(null); setImagePreview(null);
+    setShowForm(v => !v);
+  };
+
+  const ouvrirModification = (p) => {
+    setEditId(p._id);
+    setForm({
+      nom: p.nom || '', categorie: p.categorie || '', ref: p.ref || '',
+      prix: p.prix ?? '', quantite: p.quantite ?? '', seuilAlerte: p.seuilAlerte ?? 5,
+      description: p.description || ''
+    });
+    setImageFile(null);
+    setImagePreview(p.image ? resoudreImage(p.image) : null);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const ajouter = async () => {
     if (!form.nom || !form.prix) return;
     setEnvoi(true);
     const formData = new FormData();
     Object.keys(form).forEach(k => formData.append(k, form[k]));
     if (imageFile) formData.append('image', imageFile);
-    await fetch('https://boutique-stock-api.onrender.com/api/produits', {
-      method: 'POST',
+
+    const url = editId
+      ? `https://boutique-stock-api.onrender.com/api/produits/${editId}`
+      : 'https://boutique-stock-api.onrender.com/api/produits';
+    const method = editId ? 'PUT' : 'POST';
+
+    await fetch(url, {
+      method,
       headers: { Authorization: `Bearer ${token}` },
       body: formData
     });
     setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
-    setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false);
+    setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false); setEditId(null);
     charger();
   };
 
@@ -380,14 +407,14 @@ function AdminProduits() {
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Icone nom="produits" size={28} /> Gestion des Produits
         </h2>
-        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+        <button onClick={ouvrirNouveau} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
           + Ajouter un produit
         </button>
       </div>
 
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>Nouveau produit</h3>
+          <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>{editId ? '✏️ Modifier le produit' : 'Nouveau produit'}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Photo du produit</label>
@@ -440,9 +467,9 @@ function AdminProduits() {
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
             <button onClick={ajouter} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1 }}>
-              {envoi ? 'Enregistrement...' : '✅ Enregistrer le produit'}
+              {envoi ? 'Enregistrement...' : editId ? '✏️ Enregistrer les modifications' : '✅ Enregistrer le produit'}
             </button>
-            <button onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); }}
+            <button onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); setEditId(null); }}
               style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
           </div>
         </div>
@@ -486,9 +513,14 @@ function AdminProduits() {
                   }}>{p.quantite === 0 ? 'Rupture' : p.quantite <= p.seuilAlerte ? 'Faible' : 'Disponible'}</span>
                 </td>
                 <td style={{ padding: '10px 8px' }}>
-                  <button onClick={() => supprimer(p._id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
-                    <Icone nom="supprimer" size={14} />
-                  </button>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => ouvrirModification(p)} style={{ padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb' }}>
+                      <Icone nom="modifier" size={14} />
+                    </button>
+                    <button onClick={() => supprimer(p._id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                      <Icone nom="supprimer" size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
