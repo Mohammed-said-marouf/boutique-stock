@@ -463,9 +463,10 @@ function AdminProduits() {
             {filtres.map((p, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
                 <td style={{ padding: '8px' }}>
-                  {p.photo ? (
-                    <img src={p.photo} alt={p.nom}
-                      style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                  {p.image ? (
+                    <img src={resoudreImage(p.image)} alt={p.nom}
+                      style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                      onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
                   ) : (
                     <div style={{ width: '44px', height: '44px', borderRadius: '8px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
                       <Icone nom="produits" size={24} />
