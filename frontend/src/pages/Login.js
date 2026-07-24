@@ -36,10 +36,9 @@ export default function Login() {
 
       <div style={styles.card}>
         <div style={styles.logoWrap}>
-          <div style={styles.logo}>🏪</div>
+          <img src="/logo-boutique-stock.png" alt="Stock Boutique" style={styles.logo} />
         </div>
 
-        <h1 style={styles.title}>Boutique Stock</h1>
         <p style={styles.subtitle}>Connectez-vous à votre espace</p>
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
@@ -148,15 +147,9 @@ const styles = {
     marginBottom: '10px'
   },
   logo: {
-    width: 'clamp(42px, 8vh, 52px)',
-    height: 'clamp(42px, 8vh, 52px)',
-    borderRadius: '14px',
-    background: 'linear-gradient(135deg, #4361ee, #7209b7)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 'clamp(18px, 4vh, 24px)',
-    boxShadow: '0 10px 24px rgba(67,97,238,0.35)'
+    width: 'clamp(150px, 34vh, 220px)',
+    height: 'auto',
+    objectFit: 'contain'
   },
   title: {
     margin: 0,

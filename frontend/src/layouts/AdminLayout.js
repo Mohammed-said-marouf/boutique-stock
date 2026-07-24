@@ -47,7 +47,7 @@ export default function AdminLayout() {
             {user?.boutique?.logo ? (
               <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <Icone nom="boutiques" size={17} />
+              <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
           </div>
           {!collapsed && (
@@ -91,7 +91,7 @@ export default function AdminLayout() {
               {user?.boutique?.logo ? (
                 <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <Icone nom="boutiques" size={20} />
+                <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               )}
             </div>
             {!collapsed && (
