@@ -36,7 +36,8 @@ export default function Login() {
 
       <div style={styles.card}>
         <div style={styles.logoWrap}>
-          <img src="/logo-boutique-stock.png" alt="Stock Boutique" style={styles.logo} />
+          <img src="/logo512.png" alt="Stock Boutique" style={styles.logo} />
+          <h1 style={styles.title}>Stock Boutique</h1>
         </div>
 
         <p style={styles.subtitle}>Connectez-vous à votre espace</p>
@@ -147,9 +148,11 @@ const styles = {
     marginBottom: '10px'
   },
   logo: {
-    width: 'clamp(150px, 34vh, 220px)',
-    height: 'auto',
-    objectFit: 'contain'
+    width: 'clamp(56px, 12vh, 72px)',
+    height: 'clamp(56px, 12vh, 72px)',
+    objectFit: 'contain',
+    borderRadius: '16px',
+    boxShadow: '0 6px 16px rgba(0,0,0,0.25)'
   },
   title: {
     margin: 0,
