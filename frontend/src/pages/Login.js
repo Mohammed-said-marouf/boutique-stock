@@ -152,7 +152,8 @@ const styles = {
   logo: {
     width: 'clamp(64px, 14vh, 80px)',
     height: 'auto',
-    objectFit: 'contain'
+    objectFit: 'contain',
+    borderRadius: '14px'
   },
   title: {
     margin: '4px 0 0',
