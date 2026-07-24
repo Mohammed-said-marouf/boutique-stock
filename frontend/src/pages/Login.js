@@ -150,7 +150,7 @@ const styles = {
     marginBottom: '10px'
   },
   logo: {
-    width: 'clamp(150px, 34vh, 220px)',
+    width: 'clamp(64px, 14vh, 80px)',
     height: 'auto',
     objectFit: 'contain'
   },
