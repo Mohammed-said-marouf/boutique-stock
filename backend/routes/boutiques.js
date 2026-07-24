@@ -43,7 +43,7 @@ router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.singl
     }
 
     const data = { ...req.body };
-    if (req.file) data.logo = `/uploads/${req.file.filename}`;
+    if (req.file) data.logo = req.file.path; // URL Cloudinary complète
 
     const boutique = await Boutique.findByIdAndUpdate(req.params.id, data, { new: true });
     if (!boutique) return res.status(404).json({ message: 'Boutique introuvable' });

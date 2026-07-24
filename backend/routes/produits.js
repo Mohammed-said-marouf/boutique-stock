@@ -39,7 +39,7 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), upload.single(
   try {
     const data = { ...req.body };
     if (req.user.role === 'admin') data.boutiqueId = req.user.boutiqueId;
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path; // URL Cloudinary complète
     const produit = new Produit(data);
     const newProduit = await produit.save();
     res.status(201).json(newProduit);
@@ -52,7 +52,7 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), upload.single(
 router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.single('image'), async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) data.image = req.file.path; // URL Cloudinary complète
     const produit = await Produit.findByIdAndUpdate(req.params.id, data, { new: true });
     res.json(produit);
   } catch (err) {
@@ -69,6 +69,7 @@ router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (re
     res.status(500).json({ message: err.message });
   }
 });
+
 // GET - Stats produits pour admin
 router.get('/stats', verifierToken, async (req, res) => {
   try {
