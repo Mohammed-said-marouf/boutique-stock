@@ -607,7 +607,7 @@ function AdminStocks() {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: '12px', marginBottom: '12px' }}>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Produit</label>
-              <select value={form.produit} onChange={e => setForm(p => ({ ...p, produitId: e.target.value }))}
+              <select value={form.produit} onChange={e => setForm(p => ({ ...p, produit: e.target.value }))}
                 style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}>
                 <option value="">Sélectionner...</option>
                 {produits.map(p => <option key={p._id} value={p._id}>{p.nom} (stock: {p.quantite})</option>)}
