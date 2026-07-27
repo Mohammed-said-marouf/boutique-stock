@@ -3,6 +3,7 @@ import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icone, useIcones } from '../context/IconesContext';
 import axios from 'axios';
+import ExcelJS from 'exceljs';
 
 const menuItems = [
   { path: '/superadmin', iconKey: 'dashboard', label: 'Tableau de bord' },
@@ -686,9 +687,49 @@ function RapportsSuperAdmin() {
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
-  const telechargerCSV = (nomFichier, lignes) => {
-    const contenu = lignes.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + contenu], { type: 'text/csv;charset=utf-8;' });
+  const telechargerExcel = async (nomFichier, lignes) => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Rapport');
+    const [entetes, ...corps] = lignes;
+
+    const ligneEntete = sheet.addRow(entetes);
+    ligneEntete.eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FF1E1B4B' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      };
+    });
+    ligneEntete.height = 22;
+
+    corps.forEach((ligne, i) => {
+      const row = sheet.addRow(ligne);
+      row.eachCell(cell => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        };
+        if (i % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+    });
+
+    sheet.columns.forEach(col => {
+      let max = 12;
+      col.eachCell({ includeEmpty: true }, cell => {
+        const len = cell.value ? cell.value.toString().length : 0;
+        if (len > max) max = len;
+      });
+      col.width = Math.min(max + 3, 45);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -713,7 +754,7 @@ function RapportsSuperAdmin() {
         ouTiret(v.numFacture), ouTiret(v.nomVendeur), ouTiret(v.clientNom), formatMontant(v.montantTotal),
         v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : '—'
       ]));
-      telechargerCSV(`rapport-ventes-globales-${Date.now()}.csv`, lignes);
+      await telechargerExcel(`rapport-ventes-globales-${Date.now()}.xlsx`, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -731,7 +772,7 @@ function RapportsSuperAdmin() {
         ouTiret(b.nom), capitaliser(b.abonnement), formatMontant(montantParPlan[b.abonnement]),
         b.actif ? 'Actif' : 'Inactif', b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'
       ]));
-      telechargerCSV(`rapport-abonnements-${Date.now()}.csv`, lignes);
+      await telechargerExcel(`rapport-abonnements-${Date.now()}.xlsx`, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -749,7 +790,7 @@ function RapportsSuperAdmin() {
         ouTiret(u.nom), ouTiret(u.email), capitaliser(u.role), ouTiret(u.boutiqueId?.nom),
         u.actif ? 'Actif' : 'Inactif', u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '—'
       ]));
-      telechargerCSV(`rapport-utilisateurs-${Date.now()}.csv`, lignes);
+      await telechargerExcel(`rapport-utilisateurs-${Date.now()}.xlsx`, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -778,7 +819,7 @@ function RapportsSuperAdmin() {
         ['Revenus abonnements actifs', formatMontant(revenusAbonnements)],
         ['Total consolidé', formatMontant(chiffreVentes + revenusAbonnements)],
       ];
-      telechargerCSV(`rapport-financier-global-${Date.now()}.csv`, lignes);
+      await telechargerExcel(`rapport-financier-global-${Date.now()}.xlsx`, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
