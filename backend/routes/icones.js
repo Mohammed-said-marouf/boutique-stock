@@ -13,13 +13,15 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT - Modifier un icône (SuperAdmin seulement)
-router.put('/:id', verifierToken, autoriser('superadmin'), async (req, res) => {
+// PUT - Modifier un icône par sa clé (ex: "boutiques", "produits") — SuperAdmin seulement
+// Crée l'icône si elle n'existe pas encore (upsert), pour éviter les erreurs si une
+// nouvelle clé est utilisée côté frontend sans avoir été initialisée en base.
+router.put('/:cle', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
-    const icone = await Icone.findByIdAndUpdate(
-      req.params.id,
-      { valeur: req.body.valeur },
-      { new: true }
+    const icone = await Icone.findOneAndUpdate(
+      { cle: req.params.cle },
+      { valeur: req.body.valeur, $setOnInsert: { categorie: 'menu' } },
+      { new: true, upsert: true }
     );
     res.json(icone);
   } catch (err) {
@@ -37,16 +39,16 @@ router.post('/initialiser', verifierToken, autoriser('superadmin'), async (req, 
       { cle: 'utilisateurs', valeur: '👥', categorie: 'menu', description: 'Utilisateurs' },
       { cle: 'parametres', valeur: '⚙️', categorie: 'menu', description: 'Paramètres' },
       { cle: 'deconnexion', valeur: '🚪', categorie: 'menu', description: 'Déconnexion' },
-      
+
       // Menu Admin
       { cle: 'produits', valeur: '📦', categorie: 'menu', description: 'Produits' },
       { cle: 'ventes', valeur: '💰', categorie: 'menu', description: 'Ventes' },
       { cle: 'clients', valeur: '👤', categorie: 'menu', description: 'Clients' },
       { cle: 'stock', valeur: '📊', categorie: 'menu', description: 'Stock' },
-      
+
       // Menu Vendeur
       { cle: 'caisse', valeur: '🛒', categorie: 'menu', description: 'Caisse' },
-      
+
       // Actions
       { cle: 'ajouter', valeur: '➕', categorie: 'actions', description: 'Ajouter' },
       { cle: 'modifier', valeur: '✏️', categorie: 'actions', description: 'Modifier' },
@@ -54,7 +56,7 @@ router.post('/initialiser', verifierToken, autoriser('superadmin'), async (req, 
       { cle: 'rechercher', valeur: '🔍', categorie: 'actions', description: 'Rechercher' },
       { cle: 'exporter', valeur: '📥', categorie: 'actions', description: 'Exporter' },
       { cle: 'imprimer', valeur: '🖨️', categorie: 'actions', description: 'Imprimer' },
-      
+
       // Statuts
       { cle: 'actif', valeur: '✅', categorie: 'statuts', description: 'Actif' },
       { cle: 'inactif', valeur: '❌', categorie: 'statuts', description: 'Inactif' },
