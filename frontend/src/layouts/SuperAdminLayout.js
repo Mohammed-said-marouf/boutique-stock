@@ -697,6 +697,10 @@ function RapportsSuperAdmin() {
     URL.revokeObjectURL(url);
   };
 
+  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+  const ouTiret = (v) => (v === null || v === undefined || v === '') ? '—' : v;
+  const capitaliser = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
   const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
 
   const exporterVentes = async () => {
@@ -706,8 +710,8 @@ function RapportsSuperAdmin() {
       const ventes = await res.json();
       const lignes = [['N° Facture', 'Boutique / Vendeur', 'Client', 'Montant', 'Date']];
       (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
-        v.numFacture || '', v.nomVendeur || '', v.clientNom || '', v.montantTotal || 0,
-        v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''
+        ouTiret(v.numFacture), ouTiret(v.nomVendeur), ouTiret(v.clientNom), formatMontant(v.montantTotal),
+        v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : '—'
       ]));
       telechargerCSV(`rapport-ventes-globales-${Date.now()}.csv`, lignes);
     } catch (err) {
@@ -724,8 +728,8 @@ function RapportsSuperAdmin() {
       const boutiques = await res.json();
       const lignes = [['Boutique', 'Plan', 'Montant', 'Statut', 'Depuis']];
       (Array.isArray(boutiques) ? boutiques : []).forEach(b => lignes.push([
-        b.nom || '', b.abonnement || '', montantParPlan[b.abonnement] || 0,
-        b.actif ? 'Actif' : 'Inactif', b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : ''
+        ouTiret(b.nom), capitaliser(b.abonnement), formatMontant(montantParPlan[b.abonnement]),
+        b.actif ? 'Actif' : 'Inactif', b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'
       ]));
       telechargerCSV(`rapport-abonnements-${Date.now()}.csv`, lignes);
     } catch (err) {
@@ -742,8 +746,8 @@ function RapportsSuperAdmin() {
       const users = await res.json();
       const lignes = [['Nom', 'Email', 'Rôle', 'Boutique', 'Statut', 'Créé le']];
       (Array.isArray(users) ? users : []).forEach(u => lignes.push([
-        u.nom || '', u.email || '', u.role || '', u.boutiqueId?.nom || '',
-        u.actif ? 'Actif' : 'Inactif', u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : ''
+        ouTiret(u.nom), ouTiret(u.email), capitaliser(u.role), ouTiret(u.boutiqueId?.nom),
+        u.actif ? 'Actif' : 'Inactif', u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '—'
       ]));
       telechargerCSV(`rapport-utilisateurs-${Date.now()}.csv`, lignes);
     } catch (err) {
@@ -769,10 +773,10 @@ function RapportsSuperAdmin() {
         .reduce((s, b) => s + (montantParPlan[b.abonnement] || 0), 0);
 
       const lignes = [
-        ['Indicateur', 'Montant (FCFA)'],
-        ['Chiffre d\'affaires ventes (toutes boutiques)', chiffreVentes],
-        ['Revenus abonnements actifs', revenusAbonnements],
-        ['Total consolidé', chiffreVentes + revenusAbonnements],
+        ['Indicateur', 'Montant'],
+        ['Chiffre d\'affaires ventes (toutes boutiques)', formatMontant(chiffreVentes)],
+        ['Revenus abonnements actifs', formatMontant(revenusAbonnements)],
+        ['Total consolidé', formatMontant(chiffreVentes + revenusAbonnements)],
       ];
       telechargerCSV(`rapport-financier-global-${Date.now()}.csv`, lignes);
     } catch (err) {
