@@ -602,23 +602,38 @@ function AbonnementsAdmin() {
 
 // ===================== TRANSACTIONS =====================
 function TransactionsAdmin() {
-  const transactions = [
-    { ref: 'TXN-001', boutique: 'Boutique Awa', type: 'Abonnement Premium', date: '01/01/2026', montant: 150000, statut: 'Réussi' },
-    { ref: 'TXN-002', boutique: 'Mode & Style', type: 'Abonnement Standard', date: '01/03/2026', montant: 75000, statut: 'Réussi' },
-    { ref: 'TXN-003', boutique: 'Elégance Plus', type: 'Abonnement Standard', date: '01/05/2026', montant: 75000, statut: 'Échoué' },
-    { ref: 'TXN-004', boutique: 'Tendance Shop', type: 'Renouvellement', date: '15/06/2026', montant: 0, statut: 'En attente' },
-  ];
+  const [boutiques, setBoutiques] = useState([]);
+  const [chargement, setChargement] = useState(true);
+
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('https://boutique-stock-api.onrender.com/api/boutiques', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { setBoutiques(Array.isArray(data) ? data : []); setChargement(false); })
+      .catch(() => setChargement(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
+  const payantes = boutiques.filter(b => b.abonnement !== 'gratuit');
+  const revenusTotaux = payantes.reduce((s, b) => s + (b.actif ? (montantParPlan[b.abonnement] || 0) : 0), 0);
+  const reussies = payantes.filter(b => b.actif).length;
+  const echouees = payantes.filter(b => !b.actif).length;
 
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
         💰 Transactions
       </h2>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
+        Calculé à partir des abonnements payants actuellement actifs (pas de passerelle de paiement connectée pour l'instant).
+      </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Revenus totaux', value: '300 000 FCFA', color: '#dcfce7' },
-          { label: 'Transactions réussies', value: '2', color: '#dbeafe' },
-          { label: 'Transactions échouées', value: '1', color: '#fee2e2' },
+          { label: 'Revenus (abonnements actifs)', value: `${revenusTotaux.toLocaleString()} FCFA`, color: '#dcfce7' },
+          { label: 'Boutiques payantes actives', value: String(reussies), color: '#dbeafe' },
+          { label: 'Boutiques payantes inactives', value: String(echouees), color: '#fee2e2' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -632,29 +647,34 @@ function TransactionsAdmin() {
         ))}
       </div>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Référence', 'Boutique', 'Type', 'Date', 'Montant', 'Statut'].map(h => (
-                <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((t, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '12px 8px', color: '#4f46e5', fontWeight: '600' }}>{t.ref}</td>
-                <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{t.boutique}</td>
-                <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{t.type}</td>
-                <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{t.date}</td>
-                <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{t.montant > 0 ? `${t.montant.toLocaleString()} FCFA` : '—'}</td>
-                <td style={{ padding: '12px 8px' }}>
-                  <span style={{ background: t.statut === 'Réussi' ? '#dcfce7' : t.statut === 'Échoué' ? '#fee2e2' : '#fef9c3', color: t.statut === 'Réussi' ? '#16a34a' : t.statut === 'Échoué' ? '#dc2626' : '#ca8a04', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{t.statut}</span>
-                </td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : payantes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune boutique avec un abonnement payant.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Boutique', 'Plan', 'Depuis', 'Montant', 'Statut'].map(h => (
+                  <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {payantes.map((b) => (
+                <tr key={b._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{b.nom}</td>
+                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px', textTransform: 'capitalize' }}>{b.abonnement}</td>
+                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{(montantParPlan[b.abonnement] || 0).toLocaleString()} FCFA</td>
+                  <td style={{ padding: '12px 8px' }}>
+                    <span style={{ background: b.actif ? '#dcfce7' : '#fee2e2', color: b.actif ? '#16a34a' : '#dc2626', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{b.actif ? 'Actif' : 'Inactif'}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
