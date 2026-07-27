@@ -32,6 +32,8 @@ app.use('/api/users', require('./routes/users'));
 // Nouvelle route pour les icônes
 app.use('/api/icones', require('./routes/icones'));
 app.use('/api/mouvements-stock', require('./routes/mouvements'));
+app.use('/api/logs', require('./routes/logs'));
+
 const { demarrerVerificationStock } = require('./services/stockVerifier');
 
 mongoose.connect(process.env.MONGO_URI)
