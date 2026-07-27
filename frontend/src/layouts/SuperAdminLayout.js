@@ -17,6 +17,7 @@ const menuItems = [
 ];
 
 const outilsItems = [
+  { path: '/superadmin/icones', icon: '🎨', label: 'Icônes' },
   { path: '/superadmin/notifications', icon: '🔔', label: 'Notifications' },
   { path: '/superadmin/sauvegardes', icon: '💾', label: 'Sauvegardes' },
   { path: '/superadmin/maintenance', icon: '🔧', label: 'Maintenance' },
@@ -162,6 +163,7 @@ export default function SuperAdminLayout() {
             <Route path="rapports" element={<RapportsSuperAdmin />} />
             <Route path="parametres" element={<ParametresSuperAdmin user={user} />} />
             <Route path="journal" element={<JournalAdmin />} />
+            <Route path="icones" element={<PageIcones />} />
             <Route path="notifications" element={<NotificationsAdmin />} />
             <Route path="sauvegardes" element={<SauvegardesAdmin />} />
             <Route path="maintenance" element={<MaintenanceAdmin />} />
@@ -962,6 +964,17 @@ function EditeurIcones() {
   );
 }
 
+function PageIcones() {
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        🎨 Icônes de l'application
+      </h2>
+      <EditeurIcones />
+    </div>
+  );
+}
+
 function ParametresSuperAdmin({ user }) {
   return (
     <div>
@@ -1008,8 +1021,6 @@ function ParametresSuperAdmin({ user }) {
           <button style={{ padding: '10px 24px', background: '#1e1b4b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🔒 Changer le mot de passe</button>
         </div>
       </div>
-
-      <EditeurIcones />
     </div>
   );
 }
