@@ -1027,14 +1027,28 @@ function ParametresSuperAdmin({ user }) {
 
 // ===================== JOURNAL =====================
 function JournalAdmin() {
-  const events = [
-    { date: '24/06/2026 14:32', user: 'Awa Diallo', action: 'Connexion', detail: 'Boutique Awa', type: 'info' },
-    { date: '24/06/2026 14:15', user: 'Moussa Diallo', action: 'Vente créée', detail: 'FAC-250002 — 85 000 FCFA', type: 'success' },
-    { date: '24/06/2026 13:50', user: 'Super Admin', action: 'Boutique activée', detail: 'Mode & Style', type: 'success' },
-    { date: '24/06/2026 12:00', user: 'Kofi Mensah', action: 'Produit ajouté', detail: 'Chemise homme x 50', type: 'info' },
-    { date: '23/06/2026 18:22', user: 'Fatou Ba', action: 'Tentative de connexion échouée', detail: 'Tendance Shop', type: 'error' },
-    { date: '23/06/2026 16:10', user: 'Super Admin', action: 'Utilisateur créé', detail: 'Moussa Diallo (vendeur)', type: 'success' },
-  ];
+  const [logs, setLogs] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    fetch('https://boutique-stock-api.onrender.com/api/logs', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { setLogs(Array.isArray(data) ? data : []); setChargement(false); })
+      .catch(() => setChargement(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const libelles = {
+    connexion: 'Connexion',
+    connexion_echouee: 'Tentative de connexion échouée',
+    boutique_creee: 'Boutique créée',
+    boutique_activee: 'Boutique activée',
+    boutique_desactivee: 'Boutique désactivée',
+    utilisateur_cree: 'Utilisateur créé',
+    vente_creee: 'Vente créée',
+    produit_ajoute: 'Produit ajouté',
+  };
 
   const typeBg = { success: '#dcfce7', error: '#fee2e2', info: '#dbeafe' };
   const typeColor = { success: '#16a34a', error: '#dc2626', info: '#2563eb' };
@@ -1046,20 +1060,28 @@ function JournalAdmin() {
         📋 Journal d'activités
       </h2>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        {events.map((e, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 0', borderBottom: i < events.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: typeBg[e.type], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
-              {typeIcon[e.type]}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e1b4b', marginBottom: '2px' }}>
-                <span style={{ color: typeColor[e.type] }}>{e.action}</span> — {e.detail}
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : logs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune activité enregistrée pour le moment.</div>
+        ) : (
+          logs.map((e, i) => (
+            <div key={e._id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 0', borderBottom: i < logs.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: typeBg[e.niveau], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
+                {typeIcon[e.niveau]}
               </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>Par <strong>{e.user}</strong></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e1b4b', marginBottom: '2px' }}>
+                  <span style={{ color: typeColor[e.niveau] }}>{libelles[e.type] || e.type}</span> — {e.message}
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Par <strong>{e.nomUtilisateur}</strong></div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#999', flexShrink: 0 }}>
+                {e.createdAt ? new Date(e.createdAt).toLocaleString('fr-FR') : '—'}
+              </div>
             </div>
-            <div style={{ fontSize: '12px', color: '#999', flexShrink: 0 }}>{e.date}</div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

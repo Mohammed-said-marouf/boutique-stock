@@ -4,6 +4,7 @@ const Boutique = require('../models/Boutique');
 const User = require('../models/User');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const enregistrerLog = require('../utils/logger');
 
 // Liste toutes les boutiques (superadmin)
 router.get('/', verifierToken, autoriser('superadmin'), async (req, res) => {
@@ -47,6 +48,17 @@ router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.singl
 
     const boutique = await Boutique.findByIdAndUpdate(req.params.id, data, { new: true });
     if (!boutique) return res.status(404).json({ message: 'Boutique introuvable' });
+
+    if (typeof req.body.actif === 'boolean') {
+      await enregistrerLog({
+        type: boutique.actif ? 'boutique_activee' : 'boutique_desactivee',
+        message: boutique.nom,
+        utilisateur: req.user.id,
+        nomUtilisateur: req.user.nom || 'Admin',
+        niveau: boutique.actif ? 'success' : 'error'
+      });
+    }
+
     res.json(boutique);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
@@ -92,6 +104,14 @@ router.post('/creer-complete', verifierToken, autoriser('superadmin'), async (re
     // 3. Lier le propriétaire à la boutique
     boutique.proprietaire = admin._id;
     await boutique.save();
+
+    await enregistrerLog({
+      type: 'boutique_creee',
+      message: boutique.nom,
+      utilisateur: req.user.id,
+      nomUtilisateur: req.user.nom || 'Super Admin',
+      niveau: 'success'
+    });
 
     res.status(201).json({
       message: '✅ Boutique et compte admin créés',

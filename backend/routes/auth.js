@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const enregistrerLog = require('../utils/logger');
 const router = express.Router();
 
 // Connexion
@@ -8,16 +9,41 @@ router.post('/login', async (req, res) => {
   try {
     const { email, motDePasse } = req.body;
     const user = await User.findOne({ email }).populate('boutiqueId');
-    if (!user || !await user.verifierMotDePasse(motDePasse))
+
+    if (!user || !await user.verifierMotDePasse(motDePasse)) {
+      await enregistrerLog({
+        type: 'connexion_echouee',
+        message: `Tentative avec l'email ${email}`,
+        nomUtilisateur: email,
+        niveau: 'error'
+      });
       return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
-    if (!user.actif)
+    }
+
+    if (!user.actif) {
+      await enregistrerLog({
+        type: 'connexion_echouee',
+        message: `Compte désactivé (${user.nom})`,
+        utilisateur: user._id,
+        nomUtilisateur: user.nom,
+        niveau: 'error'
+      });
       return res.status(403).json({ message: 'Compte désactivé' });
+    }
 
     const token = jwt.sign(
-      { id: user._id, role: user.role, boutiqueId: user.boutiqueId?._id },
+      { id: user._id, nom: user.nom, role: user.role, boutiqueId: user.boutiqueId?._id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    await enregistrerLog({
+      type: 'connexion',
+      message: user.boutiqueId?.nom || user.role,
+      utilisateur: user._id,
+      nomUtilisateur: user.nom,
+      niveau: 'info'
+    });
 
     res.json({
       token,

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { verifierToken, autoriser } = require('../middleware/auth');
+const enregistrerLog = require('../utils/logger');
 
 // Liste tous les utilisateurs (superadmin) ou vendeurs de sa boutique (admin)
 router.get('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
@@ -75,6 +76,15 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     const user = new User(req.body);
     await user.save();
     const { motDePasse, ...userSansMotDePasse } = user.toObject();
+
+    await enregistrerLog({
+      type: 'utilisateur_cree',
+      message: `${user.nom} (${user.role})`,
+      utilisateur: req.user.id,
+      nomUtilisateur: req.user.nom || 'Admin',
+      niveau: 'success'
+    });
+
     res.status(201).json(userSansMotDePasse);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
