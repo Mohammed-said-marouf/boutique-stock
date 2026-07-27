@@ -682,30 +682,136 @@ function TransactionsAdmin() {
 
 // ===================== RAPPORTS =====================
 function RapportsSuperAdmin() {
+  const [export_, setExport_] = useState('');
+  const token = localStorage.getItem('token');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const telechargerCSV = (nomFichier, lignes) => {
+    const contenu = lignes.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + contenu], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomFichier;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
+
+  const exporterVentes = async () => {
+    setExport_('ventes');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/ventes', authHeaders);
+      const ventes = await res.json();
+      const lignes = [['N° Facture', 'Boutique / Vendeur', 'Client', 'Montant', 'Date']];
+      (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
+        v.numFacture || '', v.nomVendeur || '', v.clientNom || '', v.montantTotal || 0,
+        v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''
+      ]));
+      telechargerCSV(`rapport-ventes-globales-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const exporterAbonnements = async () => {
+    setExport_('abonnements');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders);
+      const boutiques = await res.json();
+      const lignes = [['Boutique', 'Plan', 'Montant', 'Statut', 'Depuis']];
+      (Array.isArray(boutiques) ? boutiques : []).forEach(b => lignes.push([
+        b.nom || '', b.abonnement || '', montantParPlan[b.abonnement] || 0,
+        b.actif ? 'Actif' : 'Inactif', b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : ''
+      ]));
+      telechargerCSV(`rapport-abonnements-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const exporterUtilisateurs = async () => {
+    setExport_('utilisateurs');
+    try {
+      const res = await fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders);
+      const users = await res.json();
+      const lignes = [['Nom', 'Email', 'Rôle', 'Boutique', 'Statut', 'Créé le']];
+      (Array.isArray(users) ? users : []).forEach(u => lignes.push([
+        u.nom || '', u.email || '', u.role || '', u.boutiqueId?.nom || '',
+        u.actif ? 'Actif' : 'Inactif', u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : ''
+      ]));
+      telechargerCSV(`rapport-utilisateurs-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const exporterFinancier = async () => {
+    setExport_('financier');
+    try {
+      const [resVentes, resBoutiques] = await Promise.all([
+        fetch('https://boutique-stock-api.onrender.com/api/ventes', authHeaders),
+        fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders)
+      ]);
+      const ventes = await resVentes.json();
+      const boutiques = await resBoutiques.json();
+
+      const chiffreVentes = (Array.isArray(ventes) ? ventes : []).reduce((s, v) => s + (v.montantTotal || 0), 0);
+      const revenusAbonnements = (Array.isArray(boutiques) ? boutiques : [])
+        .filter(b => b.actif)
+        .reduce((s, b) => s + (montantParPlan[b.abonnement] || 0), 0);
+
+      const lignes = [
+        ['Indicateur', 'Montant (FCFA)'],
+        ['Chiffre d\'affaires ventes (toutes boutiques)', chiffreVentes],
+        ['Revenus abonnements actifs', revenusAbonnements],
+        ['Total consolidé', chiffreVentes + revenusAbonnements],
+      ];
+      telechargerCSV(`rapport-financier-global-${Date.now()}.csv`, lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setExport_('');
+    }
+  };
+
+  const rapports = [
+    { label: 'Rapport global des ventes', sub: 'Toutes boutiques confondues', color: '#e0e7ff', action: exporterVentes, key: 'ventes' },
+    { label: 'Rapport des abonnements', sub: 'Revenus et plans par boutique', color: '#dcfce7', action: exporterAbonnements, key: 'abonnements' },
+    { label: 'Rapport des utilisateurs', sub: 'Liste complète, tous rôles', color: '#fce7f3', action: exporterUtilisateurs, key: 'utilisateurs' },
+    { label: 'Rapport financier global', sub: "Chiffre d'affaires consolidé", color: '#fef9c3', action: exporterFinancier, key: 'financier' },
+  ];
+
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
         📈 Rapports globaux
       </h2>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
+        Cliquez sur une carte pour télécharger un export CSV à jour de vos données.
+      </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {[
-          { label: 'Rapport global des ventes', sub: 'Toutes boutiques confondues', color: '#e0e7ff' },
-          { label: 'Rapport des abonnements', sub: 'Revenus et renouvellements', color: '#dcfce7' },
-          { label: 'Rapport des utilisateurs', sub: 'Activité et connexions', color: '#fce7f3' },
-          { label: 'Rapport financier global', sub: "Chiffre d'affaires consolidé", color: '#fef9c3' },
-        ].map((r, i) => (
-          <button key={i} style={{
+        {rapports.map((r, i) => (
+          <button key={i} onClick={r.action} disabled={export_ === r.key} style={{
             background: 'white', borderRadius: '12px', padding: '24px',
             boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex',
             alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0',
-            cursor: 'pointer', textAlign: 'left'
+            cursor: export_ === r.key ? 'not-allowed' : 'pointer', textAlign: 'left',
+            opacity: export_ === r.key ? 0.6 : 1
           }}>
             <div style={{ width: '56px', height: '56px', background: r.color, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span style={{fontSize:"28px"}}>📈</span>
             </div>
             <div>
               <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e1b4b', marginBottom: '4px' }}>{r.label}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>{r.sub}</div>
+              <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Génération...' : r.sub}</div>
             </div>
           </button>
         ))}
