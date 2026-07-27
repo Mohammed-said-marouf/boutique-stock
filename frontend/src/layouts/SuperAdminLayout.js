@@ -39,9 +39,9 @@ export default function SuperAdminLayout() {
           <div style={{
             width: '36px', height: '36px', background: 'linear-gradient(135deg, #667eea, #764ba2)',
             borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '18px', flexShrink: 0
+            fontSize: '18px', flexShrink: 0, overflow: 'hidden'
           }}>
-            <Icone nom="boutiques" size={20} />
+            <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           {!collapsed && (
             <div>
@@ -414,13 +414,41 @@ function BoutiquesAdmin() {
 
 // ===================== UTILISATEURS =====================
 function UtilisateursAdmin() {
-  const [utilisateurs, setUtilisateurs] = useState([
-    { id: 1, nom: 'Awa Diallo', email: 'awa@mail.com', role: 'admin', boutique: 'Boutique Awa', actif: true, dernierLogin: '24/06/2026' },
-    { id: 2, nom: 'Moussa Diallo', email: 'vendeur@boutique.com', role: 'vendeur', boutique: 'Boutique Awa', actif: true, dernierLogin: '24/06/2026' },
-    { id: 3, nom: 'Kofi Mensah', email: 'kofi@mail.com', role: 'admin', boutique: 'Mode & Style', actif: true, dernierLogin: '23/06/2026' },
-    { id: 4, nom: 'Fatou Ba', email: 'fatou@mail.com', role: 'admin', boutique: 'Tendance Shop', actif: false, dernierLogin: '10/05/2026' },
-  ]);
+  const [utilisateurs, setUtilisateurs] = useState([]);
+  const [chargement, setChargement] = useState(true);
   const [filtre, setFiltre] = useState('Tous');
+
+  const token = localStorage.getItem('token');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const charger = () => {
+    setChargement(true);
+    fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders)
+      .then(r => r.json())
+      .then(data => { setUtilisateurs(Array.isArray(data) ? data : []); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { charger(); }, []);
+
+  const toggleActif = async (u) => {
+    await fetch(`https://boutique-stock-api.onrender.com/api/users/${u._id}/statut`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ actif: !u.actif })
+    });
+    charger();
+  };
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer cet utilisateur ?')) return;
+    await fetch(`https://boutique-stock-api.onrender.com/api/users/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    charger();
+  };
 
   const roleColor = { admin: '#2563eb', vendeur: '#16a34a', superadmin: '#7c3aed' };
   const roleBg = { admin: '#dbeafe', vendeur: '#dcfce7', superadmin: '#ede9fe' };
@@ -443,45 +471,51 @@ function UtilisateursAdmin() {
         </div>
       </div>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-              {['Nom', 'Email', 'Rôle', 'Boutique', 'Dernier login', 'Statut', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtres.map((u, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
-                <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{u.nom}</td>
-                <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.email}</td>
-                <td style={{ padding: '12px 8px' }}>
-                  <span style={{ background: roleBg[u.role], color: roleColor[u.role], padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{u.role}</span>
-                </td>
-                <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.boutique}</td>
-                <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.dernierLogin}</td>
-                <td style={{ padding: '12px 8px' }}>
-                  <span style={{ background: u.actif ? '#dcfce7' : '#fee2e2', color: u.actif ? '#16a34a' : '#dc2626', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
-                    {u.actif ? 'Actif' : 'Inactif'}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 8px' }}>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => setUtilisateurs(p => p.map(x => x.id === u.id ? { ...x, actif: !x.actif } : x))}
-                      style={{ padding: '5px 10px', background: u.actif ? '#fee2e2' : '#dcfce7', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: u.actif ? '#dc2626' : '#16a34a', fontWeight: '600' }}>
-                      {u.actif ? 'Désactiver' : 'Activer'}
-                    </button>
-                    <button onClick={() => setUtilisateurs(p => p.filter(x => x.id !== u.id))}
-                      style={{ padding: '5px 10px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
-                      <Icone nom="supprimer" size={14} />
-                    </button>
-                  </div>
-                </td>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
+        ) : filtres.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun utilisateur pour le moment.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                {['Nom', 'Email', 'Rôle', 'Boutique', 'Créé le', 'Statut', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtres.map((u) => (
+                <tr key={u._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{u.nom}</td>
+                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.email}</td>
+                  <td style={{ padding: '12px 8px' }}>
+                    <span style={{ background: roleBg[u.role], color: roleColor[u.role], padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{u.role}</span>
+                  </td>
+                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.boutiqueId?.nom || '—'}</td>
+                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={{ padding: '12px 8px' }}>
+                    <span style={{ background: u.actif ? '#dcfce7' : '#fee2e2', color: u.actif ? '#16a34a' : '#dc2626', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
+                      {u.actif ? 'Actif' : 'Inactif'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 8px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => toggleActif(u)}
+                        style={{ padding: '5px 10px', background: u.actif ? '#fee2e2' : '#dcfce7', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: u.actif ? '#dc2626' : '#16a34a', fontWeight: '600' }}>
+                        {u.actif ? 'Désactiver' : 'Activer'}
+                      </button>
+                      <button onClick={() => supprimer(u._id)}
+                        style={{ padding: '5px 10px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                        <Icone nom="supprimer" size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
