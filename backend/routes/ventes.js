@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Vente = require('../models/Vente');
 const Produit = require('../models/Produit');
+const Client = require('../models/Client');
 const { verifierToken, autoriser } = require('../middleware/auth');
 
 // GET - Lister toutes les ventes
@@ -30,12 +31,28 @@ router.post('/', verifierToken, async (req, res) => {
       });
     }
     const numFacture = 'FAC-' + Date.now().toString().slice(-6);
+    const boutiqueId = req.user.boutiqueId || null;
+
     const vente = new Vente({
       ...req.body,
       numFacture,
-      boutiqueId: req.user.boutiqueId || null
+      boutiqueId
     });
     const newVente = await vente.save();
+
+    // Créer ou mettre à jour automatiquement la fiche client, si un nom de client réel a été fourni
+    const nomClient = (req.body.clientNom || '').trim();
+    if (nomClient && nomClient.toLowerCase() !== 'client anonyme' && boutiqueId) {
+      await Client.findOneAndUpdate(
+        { nom: nomClient, boutiqueId },
+        {
+          $inc: { achats: 1, total: req.body.montantTotal || 0 },
+          $setOnInsert: { nom: nomClient, boutiqueId }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    }
+
     res.status(201).json(newVente);
   } catch (err) {
     res.status(400).json({ message: err.message });
