@@ -1078,6 +1078,15 @@ function AdminVendeurs() {
     charger();
   };
 
+  const supprimerVendeur = async (v) => {
+    if (!window.confirm(`Supprimer définitivement ${v.nom} ? Cette action est irréversible.`)) return;
+    await fetch(`https://boutique-stock-api.onrender.com/api/users/${v._id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    charger();
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -1134,10 +1143,16 @@ function AdminVendeurs() {
                     </span>
                   </td>
                   <td style={{ padding: '10px 8px' }}>
-                    <button style={{ padding: '4px 10px', background: v.actif ? '#fef2f2' : '#dcfce7', border: `1px solid ${v.actif ? '#fecaca' : '#bbf7d0'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: v.actif ? '#dc2626' : '#16a34a' }}
-                      onClick={() => toggleActif(v)}>
-                      {v.actif ? '🔒 Désactiver' : '✅ Activer'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button style={{ padding: '4px 10px', background: v.actif ? '#fef2f2' : '#dcfce7', border: `1px solid ${v.actif ? '#fecaca' : '#bbf7d0'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: v.actif ? '#dc2626' : '#16a34a' }}
+                        onClick={() => toggleActif(v)}>
+                        {v.actif ? '🔒 Désactiver' : '✅ Activer'}
+                      </button>
+                      <button style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}
+                        onClick={() => supprimerVendeur(v)}>
+                        <Icone nom="supprimer" size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

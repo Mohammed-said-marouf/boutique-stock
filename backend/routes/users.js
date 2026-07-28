@@ -100,8 +100,17 @@ router.put('/:id/statut', verifierToken, autoriser('superadmin', 'admin'), async
 });
 
 // Supprimer un utilisateur
-router.delete('/:id', verifierToken, autoriser('superadmin'), async (req, res) => {
+// - superadmin : peut supprimer n'importe qui
+// - admin : peut supprimer uniquement un vendeur de sa propre boutique
+router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
+    if (req.user.role === 'admin') {
+      const cible = await User.findById(req.params.id);
+      if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable' });
+      if (cible.role !== 'vendeur' || String(cible.boutiqueId) !== String(req.user.boutiqueId)) {
+        return res.status(403).json({ message: 'Vous ne pouvez supprimer que les vendeurs de votre boutique' });
+      }
+    }
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'Utilisateur supprimé' });
   } catch (err) { res.status(500).json({ message: err.message }); }
