@@ -18,6 +18,17 @@ function authHeaders() {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
+// Détecte si l'écran est en format mobile, se met à jour au redimensionnement
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= breakpoint);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // Réutilise les mêmes clés d'icônes que AdminLayout / SuperAdminLayout
 // pour que l'éditeur d'icônes du Super Admin les modifie toutes en même temps.
 const menuItems = [
@@ -32,16 +43,31 @@ const menuItems = [
 export default function VendeurLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState(isMobile);
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/login'); };
+  const fermerMenuMobile = () => { if (isMobile) setCollapsed(true); };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5', position: 'relative', overflow: 'hidden' }}>
+      {/* Voile sombre derrière le menu en mode tiroir mobile */}
+      {isMobile && !collapsed && (
+        <div onClick={() => setCollapsed(true)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40
+        }} />
+      )}
+
       <div style={{
-        width: collapsed ? '70px' : '220px', background: '#064e3b',
-        display: 'flex', flexDirection: 'column', transition: 'width 0.3s',
-        overflow: 'hidden', flexShrink: 0
+        width: isMobile ? '240px' : (collapsed ? '70px' : '220px'),
+        background: '#064e3b',
+        display: 'flex', flexDirection: 'column', transition: 'transform 0.3s, width 0.3s',
+        overflow: 'hidden', flexShrink: 0,
+        ...(isMobile ? {
+          position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 50,
+          transform: collapsed ? 'translateX(-100%)' : 'translateX(0)'
+        } : {})
       }}>
         <div style={{ padding: '20px 16px', borderBottom: '1px solid #065f46', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
@@ -54,7 +80,7 @@ export default function VendeurLayout() {
               <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
           </div>
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div>
               <div style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{user?.boutique?.nom || 'Ma Boutique'}</div>
               <div style={{ color: '#6ee7b7', fontSize: '11px' }}>Vendeur</div>
@@ -64,7 +90,7 @@ export default function VendeurLayout() {
 
         <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           {menuItems.map(item => (
-            <NavLink key={item.path} to={item.path} end={item.path === '/vendeur'}
+            <NavLink key={item.path} to={item.path} end={item.path === '/vendeur'} onClick={fermerMenuMobile}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '10px 8px', borderRadius: '8px', marginBottom: '2px',
@@ -74,7 +100,7 @@ export default function VendeurLayout() {
               <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icone nom={item.iconKey} size={22} />
               </div>
-              {!collapsed && <span>{item.label}</span>}
+              {(!collapsed || isMobile) && <span>{item.label}</span>}
             </NavLink>
           ))}
         </nav>
@@ -85,7 +111,7 @@ export default function VendeurLayout() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'white', fontWeight: '700', fontSize: '14px', flexShrink: 0
           }}>{user?.nom?.charAt(0) || 'V'}</div>
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: 'white', fontSize: '13px', fontWeight: '600' }}>{user?.nom}</div>
@@ -103,43 +129,64 @@ export default function VendeurLayout() {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <div style={{
-          background: 'white', padding: '0 24px', height: '64px',
+          background: 'white', padding: isMobile ? '0 12px' : '0 24px', height: '64px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0, gap: '10px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '16px', minWidth: 0 }}>
             <button onClick={() => setCollapsed(!collapsed)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#666' }}>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#666', flexShrink: 0 }}>
               ☰
             </button>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#064e3b' }}>Accueil</h2>
-              <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Tableau de bord</p>
-            </div>
+            {!isMobile && (
+              <div>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#064e3b' }}>Accueil</h2>
+                <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Tableau de bord</p>
+              </div>
+            )}
+            {isMobile && (
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#064e3b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Accueil</h2>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <input placeholder="Rechercher un produit (nom, code-barres)..." style={{
-              padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '20px',
-              fontSize: '14px', outline: 'none', width: '280px'
-            }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '16px', flexShrink: 0 }}>
+            {!isMobile && (
+              <input placeholder="Rechercher un produit (nom, code-barres)..." style={{
+                padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '20px',
+                fontSize: '14px', outline: 'none', width: '280px'
+              }} />
+            )}
+            {isMobile && (
+              <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
+            )}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '50%', background: '#059669',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: '700'
+                color: 'white', fontWeight: '700', flexShrink: 0
               }}>{user?.nom?.charAt(0) || 'V'}</div>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#064e3b' }}>{user?.nom}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>Vendeur</div>
-              </div>
+              {!isMobile && (
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#064e3b' }}>{user?.nom}</div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Vendeur</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+        {isMobile && rechercheOuverte && (
+          <div style={{ background: 'white', padding: '10px 12px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+            <input autoFocus placeholder="Rechercher un produit (nom, code-barres)..." style={{
+              width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '20px',
+              fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+            }} />
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '14px' : '24px' }}>
           <Routes>
             <Route path="" element={<VendeurDashboard user={user} />} />
             <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} boutique={user?.boutique} />} />
@@ -157,6 +204,7 @@ export default function VendeurLayout() {
 
 // ===================== DASHBOARD =====================
 function VendeurDashboard({ user }) {
+  const isMobile = useIsMobile();
   const [stats, setStats] = useState({ ventesJour: 0, caJour: 0, totalVentes: 0, chiffreAffaires: 0 });
   const [produits, setProduits] = useState([]);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -206,13 +254,13 @@ function VendeurDashboard({ user }) {
       {produits.length > 0 && (
         <div style={{
           position: 'relative', borderRadius: '16px', overflow: 'hidden',
-          marginBottom: '24px', height: '220px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-          display: 'flex', background: '#064e3b'
+          marginBottom: '24px', height: isMobile ? 'auto' : '220px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row', background: '#064e3b'
         }}>
           {produitVedette && (
             <>
               <div style={{
-                width: '260px', height: '100%', flexShrink: 0, background: '#f0fdf4',
+                width: isMobile ? '100%' : '260px', height: isMobile ? '160px' : '100%', flexShrink: 0, background: '#f0fdf4',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
               }}>
                 <img
@@ -227,7 +275,7 @@ function VendeurDashboard({ user }) {
               <div style={{
                 flex: 1, background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
                 display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                padding: '0 32px', minWidth: 0
+                padding: isMobile ? '16px 20px' : '0 32px', minWidth: 0
               }}>
                 <span style={{
                   alignSelf: 'flex-start', background: '#facc15', color: '#78350f',
@@ -301,7 +349,7 @@ function VendeurDashboard({ user }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         {cartes.map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
@@ -318,7 +366,7 @@ function VendeurDashboard({ user }) {
 
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
         <h3 style={{ margin: '0 0 16px', color: '#064e3b', fontSize: '15px' }}>⚡ Raccourcis rapides</h3>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {raccourcis.map((r, i) => (
             <button key={i} style={{
               display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px',
@@ -336,6 +384,7 @@ function VendeurDashboard({ user }) {
 
 // ===================== CAISSE =====================
 function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
+  const isMobile = useIsMobile();
   const [panier, setPanier] = useState([]);
   const [recherche, setRecherche] = useState('');
   const [produits, setProduits] = useState([]);
@@ -539,7 +588,12 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', height: 'calc(100vh - 140px)' }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 340px',
+      gap: '20px',
+      height: isMobile ? 'auto' : 'calc(100vh - 140px)'
+    }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', overflow: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <h3 style={{ margin: '0 0 16px', color: '#064e3b', fontSize: '16px' }}>📦 Produits disponibles</h3>
         <input value={recherche} onChange={e => setRecherche(e.target.value)}
@@ -783,7 +837,8 @@ function FacturesVendeur() {
         ) : ventes.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune vente enregistrée</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['N° Facture', 'Date', 'Client', 'Articles', 'Montant', 'Statut'].map(h => (
@@ -810,6 +865,7 @@ function FacturesVendeur() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -884,7 +940,8 @@ function ClientsVendeur() {
         ) : clients.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun client pour le moment.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '480px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['Nom', 'Téléphone', 'Achats', 'Total dépensé'].map(h => (
@@ -903,6 +960,7 @@ function ClientsVendeur() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
