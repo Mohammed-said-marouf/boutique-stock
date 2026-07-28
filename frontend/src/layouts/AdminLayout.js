@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icone } from '../context/IconesContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_BASE = 'https://boutique-stock-api.onrender.com';
 const resoudreImage = (chemin) => {
@@ -198,7 +200,7 @@ export default function AdminLayout() {
             <Route path="clients" element={<AdminClients />} />
             <Route path="fournisseurs" element={<AdminFournisseurs />} />
             <Route path="vendeurs" element={<AdminVendeurs />} />
-            <Route path="factures" element={<AdminFactures />} />
+            <Route path="factures" element={<AdminFactures user={user} />} />
             <Route path="rapports" element={<AdminRapports />} />
             <Route path="parametres" element={<AdminParametres user={user} />} />
             <Route path="*" element={<div><h2>Page en construction</h2></div>} />
@@ -1165,9 +1167,10 @@ function AdminVendeurs() {
   );
 }
 
-function AdminFactures() {
+function AdminFactures({ user }) {
   const [factures, setFactures] = useState([]);
   const [chargement, setChargement] = useState(true);
+  const [generation, setGeneration] = useState(null);
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -1177,6 +1180,115 @@ function AdminFactures() {
       .catch(() => setChargement(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+
+  const chargerImageBase64 = async (url) => {
+    if (!url) return null;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const voirFacture = async (f) => {
+    setGeneration(f._id);
+    try {
+      const nomBoutique = user?.boutique?.nom || 'Boutique Stock';
+      const logoBase64 = await chargerImageBase64(resoudreImage(user?.boutique?.logo));
+
+      const doc = new jsPDF();
+      const date = f.dateVente ? new Date(f.dateVente).toLocaleDateString('fr-FR') : '';
+      const heure = f.dateVente ? new Date(f.dateVente).toLocaleTimeString('fr-FR') : '';
+      const produitsListe = (f.produits || []).map(p => [
+        p.produit?.nom || 'Produit',
+        p.produit?.categorie || '-',
+        formatMontant(p.prixUnitaire),
+        p.quantite,
+        formatMontant(p.prixUnitaire * p.quantite)
+      ]);
+
+      const dessinerCopie = (yBase, labelCopie) => {
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, yBase, 210, 30, 'F');
+
+        let xTexte = 14;
+        if (logoBase64) {
+          try {
+            doc.addImage(logoBase64, 'JPEG', 14, yBase + 5, 20, 20, undefined, 'FAST');
+            xTexte = 40;
+          } catch (e) { /* pas grave, on continue sans logo */ }
+        }
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(nomBoutique, xTexte, yBase + 12);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Facture N° ${f.numFacture || ''}`, xTexte, yBase + 18);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(labelCopie, 196, yBase + 12, { align: 'right' });
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
+        doc.text(`Vendeur : ${f.nomVendeur || '—'}`, 120, yBase + 46);
+        doc.text(`Client : ${f.clientNom || 'Client anonyme'}`, 120, yBase + 52);
+
+        autoTable(doc, {
+          startY: yBase + 58,
+          head: [['Produit', 'Categorie', 'Prix unitaire', 'Qte', 'Total']],
+          body: produitsListe,
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          styles: { fontSize: 9 },
+          margin: { left: 14, right: 14 },
+        });
+
+        const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : yBase + 90) + 6;
+        doc.setFillColor(241, 245, 249);
+        doc.rect(134, finalY, 62, 18, 'F');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text('TOTAL A PAYER :', 138, finalY + 7);
+        doc.text(formatMontant(f.montantTotal), 138, finalY + 14);
+
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Merci pour votre achat !', 105, yBase + 138, { align: 'center' });
+      };
+
+      dessinerCopie(0, 'COPIE CAISSE');
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(0, 148, 210, 148);
+      doc.setLineDashPattern([], 0);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('découper ici', 105, 148, { align: 'center' });
+      dessinerCopie(150, 'COPIE CLIENT');
+
+      window.open(doc.output('bloburl'), '_blank');
+    } catch (err) {
+      alert('Erreur lors de la génération de la facture : ' + err.message);
+    } finally {
+      setGeneration(null);
+    }
+  };
 
   return (
     <div>
@@ -1188,10 +1300,10 @@ function AdminFactures() {
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune facture enregistrée.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '650px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut'].map(h => (
+                {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
                 ))}
               </tr>
@@ -1206,6 +1318,12 @@ function AdminFactures() {
                   <td style={{ padding: '10px 8px', color: '#666' }}>{f.dateVente ? new Date(f.dateVente).toLocaleDateString('fr-FR') : '—'}</td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>Payée</span>
+                  </td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <button onClick={() => voirFacture(f)} disabled={generation === f._id}
+                      style={{ padding: '5px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: generation === f._id ? 'not-allowed' : 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600', opacity: generation === f._id ? 0.6 : 1 }}>
+                      {generation === f._id ? '...' : '👁️ Voir'}
+                    </button>
                   </td>
                 </tr>
               ))}
