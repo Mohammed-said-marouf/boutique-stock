@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -92,6 +92,13 @@ export default function Login() {
           }}>
             {chargement ? 'Connexion...' : 'Se connecter'}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.65)' }}>
+            Pas encore de compte ?{' '}
+            <Link to="/inscription" style={{ color: '#93c5fd', fontWeight: 600, textDecoration: 'none' }}>
+              Créer ma boutique
+            </Link>
+          </div>
         </form>
       </div>
     </div>
@@ -113,7 +120,8 @@ const styles = {
   bgImage: {
     position: 'absolute',
     inset: 0,
-    backgroundImage: "url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1600&q=80')",
+    backgroundColor: '#0f1420',
+    backgroundImage: "url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1000&q=45')",
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     filter: 'saturate(0.9)'

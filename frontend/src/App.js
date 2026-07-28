@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
+import Inscription from './pages/Inscription';
 
 // Layouts
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -24,6 +25,11 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={!user ? <Login /> : <Navigate to={
+        user.role === 'superadmin' ? '/superadmin' :
+        user.role === 'admin' ? '/admin' : '/vendeur'
+      } />} />
+
+      <Route path="/inscription" element={!user ? <Inscription /> : <Navigate to={
         user.role === 'superadmin' ? '/superadmin' :
         user.role === 'admin' ? '/admin' : '/vendeur'
       } />} />

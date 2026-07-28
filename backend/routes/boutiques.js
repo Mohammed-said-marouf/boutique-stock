@@ -71,7 +71,63 @@ router.delete('/:id', verifierToken, autoriser('superadmin'), async (req, res) =
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST - Créer une boutique COMPLÈTE avec son compte admin
+// POST - Inscription libre (public, sans authentification) : un futur admin
+// crée directement sa boutique + son propre compte, sans passer par le superadmin.
+// Démarre automatiquement sur le plan gratuit.
+router.post('/inscription', async (req, res) => {
+  try {
+    const { nomBoutique, adresse, telephoneBoutique, nomAdmin, emailAdmin, motDePasseAdmin } = req.body;
+
+    if (!nomBoutique || !nomAdmin || !emailAdmin || !motDePasseAdmin) {
+      return res.status(400).json({ message: 'Veuillez remplir tous les champs obligatoires.' });
+    }
+    if (motDePasseAdmin.length < 6) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères.' });
+    }
+
+    const existant = await User.findOne({ email: emailAdmin });
+    if (existant) return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
+
+    // 1. Créer la boutique (plan gratuit par défaut, active immédiatement)
+    const boutique = new Boutique({
+      nom: nomBoutique,
+      adresse,
+      telephone: telephoneBoutique,
+      email: emailAdmin,
+      abonnement: 'gratuit',
+      actif: true
+    });
+    await boutique.save();
+
+    // 2. Créer le compte admin lié à cette boutique
+    const admin = new User({
+      nom: nomAdmin,
+      email: emailAdmin,
+      motDePasse: motDePasseAdmin,
+      role: 'admin',
+      boutiqueId: boutique._id
+    });
+    await admin.save();
+
+    // 3. Lier le propriétaire à la boutique
+    boutique.proprietaire = admin._id;
+    await boutique.save();
+
+    await enregistrerLog({
+      type: 'boutique_creee',
+      message: `${boutique.nom} (inscription libre)`,
+      utilisateur: admin._id,
+      nomUtilisateur: admin.nom,
+      niveau: 'success'
+    });
+
+    res.status(201).json({ message: '✅ Compte créé avec succès, vous pouvez maintenant vous connecter.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// POST - Créer une boutique COMPLÈTE avec son compte admin (superadmin)
 router.post('/creer-complete', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
     const { nomBoutique, adresse, telephoneBoutique, abonnement, nomAdmin, emailAdmin, motDePasseAdmin } = req.body;
