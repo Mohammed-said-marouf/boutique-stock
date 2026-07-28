@@ -9,6 +9,17 @@ const resoudreImage = (chemin) => {
   return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;
 };
 
+// Détecte si l'écran est en format mobile, se met à jour au redimensionnement
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= breakpoint);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 const menuItems = [
   { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
@@ -25,17 +36,29 @@ const menuItems = [
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState(isMobile);
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/login'); };
+  const fermerMenuMobile = () => { if (isMobile) setCollapsed(true); };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5', position: 'relative', overflow: 'hidden' }}>
+      {/* Voile sombre derrière le menu en mode tiroir mobile */}
+      {isMobile && !collapsed && (
+        <div onClick={() => setCollapsed(true)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} />
+      )}
+
       {/* Sidebar */}
       <div style={{
         width: collapsed ? '0px' : '240px', background: '#0f172a',
-        display: 'flex', flexDirection: 'column', transition: 'width 0.3s',
-        overflow: 'hidden', flexShrink: 0
+        display: 'flex', flexDirection: 'column', transition: 'width 0.3s, transform 0.3s',
+        overflow: 'hidden', flexShrink: 0,
+        ...(isMobile ? {
+          position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 50, width: '240px',
+          transform: collapsed ? 'translateX(-100%)' : 'translateX(0)'
+        } : {})
       }}>
         <div style={{ width: '240px', height: '100%', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '14px 14px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
@@ -65,7 +88,7 @@ export default function AdminLayout() {
             {!collapsed && 'MENU PRINCIPAL'}
           </div>
           {menuItems.map(item => (
-            <NavLink key={item.path} to={item.path} end={item.path === '/admin'}
+            <NavLink key={item.path} to={item.path} end={item.path === '/admin'} onClick={fermerMenuMobile}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '7px 8px', borderRadius: '7px', marginBottom: '1px',
@@ -117,40 +140,56 @@ export default function AdminLayout() {
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <div style={{
-          background: 'white', padding: '0 24px', height: '64px',
+          background: 'white', padding: isMobile ? '0 12px' : '0 24px', height: '64px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0, gap: '10px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '16px', minWidth: 0 }}>
             <button onClick={() => setCollapsed(!collapsed)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#666' }}>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#666', flexShrink: 0 }}>
               ☰
             </button>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>Tableau de bord</h2>
+            <h2 style={{ margin: 0, fontSize: isMobile ? '16px' : '18px', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Tableau de bord</h2>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <input placeholder="Rechercher un produit, une facture..." style={{
-              padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '20px',
-              fontSize: '14px', outline: 'none', width: '260px'
-            }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '16px', flexShrink: 0 }}>
+            {!isMobile && (
+              <input placeholder="Rechercher un produit, une facture..." style={{
+                padding: '8px 16px', border: '1px solid #e2e8f0', borderRadius: '20px',
+                fontSize: '14px', outline: 'none', width: '260px'
+              }} />
+            )}
+            {isMobile && (
+              <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
+            )}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: '700'
+                color: 'white', fontWeight: '700', flexShrink: 0
               }}>{user?.nom?.charAt(0) || 'A'}</div>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{user?.nom}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>Propriétaire</div>
-              </div>
+              {!isMobile && (
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{user?.nom}</div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Propriétaire</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+        {isMobile && rechercheOuverte && (
+          <div style={{ background: 'white', padding: '10px 12px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+            <input autoFocus placeholder="Rechercher un produit, une facture..." style={{
+              width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '20px',
+              fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+            }} />
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '14px' : '24px' }}>
           <Routes>
             <Route path="" element={<AdminDashboard />} />
             <Route path="produits" element={<AdminProduits />} />
@@ -172,6 +211,7 @@ export default function AdminLayout() {
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [statsVentes, setStatsVentes] = useState({ caJour: 0, ventesJour: 0, caMois: 0, ventesMois: 0 });
   const [statsProduits, setStatsProduits] = useState({ total: 0, rupture: 0, faible: 0, alertes: [] });
   const [ventesRecentes, setVentesRecentes] = useState([]);
@@ -207,9 +247,13 @@ function AdminDashboard() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: '12px',
+      height: isMobile ? 'auto' : '100%', width: '100%', boxSizing: 'border-box',
+      overflow: isMobile ? 'visible' : 'hidden'
+    }}>
       {/* Cartes stats — couleurs distinctes, une seule ligne */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '10px', flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(130px, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap: '10px', flexShrink: 0 }}>
         {cartes.map((s, i) => (
           <div key={i} style={{
             background: s.bg, borderRadius: '12px', padding: '14px 16px',
@@ -229,7 +273,7 @@ function AdminDashboard() {
       </div>
 
       {/* Tableaux */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', flex: '1 1 0%', minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px', flex: isMobile ? 'none' : '1 1 0%', minHeight: 0 }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'auto' }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#0f172a' }}>⚠️ Alertes de stock</h3>
           {statsProduits.alertes.length === 0 ? (
@@ -325,6 +369,7 @@ function AdminDashboard() {
 
 function AdminProduits() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [recherche, setRecherche] = useState('');
   const [showForm, setShowForm] = useState(!!location.state?.openForm);
   const [produits, setProduits] = useState([]);
@@ -415,7 +460,7 @@ function AdminProduits() {
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>{editId ? '✏️ Modifier le produit' : 'Nouveau produit'}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px' }}>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Photo du produit</label>
               <div onClick={() => document.getElementById('photoInput').click()} style={{
@@ -442,7 +487,7 @@ function AdminProduits() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
               {[
                 { key: 'nom', label: 'Nom du produit', ph: 'Ex: Ballerine' },
                 { key: 'categorie', label: 'Catégorie', ph: 'Ex: Chaussures' },
@@ -478,7 +523,8 @@ function AdminProduits() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher un produit..."
           style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '280px', marginBottom: '16px' }} />
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
               {['Photo', 'Réf', 'Nom', 'Catégorie', 'Prix', 'Stock', 'Statut', 'Actions'].map(h => (
@@ -529,6 +575,7 @@ function AdminProduits() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -647,7 +694,8 @@ function AdminStocks() {
         ) : mouvements.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun mouvement enregistré.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['Date', 'Produit', 'Type', 'Quantité', 'Stock restant', 'Note'].map(h => (
@@ -674,6 +722,7 @@ function AdminStocks() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -723,7 +772,8 @@ function AdminVentes() {
         ) : ventes.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune vente enregistrée.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['N° Vente', 'Client', 'Vendeur', 'Montant', 'Statut', 'Date'].map(h => (
@@ -746,6 +796,7 @@ function AdminVentes() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -826,7 +877,8 @@ function AdminClients() {
         ) : clients.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun client pour le moment.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['Nom', 'Téléphone', 'Email', 'Achats', 'Total dépensé'].map(h => (
@@ -846,6 +898,7 @@ function AdminClients() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -912,7 +965,7 @@ function AdminFournisseurs() {
       </div>
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
             {[{ key: 'nom', label: 'Nom', ph: 'Nom du fournisseur' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'email', label: 'Email', ph: 'email@exemple.com' }, { key: 'adresse', label: 'Adresse', ph: 'Ex: Dakar, Sénégal' }].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
@@ -934,7 +987,8 @@ function AdminFournisseurs() {
         ) : fournisseurs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun fournisseur pour le moment.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['Nom', 'Téléphone', 'Email', 'Adresse', 'Produits liés', 'Actions'].map(h => (
@@ -959,6 +1013,7 @@ function AdminFournisseurs() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -1033,7 +1088,7 @@ function AdminVendeurs() {
       </div>
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
             {[{ key: 'nom', label: 'Nom complet', ph: 'Nom du vendeur' }, { key: 'email', label: 'Email', ph: 'email@boutique.com' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'motDePasse', label: 'Mot de passe', ph: '••••••••', type: 'password' }].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
@@ -1059,7 +1114,8 @@ function AdminVendeurs() {
         ) : vendeurs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun vendeur pour le moment.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['Nom', 'Email', 'Statut', 'Actions'].map(h => (
@@ -1087,6 +1143,7 @@ function AdminVendeurs() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -1115,7 +1172,8 @@ function AdminFactures() {
         ) : factures.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune facture enregistrée.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                 {['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date', 'Statut'].map(h => (
@@ -1138,6 +1196,7 @@ function AdminFactures() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -1390,7 +1449,7 @@ function AdminParametres({ user }) {
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <Icone nom="parametres" size={28} /> Paramètres
       </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>👤 Mon compte</h3>
 
