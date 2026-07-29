@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Vente = require('../models/Vente');
 const Produit = require('../models/Produit');
 const Client = require('../models/Client');
@@ -63,20 +64,26 @@ router.post('/', verifierToken, async (req, res) => {
 router.get('/stats', verifierToken, async (req, res) => {
   try {
     let filtre = {};
+    let filtreAgg = {}; // filtre dédié aux pipelines aggregate() (ObjectId casté)
+
     if (req.user.role === 'vendeur' || req.user.role === 'admin') {
       filtre.boutiqueId = req.user.boutiqueId;
+      if (mongoose.Types.ObjectId.isValid(req.user.boutiqueId)) {
+        filtreAgg.boutiqueId = new mongoose.Types.ObjectId(req.user.boutiqueId);
+      }
     }
+
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
 
     const totalVentes = await Vente.countDocuments(filtre);
     const chiffreAffaires = await Vente.aggregate([
-      { $match: filtre },
+      { $match: filtreAgg },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
     const ventesJour = await Vente.countDocuments({ ...filtre, dateVente: { $gte: aujourdhui } });
     const caJour = await Vente.aggregate([
-      { $match: { ...filtre, dateVente: { $gte: aujourdhui } } },
+      { $match: { ...filtreAgg, dateVente: { $gte: aujourdhui } } },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
 
@@ -85,7 +92,7 @@ router.get('/stats', verifierToken, async (req, res) => {
     debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
     const ventesMois = await Vente.countDocuments({ ...filtre, dateVente: { $gte: debutMois } });
     const caMois = await Vente.aggregate([
-      { $match: { ...filtre, dateVente: { $gte: debutMois } } },
+      { $match: { ...filtreAgg, dateVente: { $gte: debutMois } } },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
 
