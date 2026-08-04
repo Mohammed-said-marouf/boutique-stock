@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Icone } from '../context/IconesContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
 
 const API_BASE = 'https://boutique-stock-api.onrender.com';
 const resoudreImage = (chemin) => {
@@ -1336,32 +1337,93 @@ function AdminFactures({ user }) {
   );
 }
 
+// Génère et télécharge un fichier .xlsx mis en forme : titre en gras sur fond sombre,
+// en-têtes de colonnes en gras avec fond bleu, bordures fines, lignes alternées.
+async function telechargerXLSX(nomFichier, titreFeuille, entetes, lignes) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Boutique Stock';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet(titreFeuille.slice(0, 31));
+
+  // Ligne de titre (fusionnée sur toute la largeur du tableau)
+  sheet.mergeCells(1, 1, 1, entetes.length);
+  const titreCell = sheet.getCell(1, 1);
+  titreCell.value = titreFeuille;
+  titreCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  titreCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+  titreCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  sheet.getRow(1).height = 26;
+
+  sheet.addRow([]); // ligne vide de respiration
+
+  // Ligne d'en-têtes de colonnes
+  const headerRow = sheet.addRow(entetes);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    };
+  });
+
+  // Lignes de données, avec alternance de fond
+  lignes.forEach((ligne, i) => {
+    const row = sheet.addRow(ligne);
+    const estPaire = i % 2 === 1;
+    row.eachCell((cell) => {
+      if (estPaire) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      };
+      cell.alignment = { vertical: 'middle' };
+    });
+  });
+
+  // Largeur automatique des colonnes selon le contenu
+  entetes.forEach((h, i) => {
+    let maxLen = String(h).length;
+    lignes.forEach(l => {
+      const val = String(l[i] ?? '');
+      if (val.length > maxLen) maxLen = val.length;
+    });
+    sheet.getColumn(i + 1).width = Math.min(Math.max(maxLen + 4, 12), 40);
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomFichier;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function AdminRapports() {
   const [export_, setExport_] = useState('');
   const token = localStorage.getItem('token');
-
-  const telechargerCSV = (nomFichier, lignes) => {
-    const contenu = lignes.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + contenu], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomFichier;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const exporterVentes = async () => {
     setExport_('ventes');
     try {
       const res = await fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } });
       const ventes = await res.json();
-      const lignes = [['N° Facture', 'Client', 'Vendeur', 'Montant', 'Date']];
-      (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
+      const entetes = ['N° Facture', 'Client', 'Vendeur', 'Montant (FCFA)', 'Date'];
+      const lignes = (Array.isArray(ventes) ? ventes : []).map(v => [
         v.numFacture || '', v.clientNom || '', v.nomVendeur || '', v.montantTotal || 0,
         v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''
-      ]));
-      telechargerCSV(`rapport-ventes-${Date.now()}.csv`, lignes);
+      ]);
+      await telechargerXLSX(`rapport-ventes-${Date.now()}.xlsx`, 'Rapport des ventes', entetes, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -1374,11 +1436,11 @@ function AdminRapports() {
     try {
       const res = await fetch('https://boutique-stock-api.onrender.com/api/produits', { headers: { Authorization: `Bearer ${token}` } });
       const produits = await res.json();
-      const lignes = [['Nom', 'Référence', 'Catégorie', 'Prix', 'Stock', "Seuil d'alerte"]];
-      (Array.isArray(produits) ? produits : []).forEach(p => lignes.push([
+      const entetes = ['Nom', 'Référence', 'Catégorie', 'Prix (FCFA)', 'Stock', "Seuil d'alerte"];
+      const lignes = (Array.isArray(produits) ? produits : []).map(p => [
         p.nom || '', p.ref || '', p.categorie || '', p.prix || 0, p.quantite || 0, p.seuilAlerte || 0
-      ]));
-      telechargerCSV(`etat-stocks-${Date.now()}.csv`, lignes);
+      ]);
+      await telechargerXLSX(`etat-stocks-${Date.now()}.xlsx`, 'État des stocks', entetes, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -1391,11 +1453,11 @@ function AdminRapports() {
     try {
       const res = await fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', { headers: { Authorization: `Bearer ${token}` } });
       const fournisseurs = await res.json();
-      const lignes = [['Nom', 'Téléphone', 'Email', 'Adresse']];
-      (Array.isArray(fournisseurs) ? fournisseurs : []).forEach(f => lignes.push([
+      const entetes = ['Nom', 'Téléphone', 'Email', 'Adresse'];
+      const lignes = (Array.isArray(fournisseurs) ? fournisseurs : []).map(f => [
         f.nom || '', f.telephone || '', f.email || '', f.adresse || ''
-      ]));
-      telechargerCSV(`rapport-fournisseurs-${Date.now()}.csv`, lignes);
+      ]);
+      await telechargerXLSX(`rapport-fournisseurs-${Date.now()}.xlsx`, 'Rapport fournisseurs', entetes, lignes);
     } catch (err) {
       alert('Erreur export : ' + err.message);
     } finally {
@@ -1415,7 +1477,7 @@ function AdminRapports() {
         <Icone nom="dashboard" size={28} /> Rapports
       </h2>
       <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
-        Cliquez sur une carte pour télécharger un export CSV à jour de vos données.
+        Cliquez sur une carte pour télécharger un export Excel (.xlsx) à jour de vos données.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {rapports.map((r, i) => (
