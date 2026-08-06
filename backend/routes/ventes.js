@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 const Vente = require('../models/Vente');
 const Produit = require('../models/Produit');
 const Client = require('../models/Client');
@@ -41,7 +40,6 @@ router.post('/', verifierToken, async (req, res) => {
     });
     const newVente = await vente.save();
 
-    // Créer ou mettre à jour automatiquement la fiche client, si un nom de client réel a été fourni
     const nomClient = (req.body.clientNom || '').trim();
     if (nomClient && nomClient.toLowerCase() !== 'client anonyme' && boutiqueId) {
       await Client.findOneAndUpdate(
@@ -64,13 +62,8 @@ router.post('/', verifierToken, async (req, res) => {
 router.get('/stats', verifierToken, async (req, res) => {
   try {
     let filtre = {};
-    let filtreAgg = {}; // filtre dédié aux pipelines aggregate() (ObjectId casté)
-
     if (req.user.role === 'vendeur' || req.user.role === 'admin') {
       filtre.boutiqueId = req.user.boutiqueId;
-      if (mongoose.Types.ObjectId.isValid(req.user.boutiqueId)) {
-        filtreAgg.boutiqueId = new mongoose.Types.ObjectId(req.user.boutiqueId);
-      }
     }
 
     const aujourdhui = new Date();
@@ -78,21 +71,20 @@ router.get('/stats', verifierToken, async (req, res) => {
 
     const totalVentes = await Vente.countDocuments(filtre);
     const chiffreAffaires = await Vente.aggregate([
-      { $match: filtreAgg },
+      { $match: filtre },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
     const ventesJour = await Vente.countDocuments({ ...filtre, dateVente: { $gte: aujourdhui } });
     const caJour = await Vente.aggregate([
-      { $match: { ...filtreAgg, dateVente: { $gte: aujourdhui } } },
+      { $match: { ...filtre, dateVente: { $gte: aujourdhui } } },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
 
-    // Stats du mois
     const debutMois = new Date();
     debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
     const ventesMois = await Vente.countDocuments({ ...filtre, dateVente: { $gte: debutMois } });
     const caMois = await Vente.aggregate([
-      { $match: { ...filtreAgg, dateVente: { $gte: debutMois } } },
+      { $match: { ...filtre, dateVente: { $gte: debutMois } } },
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
 
