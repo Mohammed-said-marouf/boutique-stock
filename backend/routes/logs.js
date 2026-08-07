@@ -13,4 +13,27 @@ router.get('/', verifierToken, autoriser('superadmin'), async (req, res) => {
   }
 });
 
+// POST - Créer un log (tout utilisateur authentifié, ex: synchronisation desktop)
+router.post('/', verifierToken, async (req, res) => {
+  try {
+    const { type, message, niveau } = req.body;
+
+    if (!type || !message) {
+      return res.status(400).json({ message: 'type et message sont requis.' });
+    }
+
+    const log = await Log.create({
+      type,
+      message,
+      niveau: niveau || 'info',
+      utilisateur: req.user?.id || req.user?._id || null,
+      nomUtilisateur: req.user?.nom || 'Inconnu',
+    });
+
+    res.status(201).json(log);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 module.exports = router;
