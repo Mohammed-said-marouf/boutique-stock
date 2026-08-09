@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
+import { API_URL } from '../config';
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -18,7 +20,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, motDePasse) => {
-   const res = await axios.post('https://boutique-stock-api.onrender.com/api/auth/login', { email, motDePasse });
+   const res = await axios.post(`${API_URL}/api/auth/login`, { email, motDePasse });
     const { token, user } = res.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

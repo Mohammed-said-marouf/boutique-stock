@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
+import { API_URL } from '../config';
+
 const IconesContext = createContext();
 
 export function IconesProvider({ children }) {
@@ -8,7 +10,7 @@ export function IconesProvider({ children }) {
 
   const chargerIcones = async () => {
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/icones');
+      const res = await fetch(`${API_URL}/api/icones`);
       const data = await res.json();
       
       // Transformer en objet { cle: valeur } pour un accès rapide

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const API_BASE = 'https://boutique-stock-api.onrender.com';
+import { API_URL } from '../config';
+
+const API_BASE = `${API_URL}`;
 
 export default function Inscription() {
   const navigate = useNavigate();

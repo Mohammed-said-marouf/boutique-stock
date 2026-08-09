@@ -6,7 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 
-const API_BASE = 'https://boutique-stock-api.onrender.com';
+import { API_URL } from '../config';
+
+const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
   if (!chemin) return null;
   return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;

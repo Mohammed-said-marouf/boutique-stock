@@ -5,6 +5,8 @@ import { Icone, useIcones } from '../context/IconesContext';
 import axios from 'axios';
 import ExcelJS from 'exceljs';
 
+import { API_URL } from '../config';
+
 const menuItems = [
   { path: '/superadmin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/superadmin/boutiques', iconKey: 'boutiques', label: 'Boutiques' },
@@ -187,7 +189,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch('https://boutique-stock-api.onrender.com/api/ventes/stats-globales', {
+    fetch(`${API_URL}/api/ventes/stats-globales`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.json())
@@ -257,7 +259,7 @@ function BoutiquesAdmin() {
 
   const chargerBoutiques = () => {
     setLoading(true);
-    fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders)
+    fetch(`${API_URL}/api/boutiques`, authHeaders)
       .then(r => r.json())
       .then(data => { setBoutiques(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -274,7 +276,7 @@ function BoutiquesAdmin() {
     }
     setEnvoi(true);
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/boutiques/creer-complete', {
+      const res = await fetch(`${API_URL}/api/boutiques/creer-complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -293,7 +295,7 @@ function BoutiquesAdmin() {
   };
 
   const toggleActif = async (b) => {
-    await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${b._id}`, {
+    await fetch(`${API_URL}/api/boutiques/${b._id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ actif: !b.actif })
@@ -303,7 +305,7 @@ function BoutiquesAdmin() {
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer cette boutique ?')) return;
-    await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${id}`, {
+    await fetch(`${API_URL}/api/boutiques/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -426,7 +428,7 @@ function UtilisateursAdmin() {
 
   const charger = () => {
     setChargement(true);
-    fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders)
+    fetch(`${API_URL}/api/users`, authHeaders)
       .then(r => r.json())
       .then(data => { setUtilisateurs(Array.isArray(data) ? data : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -436,7 +438,7 @@ function UtilisateursAdmin() {
   useEffect(() => { charger(); }, []);
 
   const toggleActif = async (u) => {
-    await fetch(`https://boutique-stock-api.onrender.com/api/users/${u._id}/statut`, {
+    await fetch(`${API_URL}/api/users/${u._id}/statut`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ actif: !u.actif })
@@ -446,7 +448,7 @@ function UtilisateursAdmin() {
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer cet utilisateur ?')) return;
-    await fetch(`https://boutique-stock-api.onrender.com/api/users/${id}`, {
+    await fetch(`${API_URL}/api/users/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -532,7 +534,7 @@ function AbonnementsAdmin() {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetch('https://boutique-stock-api.onrender.com/api/boutiques', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/boutiques`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { setBoutiques(Array.isArray(data) ? data : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -611,7 +613,7 @@ function TransactionsAdmin() {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetch('https://boutique-stock-api.onrender.com/api/boutiques', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/boutiques`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { setBoutiques(Array.isArray(data) ? data : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -749,7 +751,7 @@ function RapportsSuperAdmin() {
   const exporterVentes = async () => {
     setExport_('ventes');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/ventes', authHeaders);
+      const res = await fetch(`${API_URL}/api/ventes`, authHeaders);
       const ventes = await res.json();
       const lignes = [['N° Facture', 'Boutique / Vendeur', 'Client', 'Montant', 'Date']];
       (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
@@ -767,7 +769,7 @@ function RapportsSuperAdmin() {
   const exporterAbonnements = async () => {
     setExport_('abonnements');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders);
+      const res = await fetch(`${API_URL}/api/boutiques`, authHeaders);
       const boutiques = await res.json();
       const lignes = [['Boutique', 'Plan', 'Montant', 'Statut', 'Depuis']];
       (Array.isArray(boutiques) ? boutiques : []).forEach(b => lignes.push([
@@ -785,7 +787,7 @@ function RapportsSuperAdmin() {
   const exporterUtilisateurs = async () => {
     setExport_('utilisateurs');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders);
+      const res = await fetch(`${API_URL}/api/users`, authHeaders);
       const users = await res.json();
       const lignes = [['Nom', 'Email', 'Rôle', 'Boutique', 'Statut', 'Créé le']];
       (Array.isArray(users) ? users : []).forEach(u => lignes.push([
@@ -804,8 +806,8 @@ function RapportsSuperAdmin() {
     setExport_('financier');
     try {
       const [resVentes, resBoutiques] = await Promise.all([
-        fetch('https://boutique-stock-api.onrender.com/api/ventes', authHeaders),
-        fetch('https://boutique-stock-api.onrender.com/api/boutiques', authHeaders)
+        fetch(`${API_URL}/api/ventes`, authHeaders),
+        fetch(`${API_URL}/api/boutiques`, authHeaders)
       ]);
       const ventes = await resVentes.json();
       const boutiques = await resBoutiques.json();
@@ -891,7 +893,7 @@ function EditeurIcones() {
     setMessage('');
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`https://boutique-stock-api.onrender.com/api/icones/${cle}`,
+      await axios.put(`${API_URL}/api/icones/${cle}`,
         { valeur: brouillon[cle] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -1032,7 +1034,7 @@ function JournalAdmin() {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetch('https://boutique-stock-api.onrender.com/api/logs', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/logs`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { setLogs(Array.isArray(data) ? data : []); setChargement(false); })
       .catch(() => setChargement(false));

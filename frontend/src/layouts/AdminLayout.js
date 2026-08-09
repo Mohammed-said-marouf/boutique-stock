@@ -6,7 +6,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 
-const API_BASE = 'https://boutique-stock-api.onrender.com';
+import { API_URL } from '../config';
+
+const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
   if (!chemin) return null;
   return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;
@@ -223,13 +225,13 @@ function AdminDashboard() {
     const token = localStorage.getItem('token');
     const h = { Authorization: `Bearer ${token}` };
 
-    fetch('https://boutique-stock-api.onrender.com/api/ventes/stats', { headers: h })
+    fetch(`${API_URL}/api/ventes/stats`, { headers: h })
       .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
 
-    fetch('https://boutique-stock-api.onrender.com/api/produits/stats', { headers: h })
+    fetch(`${API_URL}/api/produits/stats`, { headers: h })
       .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
 
-    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: h })
+    fetch(`${API_URL}/api/ventes`, { headers: h })
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 4)); });
   }, []);
 
@@ -385,7 +387,7 @@ function AdminProduits() {
   const token = localStorage.getItem('token');
 
   const charger = () => {
-    fetch('https://boutique-stock-api.onrender.com/api/produits', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/produits`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
   };
 
@@ -427,8 +429,8 @@ function AdminProduits() {
     if (imageFile) formData.append('image', imageFile);
 
     const url = editId
-      ? `https://boutique-stock-api.onrender.com/api/produits/${editId}`
-      : 'https://boutique-stock-api.onrender.com/api/produits';
+      ? `${API_URL}/api/produits/${editId}`
+      : `${API_URL}/api/produits`;
     const method = editId ? 'PUT' : 'POST';
 
     await fetch(url, {
@@ -443,7 +445,7 @@ function AdminProduits() {
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer ce produit ?')) return;
-    await fetch(`https://boutique-stock-api.onrender.com/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`${API_URL}/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     charger();
   };
 
@@ -599,14 +601,14 @@ function AdminStocks() {
 
   const charger = () => {
     setChargement(true);
-    fetch('https://boutique-stock-api.onrender.com/api/mouvements-stock', authHeaders)
+    fetch(`${API_URL}/api/mouvements-stock`, authHeaders)
       .then(r => r.json())
       .then(d => { setMouvements(Array.isArray(d) ? d : []); setChargement(false); })
       .catch(() => setChargement(false));
   };
 
   const chargerProduits = () => {
-    fetch('https://boutique-stock-api.onrender.com/api/produits', authHeaders)
+    fetch(`${API_URL}/api/produits`, authHeaders)
       .then(r => r.json())
       .then(d => setProduits(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -623,7 +625,7 @@ function AdminStocks() {
     setEnvoi(true);
     setErreur('');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/mouvements-stock', {
+      const res = await fetch(`${API_URL}/api/mouvements-stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -738,7 +740,7 @@ function AdminVentes() {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/ventes`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setVentes(Array.isArray(d) ? d : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -817,7 +819,7 @@ function AdminClients() {
   const token = localStorage.getItem('token');
 
   const charger = () => {
-    fetch('https://boutique-stock-api.onrender.com/api/clients', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/clients`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setClients(Array.isArray(d) ? d : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -831,7 +833,7 @@ function AdminClients() {
     setEnvoi(true);
     setErreur('');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/clients', {
+      const res = await fetch(`${API_URL}/api/clients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -920,7 +922,7 @@ function AdminFournisseurs() {
 
   const charger = () => {
     setChargement(true);
-    fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/fournisseurs`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setFournisseurs(Array.isArray(d) ? d : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -934,7 +936,7 @@ function AdminFournisseurs() {
     setEnvoi(true);
     setErreur('');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', {
+      const res = await fetch(`${API_URL}/api/fournisseurs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -953,7 +955,7 @@ function AdminFournisseurs() {
 
   const supprimerFournisseur = async (id) => {
     if (!window.confirm('Supprimer ce fournisseur ?')) return;
-    await fetch(`https://boutique-stock-api.onrender.com/api/fournisseurs/${id}`, {
+    await fetch(`${API_URL}/api/fournisseurs/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -1037,7 +1039,7 @@ function AdminVendeurs() {
 
   const charger = () => {
     setChargement(true);
-    fetch('https://boutique-stock-api.onrender.com/api/users', authHeaders)
+    fetch(`${API_URL}/api/users`, authHeaders)
       .then(r => r.json())
       .then(data => { setVendeurs(Array.isArray(data) ? data : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -1054,7 +1056,7 @@ function AdminVendeurs() {
     }
     setEnvoi(true);
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/users', {
+      const res = await fetch(`${API_URL}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -1073,7 +1075,7 @@ function AdminVendeurs() {
   };
 
   const toggleActif = async (v) => {
-    await fetch(`https://boutique-stock-api.onrender.com/api/users/${v._id}/statut`, {
+    await fetch(`${API_URL}/api/users/${v._id}/statut`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ actif: !v.actif })
@@ -1083,7 +1085,7 @@ function AdminVendeurs() {
 
   const supprimerVendeur = async (v) => {
     if (!window.confirm(`Supprimer définitivement ${v.nom} ? Cette action est irréversible.`)) return;
-    await fetch(`https://boutique-stock-api.onrender.com/api/users/${v._id}`, {
+    await fetch(`${API_URL}/api/users/${v._id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -1175,7 +1177,7 @@ function AdminFactures({ user }) {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_URL}/api/ventes`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setFactures(Array.isArray(d) ? d : []); setChargement(false); })
       .catch(() => setChargement(false));
@@ -1416,7 +1418,7 @@ function AdminRapports() {
   const exporterVentes = async () => {
     setExport_('ventes');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/ventes', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/ventes`, { headers: { Authorization: `Bearer ${token}` } });
       const ventes = await res.json();
       const entetes = ['N° Facture', 'Client', 'Vendeur', 'Montant (FCFA)', 'Date'];
       const lignes = (Array.isArray(ventes) ? ventes : []).map(v => [
@@ -1434,7 +1436,7 @@ function AdminRapports() {
   const exporterStocks = async () => {
     setExport_('stocks');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/produits', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/produits`, { headers: { Authorization: `Bearer ${token}` } });
       const produits = await res.json();
       const entetes = ['Nom', 'Référence', 'Catégorie', 'Prix (FCFA)', 'Stock', "Seuil d'alerte"];
       const lignes = (Array.isArray(produits) ? produits : []).map(p => [
@@ -1451,7 +1453,7 @@ function AdminRapports() {
   const exporterFournisseurs = async () => {
     setExport_('fournisseurs');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/fournisseurs', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/fournisseurs`, { headers: { Authorization: `Bearer ${token}` } });
       const fournisseurs = await res.json();
       const entetes = ['Nom', 'Téléphone', 'Email', 'Adresse'];
       const lignes = (Array.isArray(fournisseurs) ? fournisseurs : []).map(f => [
@@ -1522,7 +1524,7 @@ function AdminParametres({ user }) {
     try {
       const formData = new FormData();
       formData.append('logo', logoFile);
-      const res = await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${boutiqueId}`, {
+      const res = await fetch(`${API_URL}/api/boutiques/${boutiqueId}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -1549,7 +1551,7 @@ function AdminParametres({ user }) {
     setEnvoiCompte(true);
     setMessageCompte('');
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/users/me', {
+      const res = await fetch(`${API_URL}/api/users/me`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(compteForm)
@@ -1585,7 +1587,7 @@ function AdminParametres({ user }) {
     }
     setEnvoiPwd(true);
     try {
-      const res = await fetch('https://boutique-stock-api.onrender.com/api/users/me/motdepasse', {
+      const res = await fetch(`${API_URL}/api/users/me/motdepasse`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -1619,7 +1621,7 @@ function AdminParametres({ user }) {
     setEnvoiBoutique(true);
     setMessageBoutique('');
     try {
-      const res = await fetch(`https://boutique-stock-api.onrender.com/api/boutiques/${boutiqueId}`, {
+      const res = await fetch(`${API_URL}/api/boutiques/${boutiqueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(boutiqueForm)
