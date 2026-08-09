@@ -41,9 +41,19 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     produit.quantite = nouveauStock;
     await produit.save();
 
+    // Un admin reste cantonné à sa propre boutique (sécurité inchangée).
+    // Un superadmin n'a pas de boutiqueId propre (il n'est rattaché à
+    // aucune boutique) : on accepte donc la valeur envoyée dans le body —
+    // utile notamment pour la synchronisation desktop, où le compte
+    // connecté peut être un superadmin poussant des mouvements pour des
+    // boutiques variées.
+    const boutiqueId = req.user.role === 'superadmin'
+      ? (req.body.boutiqueId || req.user.boutiqueId)
+      : req.user.boutiqueId;
+
     const mouvement = new MouvementStock({
       produit: produitId,
-      boutiqueId: req.user.boutiqueId,
+      boutiqueId,
       type,
       quantite: qte,
       stockRestant: nouveauStock,
