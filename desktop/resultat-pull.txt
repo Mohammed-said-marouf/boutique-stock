@@ -1,0 +1,94 @@
+﻿{
+    "statut":  "termine",
+    "resultats":  [
+                      {
+                          "collection":  "boutiques",
+                          "total_recus":  10,
+                          "creees":  0,
+                          "mises_a_jour":  5,
+                          "ignorees_dirty":  5,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "fournisseurs",
+                          "total_recus":  2,
+                          "creees":  0,
+                          "mises_a_jour":  1,
+                          "ignorees_dirty":  1,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "produits",
+                          "total_recus":  13,
+                          "creees":  0,
+                          "mises_a_jour":  9,
+                          "ignorees_dirty":  4,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "mouvements_stock",
+                          "total_recus":  12,
+                          "creees":  0,
+                          "mises_a_jour":  12,
+                          "ignorees_dirty":  0,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "logs",
+                          "total_recus":  92,
+                          "creees":  0,
+                          "mises_a_jour":  92,
+                          "ignorees_dirty":  0,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "icones",
+                          "total_recus":  20,
+                          "creees":  0,
+                          "mises_a_jour":  20,
+                          "ignorees_dirty":  0,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "ventes",
+                          "total_recus":  16,
+                          "creees":  0,
+                          "mises_a_jour":  15,
+                          "ignorees_dirty":  1,
+                          "echouees":  0,
+                          "lignes_produits_ignorees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "users",
+                          "total_recus":  9,
+                          "mises_a_jour":  0,
+                          "ignorees_absent":  8,
+                          "ignorees_dirty":  1,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      }
+                  ]
+}
