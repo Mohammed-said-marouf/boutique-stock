@@ -10,6 +10,7 @@ const { envoyerEmailTest } = require('../services/emailService');
 router.get('/statut', async (req, res) => {
   try {
     const parametre = await Parametre.findOne({ cle: 'modeMaintenance' });
+    console.log(`[maintenance-route] STATUT lu à ${new Date().toISOString()} — valeur brute: ${JSON.stringify(parametre?.valeur)}, _id: ${parametre?._id}`);
     res.json({ enMaintenance: !!(parametre && parametre.valeur === true) });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -19,6 +20,7 @@ router.get('/statut', async (req, res) => {
 // POST - Active le mode maintenance (superadmin uniquement)
 router.post('/activer', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
+    console.log(`[maintenance-route] ACTIVER appelé par ${req.user?.id} (${req.user?.role}) à ${new Date().toISOString()}`);
     await Parametre.findOneAndUpdate({ cle: 'modeMaintenance' }, { valeur: true }, { upsert: true });
     res.json({ enMaintenance: true, message: '🔴 Mode maintenance activé.' });
   } catch (err) {
@@ -29,6 +31,7 @@ router.post('/activer', verifierToken, autoriser('superadmin'), async (req, res)
 // POST - Désactive le mode maintenance (superadmin uniquement)
 router.post('/desactiver', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
+    console.log(`[maintenance-route] DESACTIVER appelé par ${req.user?.id} (${req.user?.role}) à ${new Date().toISOString()}`);
     await Parametre.findOneAndUpdate({ cle: 'modeMaintenance' }, { valeur: false }, { upsert: true });
     res.json({ enMaintenance: false, message: '🟢 Mode maintenance désactivé.' });
   } catch (err) {
