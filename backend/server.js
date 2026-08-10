@@ -16,6 +16,11 @@ app.use(express.json({ limit: '10mb' }));
 const path = require('path');
 app.use('/uploads', require('express').static(path.join(__dirname, 'uploads')));
 
+// Bloque l'accès en mode maintenance (sauf superadmin et routes auth/maintenance).
+// Placé avant le montage des routes métier.
+const verifierMaintenance = require('./middleware/maintenance');
+app.use(verifierMaintenance);
+
 app.get('/', (req, res) => {
   res.json({ message: '✅ Serveur boutique-stock opérationnel !' });
 });
@@ -33,6 +38,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/icones', require('./routes/icones'));
 app.use('/api/mouvements-stock', require('./routes/mouvements'));
 app.use('/api/logs', require('./routes/logs'));
+app.use('/api/maintenance', require('./routes/maintenance'));
 
 const { demarrerVerificationStock } = require('./services/stockVerifier');
 

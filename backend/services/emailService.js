@@ -47,4 +47,25 @@ const envoyerAlerteStock = async (produits) => {
   }
 };
 
-module.exports = { envoyerAlerteStock };
+// Email de test simple, déclenché depuis la page Maintenance du panneau
+// Super Admin, pour vérifier que l'envoi fonctionne toujours.
+const envoyerEmailTest = async (utilisateur) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: process.env.EMAIL_DEST || utilisateur?.email,
+    subject: '✅ Test — Boutique Stock',
+    html: `
+      <div style="font-family: Arial; padding: 20px; background: #f0f2f5;">
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; margin: auto;">
+          <h2 style="color: #16a34a;">✅ Test d'envoi réussi</h2>
+          <p>Cet email confirme que le service d'envoi de notifications de Boutique Stock fonctionne correctement.</p>
+          <p style="color: #888; font-size: 13px;">Déclenché depuis la page Maintenance du panneau Super Admin.</p>
+        </div>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = { envoyerAlerteStock, envoyerEmailTest };
