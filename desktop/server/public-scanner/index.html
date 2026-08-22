@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Scanner Vendeur — Boutique Stock</title>
+<script src="./html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --bleu: #2563eb;
+    --vert: #059669;
+    --rouge: #dc2626;
+    --fond: #f8fafc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--fond);
+    color: #0f172a;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ecran { display: none; min-height: 100vh; flex-direction: column; }
+  .ecran.actif { display: flex; }
+
+  /* ---- Connexion ---- */
+  #ecran-login { align-items: center; justify-content: center; padding: 24px; }
+  .carte-login { background: white; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .carte-login h1 { font-size: 20px; margin: 0 0 4px; }
+  .carte-login p.sous-titre { color: #64748b; font-size: 13px; margin: 0 0 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: #334155; }
+  input[type=email], input[type=password], input[type=text] {
+    width: 100%; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px;
+  }
+  .bouton { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; text-align: center; }
+  .bouton-bleu { background: var(--bleu); color: white; }
+  .bouton-vert { background: var(--vert); color: white; }
+  .bouton-rouge { background: var(--rouge); color: white; }
+  .bouton-gris { background: #f1f5f9; color: #475569; }
+  .erreur { background: #fef2f2; color: var(--rouge); padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px; }
+  .masque { display: none !important; }
+
+  /* ---- Caisse ---- */
+  #ecran-caisse { padding-bottom: 90px; }
+  .entete { background: white; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 5; }
+  .entete .nom-boutique { font-weight: 700; font-size: 15px; }
+  .entete .nom-vendeur { font-size: 12px; color: #64748b; }
+  .btn-deconnexion { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; }
+
+  .zone-scan { padding: 14px 16px; }
+  #lecteur-qr { width: 100%; max-width: 340px; margin: 0 auto; border-radius: 12px; overflow: hidden; }
+  .msg-scan { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; }
+  .msg-scan.ok { background: #dcfce7; color: var(--vert); }
+  .msg-scan.err { background: #fef2f2; color: var(--rouge); }
+
+  .panier { padding: 4px 16px; }
+  .panier h3 { font-size: 14px; color: #334155; margin: 16px 0 8px; }
+  .ligne-panier { background: white; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ligne-panier .infos { flex: 1; min-width: 0; }
+  .ligne-panier .nom { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ligne-panier .prix { font-size: 12px; color: #64748b; }
+  .ligne-panier .qte-controles { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+  .ligne-panier button.qte { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 16px; cursor: pointer; }
+  .vide { text-align: center; color: #94a3b8; font-size: 13px; padding: 20px; }
+
+  .barre-validation { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #e2e8f0; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .barre-validation .total { font-weight: 700; font-size: 16px; }
+  .barre-validation .bouton { flex: 1; }
+
+  /* ---- Confirmation ---- */
+  #ecran-confirmation { align-items: center; justify-content: center; padding: 24px; }
+  .carte-confirmation { background: white; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; }
+  .carte-confirmation .coche { font-size: 44px; }
+  .carte-confirmation h2 { margin: 8px 0 4px; }
+  .carte-confirmation .num-facture { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+  .choix-facture { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+  /* ---- Ticket thermique imprimable ---- */
+  #ticket-thermique { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #ticket-thermique, #ticket-thermique * { visibility: visible; }
+    #ticket-thermique { display: block; position: absolute; top: 0; left: 0; }
+    @page { size: 80mm auto; margin: 2mm; }
+  }
+  #ticket-thermique { width: 76mm; font-family: 'Courier New', monospace; font-size: 11px; }
+  #ticket-thermique .centre { text-align: center; }
+  #ticket-thermique .separateur { border-top: 1px dashed #000; margin: 6px 0; }
+  #ticket-thermique .ligne { display: flex; justify-content: space-between; }
+  #ticket-thermique .titre { font-weight: bold; font-size: 13px; }
+</style>
+</head>
+<body>
+
+  <!-- ===================== ÉCRAN CONNEXION ===================== -->
+  <div id="ecran-login" class="ecran actif">
+    <div class="carte-login">
+      <h1>Connexion vendeur</h1>
+      <p class="sous-titre">Connectez-vous pour commencer à scanner les produits.</p>
+      <label for="champ-email">Email</label>
+      <input type="email" id="champ-email" autocomplete="username" />
+      <label for="champ-mdp">Mot de passe</label>
+      <input type="password" id="champ-mdp" autocomplete="current-password" />
+      <button class="bouton bouton-bleu" style="margin-top:20px" onclick="seConnecter()">Se connecter</button>
+      <div id="erreur-login" class="erreur masque"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ÉCRAN CAISSE ===================== -->
+  <div id="ecran-caisse" class="ecran">
+    <div class="entete">
+      <div>
+        <div class="nom-boutique" id="txt-nom-boutique">Boutique</div>
+        <div class="nom-vendeur" id="txt-nom-vendeur">Vendeur</div>
+      </div>
+      <button class="btn-deconnexion" onclick="seDeconnecter()">Déconnexion</button>
+    </div>
+
+    <div class="zone-scan">
+      <button class="bouton" id="btn-toggle-scan" onclick="basculerScan()" style="background:#059669;color:white;">📷 Scanner un QR</button>
+      <div id="lecteur-qr" style="margin-top:10px;"></div>
+      <div id="msg-scan" class="msg-scan masque"></div>
+    </div>
+
+    <div class="panier">
+      <h3>🛒 Panier</h3>
+      <div id="liste-panier"></div>
+    </div>
+
+    <div class="barre-validation">
+      <div class="total">Total : <span id="txt-total">0</span> FCFA</div>
+      <button class="bouton bouton-vert" onclick="validerVente()">Valider la vente</button>
+    </div>
+  </div>
+
+  <!-- ===================== ÉCRAN CONFIRMATION ===================== -->
+  <div id="ecran-confirmation" class="ecran">
+    <div class="carte-confirmation">
+      <div class="coche">✅</div>
+      <h2>Vente enregistrée</h2>
+      <div class="num-facture" id="txt-num-facture"></div>
+      <div class="choix-facture">
+        <button class="bouton bouton-bleu" onclick="imprimerTicketThermique()">🧾 Imprimer le ticket (thermique)</button>
+        <button class="bouton bouton-gris" onclick="nouvelleVente()">Nouvelle vente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone imprimable, cachée à l'écran, visible uniquement à l'impression -->
+  <div id="ticket-thermique"></div>
+
+<script>
+// ============================================================================
+// Configuration & état
+// ============================================================================
+const API = window.location.origin; // ce serveur lui-même (local-server.js)
+let token = localStorage.getItem('bs_scanner_token') || null;
+let utilisateur = JSON.parse(localStorage.getItem('bs_scanner_user') || 'null');
+let produits = [];
+let panier = {}; // { produitId: { produit, qte } }
+let scanner = null;
+let scanActif = false;
+let dernierScan = { code: null, ts: 0 };
+let derniereFacture = null;
+
+function afficherEcran(id) {
+  document.querySelectorAll('.ecran').forEach(e => e.classList.remove('actif'));
+  document.getElementById(id).classList.add('actif');
+}
+
+// ============================================================================
+// Bip (Web Audio, aucun fichier externe)
+// ============================================================================
+let ctxAudio = null;
+function jouerTon(freq, dureeMs) {
+  try {
+    if (!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctxAudio.state === 'suspended') ctxAudio.resume();
+    const osc = ctxAudio.createOscillator();
+    const gain = ctxAudio.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq; gain.gain.value = 0.2;
+    osc.connect(gain); gain.connect(ctxAudio.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + dureeMs / 1000);
+    osc.stop(ctxAudio.currentTime + dureeMs / 1000);
+  } catch (e) {}
+}
+const bipSucces = () => jouerTon(1500, 120);
+const bipErreur = () => { jouerTon(300, 150); setTimeout(() => jouerTon(220, 200), 160); };
+
+// ============================================================================
+// Connexion
+// ============================================================================
+async function seConnecter() {
+  const email = document.getElementById('champ-email').value.trim();
+  const motDePasse = document.getElementById('champ-mdp').value;
+  const erreurEl = document.getElementById('erreur-login');
+  erreurEl.classList.add('masque');
+
+  if (!email || !motDePasse) {
+    erreurEl.textContent = 'Email et mot de passe requis.';
+    erreurEl.classList.remove('masque');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, motDePasse }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Connexion refusée.');
+
+    token = data.token;
+    utilisateur = data.user;
+    localStorage.setItem('bs_scanner_token', token);
+    localStorage.setItem('bs_scanner_user', JSON.stringify(utilisateur));
+    entrerDansCaisse();
+  } catch (err) {
+    erreurEl.textContent = err.message;
+    erreurEl.classList.remove('masque');
+  }
+}
+
+function seDeconnecter() {
+  arreterScan();
+  token = null; utilisateur = null; panier = {};
+  localStorage.removeItem('bs_scanner_token');
+  localStorage.removeItem('bs_scanner_user');
+  afficherEcran('ecran-login');
+}
+
+async function entrerDansCaisse() {
+  document.getElementById('txt-nom-boutique').textContent = (utilisateur.boutique && utilisateur.boutique.nom) || 'Boutique';
+  document.getElementById('txt-nom-vendeur').textContent = utilisateur.nom || '';
+  afficherEcran('ecran-caisse');
+  await chargerProduits();
+}
+
+async function chargerProduits() {
+  try {
+    const res = await fetch(`${API}/api/produits`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error();
+    produits = await res.json();
+  } catch (e) {
+    produits = [];
+  }
+}
+
+// Au chargement de la page : si un token est déjà en mémoire, on retente
+// directement (évite de se reconnecter à chaque fois sur le même téléphone).
+(async function initialiser() {
+  if (token && utilisateur) {
+    await entrerDansCaisse();
+  }
+})();
+
+// ============================================================================
+// Scan caméra
+// ============================================================================
+function basculerScan() {
+  scanActif ? arreterScan() : demarrerScan();
+}
+
+function demarrerScan() {
+  const bouton = document.getElementById('btn-toggle-scan');
+  scanner = new Html5Qrcode('lecteur-qr');
+  scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 220, height: 220 } },
+    onScanReussi,
+    () => {}
+  ).then(() => {
+    scanActif = true;
+    bouton.textContent = '✖ Fermer le scanner';
+    bouton.style.background = '#dc2626';
+  }).catch(err => {
+    afficherMessageScan('err', "Impossible d'accéder à la caméra : " + err);
+  });
+}
+
+function arreterScan() {
+  const bouton = document.getElementById('btn-toggle-scan');
+  if (scanner && scanActif) {
+    scanner.stop().then(() => scanner.clear()).catch(() => {});
+  }
+  scanActif = false;
+  bouton.textContent = '📷 Scanner un QR';
+  bouton.style.background = '#059669';
+}
+
+function afficherMessageScan(type, texte) {
+  const el = document.getElementById('msg-scan');
+  el.className = 'msg-scan ' + (type === 'ok' ? 'ok' : 'err');
+  el.textContent = (type === 'ok' ? '✅ ' : '⚠️ ') + texte;
+  el.classList.remove('masque');
+}
+
+function onScanReussi(texteDecode) {
+  const maintenant = Date.now();
+  if (dernierScan.code === texteDecode && maintenant - dernierScan.ts < 2000) return;
+  dernierScan = { code: texteDecode, ts: maintenant };
+
+  let donnees;
+  try { donnees = JSON.parse(texteDecode); }
+  catch { bipErreur(); afficherMessageScan('err', 'QR non reconnu.'); return; }
+
+  const produit = produits.find(p => p._id === donnees.id);
+  if (!produit) { bipErreur(); afficherMessageScan('err', `Produit introuvable : ${donnees.nom || ''}`); return; }
+  if (produit.quantite <= 0) { bipErreur(); afficherMessageScan('err', `Rupture de stock : ${produit.nom}`); return; }
+
+  bipSucces();
+  afficherMessageScan('ok', `${produit.nom} ajouté au panier`);
+  ajouterAuPanier(produit);
+}
+
+// ============================================================================
+// Panier
+// ============================================================================
+function ajouterAuPanier(produit) {
+  const existant = panier[produit._id];
+  if (existant) {
+    if (existant.qte >= produit.quantite) return; // ne dépasse pas le stock connu
+    existant.qte += 1;
+  } else {
+    panier[produit._id] = { produit, qte: 1 };
+  }
+  rafraichirPanier();
+}
+
+function changerQte(produitId, delta) {
+  const item = panier[produitId];
+  if (!item) return;
+  item.qte += delta;
+  if (item.qte <= 0) delete panier[produitId];
+  rafraichirPanier();
+}
+
+function rafraichirPanier() {
+  const conteneur = document.getElementById('liste-panier');
+  const items = Object.values(panier);
+  if (items.length === 0) {
+    conteneur.innerHTML = '<div class="vide">Aucun article scanné pour l\'instant.</div>';
+  } else {
+    conteneur.innerHTML = items.map(({ produit, qte }) => `
+      <div class="ligne-panier">
+        <div class="infos">
+          <div class="nom">${escapeHtml(produit.nom)}</div>
+          <div class="prix">${Number(produit.prix).toLocaleString()} FCFA</div>
+        </div>
+        <div class="qte-controles">
+          <button class="qte" onclick="changerQte('${produit._id}', -1)">−</button>
+          <span>${qte}</span>
+          <button class="qte" onclick="changerQte('${produit._id}', 1)">+</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  const total = items.reduce((s, { produit, qte }) => s + produit.prix * qte, 0);
+  document.getElementById('txt-total').textContent = total.toLocaleString();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ============================================================================
+// Validation de la vente
+// ============================================================================
+async function validerVente() {
+  const items = Object.values(panier);
+  if (items.length === 0) { alert('Le panier est vide.'); return; }
+
+  const produitsVente = items.map(({ produit, qte }) => ({
+    produit: produit._id,
+    quantite: qte,
+    prixUnitaire: produit.prix,
+  }));
+  const montantTotal = items.reduce((s, { produit, qte }) => s + produit.prix * qte, 0);
+
+  try {
+    const res = await fetch(`${API}/api/ventes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        produits: produitsVente,
+        montantTotal,
+        typeVente: 'presentiel',
+        vendeur: utilisateur.id,
+        nomVendeur: utilisateur.nom,
+        clientNom: 'Client anonyme',
+        boutiqueId: utilisateur.boutique ? utilisateur.boutique._id : null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Erreur lors de la vente.');
+
+    derniereFacture = { ...data, items };
+    document.getElementById('txt-num-facture').textContent = 'Facture ' + data.numFacture;
+    afficherEcran('ecran-confirmation');
+
+    panier = {};
+    rafraichirPanier();
+    arreterScan();
+    document.getElementById('msg-scan').classList.add('masque');
+    chargerProduits(); // remet à jour les stocks affichés
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function nouvelleVente() {
+  afficherEcran('ecran-caisse');
+}
+
+// ============================================================================
+// Ticket thermique (impression via le navigateur, format 80mm)
+// ============================================================================
+function imprimerTicketThermique() {
+  if (!derniereFacture) return;
+  const f = derniereFacture;
+  const boutique = (utilisateur.boutique && utilisateur.boutique.nom) || 'BOUTIQUE';
+  const date = new Date(f.dateVente || Date.now());
+  const dateStr = date.toLocaleDateString('fr-FR') + '  ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  const lignes = f.items.map(({ produit, qte }) => `
+    <div>${escapeHtml(produit.nom)}</div>
+    <div class="ligne"><span>${qte} x ${produit.prix.toLocaleString()}</span><span>${(qte * produit.prix).toLocaleString()}</span></div>
+  `).join('');
+
+  document.getElementById('ticket-thermique').innerHTML = `
+    <div class="centre titre">${escapeHtml(boutique)}</div>
+    <div class="separateur"></div>
+    <div>Facture N° ${escapeHtml(f.numFacture)}</div>
+    <div>${dateStr}</div>
+    <div class="separateur"></div>
+    ${lignes}
+    <div class="separateur"></div>
+    <div class="ligne titre"><span>TOTAL</span><span>${Number(f.montantTotal).toLocaleString()} FCFA</span></div>
+    <div class="separateur"></div>
+    <div class="centre">Merci pour votre achat</div>
+  `;
+  window.print();
+}
+</script>
+</body>
+</html>

@@ -36,7 +36,7 @@ export default function Login() {
 
       <div style={styles.card}>
         <div style={styles.logoWrap}>
-          <img src="/logo-boutique-stock.png" alt="Stock Boutique" style={styles.logo} />
+          <img src={`${process.env.PUBLIC_URL}/logo-boutique-stock.png`} alt="Stock Boutique" style={styles.logo} />
           <h1 style={styles.title}>Connexion</h1>
         </div>
 

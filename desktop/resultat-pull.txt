@@ -27,8 +27,8 @@
                           "collection":  "produits",
                           "total_recus":  13,
                           "creees":  0,
-                          "mises_a_jour":  9,
-                          "ignorees_dirty":  4,
+                          "mises_a_jour":  6,
+                          "ignorees_dirty":  7,
                           "echouees":  0,
                           "echantillons_erreurs":  [
 
@@ -47,9 +47,9 @@
                       },
                       {
                           "collection":  "logs",
-                          "total_recus":  92,
+                          "total_recus":  102,
                           "creees":  0,
-                          "mises_a_jour":  92,
+                          "mises_a_jour":  102,
                           "ignorees_dirty":  0,
                           "echouees":  0,
                           "echantillons_erreurs":  [
@@ -61,6 +61,17 @@
                           "total_recus":  20,
                           "creees":  0,
                           "mises_a_jour":  20,
+                          "ignorees_dirty":  0,
+                          "echouees":  0,
+                          "echantillons_erreurs":  [
+
+                                                   ]
+                      },
+                      {
+                          "collection":  "clients",
+                          "total_recus":  4,
+                          "creees":  0,
+                          "mises_a_jour":  4,
                           "ignorees_dirty":  0,
                           "echouees":  0,
                           "echantillons_erreurs":  [
@@ -82,8 +93,8 @@
                       {
                           "collection":  "users",
                           "total_recus":  9,
-                          "mises_a_jour":  0,
-                          "ignorees_absent":  8,
+                          "mises_a_jour":  2,
+                          "ignorees_absent":  6,
                           "ignorees_dirty":  1,
                           "echouees":  0,
                           "echantillons_erreurs":  [

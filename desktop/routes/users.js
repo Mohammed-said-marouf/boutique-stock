@@ -38,7 +38,13 @@ router.get('/', (req, res) => {
   try {
     let sql = 'SELECT * FROM users WHERE is_deleted = 0';
     const params = [];
-    if (req.query.boutiqueId) {
+    // Un admin ne voit que les vendeurs de sa propre boutique — comme le
+    // fait déjà le backend en ligne. Un superadmin (ou un appel sans
+    // token identifiable) voit tout, avec le filtre optionnel existant.
+    if (req.user && req.user.role === 'admin' && req.user.boutiqueId) {
+      sql += ' AND boutique_id = ? AND role = ?';
+      params.push(req.user.boutiqueId, 'vendeur');
+    } else if (req.query.boutiqueId) {
       sql += ' AND boutique_id = ?';
       params.push(req.query.boutiqueId);
     }

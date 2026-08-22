@@ -3,8 +3,9 @@
  * chaque entrée non encore synchronisée vers l'API en ligne.
  *
  * Étape actuelle : ventes, boutiques, fournisseurs, mouvements_stock, logs,
- * icones, produits (sans image) et users sont gérés. "clients" reste
- * volontairement ignoré (déjà géré indirectement via la synchro des ventes).
+ * icones, produits (AVEC image, lue depuis le disque local et attachée au
+ * FormData) et users sont gérés. "clients" reste volontairement ignoré
+ * (déjà géré indirectement via la synchro des ventes).
  *
  * Toute entrée dont la collection/opération n'est pas encore prise en charge
  * est laissée telle quelle dans la file (non marquée "synced"), pour être
@@ -12,6 +13,9 @@
  */
 
 const db = require('../local-db/db');
+const fs = require('fs');
+const path = require('path');
+const { app: electronApp } = require('electron');
 const { estEnLigne, API_EN_LIGNE } = require('./connectivite');
 const { lireSession } = require('./token-store');
 
@@ -146,11 +150,42 @@ async function pousserEntree(entree, token) {
           }
         }
 
-        // Pas encore de gestion d'image : le frontend local n'a pas de vraie
-        // interface de sélection de fichier pour le moment (page-test.html
-        // est une page vide). Le jour où payload.image contiendra un chemin
-        // de fichier local, on lira ce fichier ici et on l'ajoutera au
-        // FormData avec formData.append('image', blob, nomFichier).
+        // Si le produit a une image locale (chemin /uploads/produits/xxx.png
+        // sur le disque local), on lit le fichier et on l'attache au
+        // FormData — le backend en ligne (multer + Cloudinary) le recevra
+        // comme un vrai upload, exactement comme s'il avait été envoyé
+        // depuis le site web.
+        if (payload?.image && payload.image.startsWith('/uploads/')) {
+          const cheminAbsolu = path.join(electronApp.getPath('userData'), payload.image);
+          const nomFichier = path.basename(payload.image);
+          const extension = path.extname(nomFichier).toLowerCase();
+          // Le backend (fileFilter côté multer) n'accepte QUE ces formats —
+          // toute autre extension serait rejetée avec "Format non supporté"
+          // à chaque tentative, en boucle infinie via la sync automatique.
+          // On ne tente donc d'attacher le fichier que si le format est
+          // reconnu ; sinon on pousse les champs texte seuls, le backend
+          // conservera l'image existante inchangée plutôt que d'échouer.
+          const TYPES_MIME_ACCEPTES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jfif': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+          const typeMime = TYPES_MIME_ACCEPTES[extension];
+
+          if (typeMime) {
+            try {
+              const octets = fs.readFileSync(cheminAbsolu);
+              formData.append('image', new Blob([octets], { type: typeMime }), nomFichier);
+            } catch {
+              // Fichier introuvable sur le disque (ex: supprimé manuellement) —
+              // on pousse le produit sans image plutôt que de faire échouer
+              // tout le push.
+            }
+          }
+          // Extension non supportée (ex: .gif, .bmp, .heic...) : on ignore
+          // silencieusement l'image pour cette entrée, le reste des champs
+          // texte est quand même poussé normalement.
+        }
+        // Si l'image est déjà une URL complète (http...), c'est qu'elle a
+        // déjà été uploadée sur Cloudinary par un pull précédent — rien à
+        // renvoyer, le backend la conservera telle quelle si on ne touche
+        // pas au champ image.
 
         const url = operation === 'create'
           ? `${API_EN_LIGNE}/api/produits`

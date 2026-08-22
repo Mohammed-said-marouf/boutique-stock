@@ -66,7 +66,7 @@ export default function Inscription() {
 
       <div style={styles.card}>
         <div style={styles.logoWrap}>
-          <img src="/logo512.png" alt="Stock Boutique" style={styles.logo} />
+          <img src={`${process.env.PUBLIC_URL}/logo512.png`} alt="Stock Boutique" style={styles.logo} />
           <h1 style={styles.title}>Créer ma boutique</h1>
         </div>
         <p style={styles.subtitle}>Quelques infos pour démarrer, c'est gratuit</p>

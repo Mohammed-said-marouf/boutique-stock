@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const db = require('../local-db/db');
+const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
 
 const maintenant = () => new Date().toISOString();
 
@@ -38,6 +39,35 @@ router.get('/', (req, res) => {
   try {
     const lignes = db.prepare('SELECT * FROM boutiques WHERE is_deleted = 0 ORDER BY created_at DESC').all();
     res.json(lignes.map(versFormatApi));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST - Inscription libre (comme sur le web) : crée une TOUTE NOUVELLE
+// boutique + son compte admin. Contrairement à la connexion (qui peut
+// fonctionner hors-ligne une fois le compte déjà connu localement), créer
+// une nouvelle boutique n'a de sens que si elle existe réellement sur le
+// serveur central — donc on relaie directement vers l'API en ligne, sans
+// rien recréer en local. Une fois inscrit, l'utilisateur pourra se
+// connecter normalement (auth.js créera alors le compte en local).
+router.post('/inscription', async (req, res) => {
+  try {
+    const enLigne = await estEnLigne();
+    if (!enLigne) {
+      return res.status(503).json({
+        message: 'Une connexion internet est nécessaire pour créer une nouvelle boutique.',
+      });
+    }
+
+    const reponse = await fetch(`${API_EN_LIGNE}/api/boutiques/inscription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+
+    const donnees = await reponse.json();
+    res.status(reponse.status).json(donnees);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

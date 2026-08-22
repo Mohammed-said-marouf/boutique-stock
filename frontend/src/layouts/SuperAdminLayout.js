@@ -1182,6 +1182,58 @@ function SauvegardesAdmin() {
 // ===================== MAINTENANCE =====================
 function MaintenanceAdmin() {
   const [modeMaintenance, setModeMaintenance] = useState(false);
+  const [chargement, setChargement] = useState(true);
+  const [envoiToggle, setEnvoiToggle] = useState(false);
+  const [actionEnCours, setActionEnCours] = useState('');
+  const [messages, setMessages] = useState({});
+
+  const token = localStorage.getItem('token');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const chargerStatut = () => {
+    fetch(`${API_URL}/api/maintenance/statut`)
+      .then(r => r.json())
+      .then(d => { setModeMaintenance(!!d.enMaintenance); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { chargerStatut(); }, []);
+
+  const toggleMaintenance = async () => {
+    setEnvoiToggle(true);
+    try {
+      const route = modeMaintenance ? 'desactiver' : 'activer';
+      const res = await fetch(`${API_URL}/api/maintenance/${route}`, { method: 'POST', ...authHeaders });
+      const data = await res.json();
+      if (res.ok) setModeMaintenance(data.enMaintenance);
+    } catch (err) {
+      alert('Erreur réseau : ' + err.message);
+    } finally {
+      setEnvoiToggle(false);
+    }
+  };
+
+  const declencherAction = async (cle) => {
+    setActionEnCours(cle);
+    setMessages(p => ({ ...p, [cle]: '' }));
+    try {
+      const res = await fetch(`${API_URL}/api/maintenance/${cle}`, { method: 'POST', ...authHeaders });
+      const data = await res.json();
+      setMessages(p => ({ ...p, [cle]: data.message || (res.ok ? '✅ Terminé.' : '❌ Erreur.') }));
+    } catch (err) {
+      setMessages(p => ({ ...p, [cle]: '❌ Erreur réseau : ' + err.message }));
+    } finally {
+      setActionEnCours('');
+    }
+  };
+
+  const actions = [
+    { cle: 'vider-cache', icon: '🗑️', label: 'Vider le cache', sub: 'Libère la mémoire temporaire', color: '#fef9c3', textColor: '#ca8a04' },
+    { cle: 'optimiser-bd', icon: '📊', label: 'Optimiser la base de données', sub: 'Diagnostic sans modification', color: '#dbeafe', textColor: '#2563eb' },
+    { cle: 'tester-email', icon: '📧', label: 'Tester les emails', sub: "Vérifie l'envoi de notifications", color: '#dcfce7', textColor: '#16a34a' },
+    { cle: 'redemarrer', icon: '🔄', label: 'Redémarrer les services', sub: 'Action symbolique pour le moment', color: '#ede9fe', textColor: '#7c3aed' },
+  ];
 
   return (
     <div>
@@ -1194,46 +1246,56 @@ function MaintenanceAdmin() {
           <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
             En mode maintenance, seul le Super Admin peut accéder à l'application.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: modeMaintenance ? '#fee2e2' : '#f0fdf4', borderRadius: '10px', marginBottom: '20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: modeMaintenance ? '#dc2626' : '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
-              {modeMaintenance ? '🔴' : '🟢'}
-            </div>
-            <div>
-              <div style={{ fontWeight: '700', color: modeMaintenance ? '#dc2626' : '#16a34a', fontSize: '15px' }}>
-                {modeMaintenance ? 'Mode maintenance ACTIF' : 'Système opérationnel'}
+          {chargement ? (
+            <div style={{ color: '#666', fontSize: '13px', marginBottom: '20px' }}>Chargement du statut...</div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: modeMaintenance ? '#fee2e2' : '#f0fdf4', borderRadius: '10px', marginBottom: '20px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: modeMaintenance ? '#dc2626' : '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                {modeMaintenance ? '🔴' : '🟢'}
               </div>
-              <div style={{ fontSize: '13px', color: '#666' }}>
-                {modeMaintenance ? "L'accès est restreint" : 'Toutes les boutiques ont accès'}
+              <div>
+                <div style={{ fontWeight: '700', color: modeMaintenance ? '#dc2626' : '#16a34a', fontSize: '15px' }}>
+                  {modeMaintenance ? 'Mode maintenance ACTIF' : 'Système opérationnel'}
+                </div>
+                <div style={{ fontSize: '13px', color: '#666' }}>
+                  {modeMaintenance ? "L'accès est restreint" : 'Toutes les boutiques ont accès'}
+                </div>
               </div>
             </div>
-          </div>
-          <button onClick={() => setModeMaintenance(!modeMaintenance)} style={{
+          )}
+          <button onClick={toggleMaintenance} disabled={envoiToggle || chargement} style={{
             padding: '12px 24px', background: modeMaintenance ? '#16a34a' : '#dc2626',
-            color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '14px'
+            color: 'white', border: 'none', borderRadius: '8px', cursor: (envoiToggle || chargement) ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '14px',
+            opacity: envoiToggle ? 0.7 : 1
           }}>
-            {modeMaintenance ? '✅ Désactiver la maintenance' : '🔧 Activer la maintenance'}
+            {envoiToggle ? '...' : modeMaintenance ? '✅ Désactiver la maintenance' : '🔧 Activer la maintenance'}
           </button>
         </div>
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🧹 Actions système</h3>
-          {[
-            { icon: '🗑️', label: 'Vider le cache', sub: 'Libère la mémoire temporaire', color: '#fef9c3', textColor: '#ca8a04' },
-            { icon: '📊', label: 'Optimiser la base de données', sub: 'Améliore les performances', color: '#dbeafe', textColor: '#2563eb' },
-            { icon: '📧', label: 'Tester les emails', sub: "Vérifie l'envoi de notifications", color: '#dcfce7', textColor: '#16a34a' },
-            { icon: '🔄', label: 'Redémarrer les services', sub: 'Redémarre sans coupure', color: '#ede9fe', textColor: '#7c3aed' },
-          ].map((a, i) => (
-            <button key={i} style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px',
-              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px',
-              cursor: 'pointer', marginBottom: '10px', textAlign: 'left'
-            }}>
-              <div style={{ width: '40px', height: '40px', background: a.color, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{a.icon}</div>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: a.textColor }}>{a.label}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>{a.sub}</div>
-              </div>
-            </button>
+          {actions.map((a) => (
+            <div key={a.cle} style={{ marginBottom: '10px' }}>
+              <button onClick={() => declencherAction(a.cle)} disabled={actionEnCours === a.cle} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px',
+                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px',
+                cursor: actionEnCours === a.cle ? 'not-allowed' : 'pointer', textAlign: 'left',
+                opacity: actionEnCours === a.cle ? 0.7 : 1
+              }}>
+                <div style={{ width: '40px', height: '40px', background: a.color, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{a.icon}</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: a.textColor }}>
+                    {actionEnCours === a.cle ? 'En cours...' : a.label}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{a.sub}</div>
+                </div>
+              </button>
+              {messages[a.cle] && (
+                <div style={{ fontSize: '12px', color: '#555', marginTop: '6px', paddingLeft: '4px', whiteSpace: 'pre-wrap' }}>
+                  {messages[a.cle]}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>

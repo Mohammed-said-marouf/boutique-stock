@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
@@ -59,12 +59,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <IconesProvider>
           <AppRoutes />
         </IconesProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

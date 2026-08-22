@@ -56,11 +56,19 @@ function chargerVenteComplete(venteId) {
 // GET - Lister toutes les ventes
 router.get('/', (req, res) => {
   try {
+    // Un admin ou un vendeur ne voit que les ventes de sa propre boutique
+    // (priorité au token, comme le fait le backend en ligne). Si aucun
+    // token identifiable (ex: nos scripts de test), on retombe sur le
+    // filtre optionnel ?boutiqueId= déjà existant.
+    const boutiqueFiltre = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
+      ? req.user.boutiqueId
+      : req.query.boutiqueId;
+
     let sql = 'SELECT id FROM ventes WHERE is_deleted = 0';
     const params = [];
-    if (req.query.boutiqueId) {
+    if (boutiqueFiltre) {
       sql += ' AND boutique_id = ?';
-      params.push(req.query.boutiqueId);
+      params.push(boutiqueFiltre);
     }
     sql += ' ORDER BY date_vente DESC';
 
@@ -154,7 +162,12 @@ router.post('/', (req, res) => {
 // GET - Statistiques (jour / mois / total), filtrable par boutiqueId
 router.get('/stats', (req, res) => {
   try {
-    const { boutiqueId } = req.query;
+    // Même logique que GET / : priorité au token pour un admin/vendeur,
+    // sinon on retombe sur le filtre optionnel ?boutiqueId= déjà existant.
+    const boutiqueId = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
+      ? req.user.boutiqueId
+      : req.query.boutiqueId;
+
     const filtreBoutique = boutiqueId ? 'AND boutique_id = @boutiqueId' : '';
 
     const debutJour = new Date();

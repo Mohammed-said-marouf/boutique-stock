@@ -15,6 +15,7 @@ const venteSchema = new mongoose.Schema({
   clientNom: { type: String, default: 'Client anonyme' },
   numFacture: { type: String },
   boutiqueId: { type: String, ref: 'Boutique', default: null },
+  comptoirId: { type: String, ref: 'Comptoir', default: null },
   dateVente: { type: Date, default: Date.now },
   notes: { type: String }
 }, { timestamps: true });

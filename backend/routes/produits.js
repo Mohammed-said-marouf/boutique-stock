@@ -11,7 +11,7 @@ router.get('/', verifierToken, async (req, res) => {
     if (req.user.role === 'admin' || req.user.role === 'vendeur') {
       filtre.boutiqueId = req.user.boutiqueId;
     }
-    const produits = await Produit.find(filtre).populate('fournisseur');
+    const produits = await Produit.find(filtre).populate('fournisseur').populate('stockComptoirs.comptoir', 'nom actif');
     res.json(produits);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -67,6 +67,55 @@ router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (re
     res.json({ message: '✅ Produit supprimé' });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// POST - Transférer du stock du Magasin vers un Comptoir (admin/superadmin
+// uniquement — seul l'admin décide de ce qui part en vente). Crée aussi un
+// mouvement de stock de type "transfert" pour garder l'historique.
+router.post('/:id/transferer', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
+  try {
+    const { comptoirId, quantite } = req.body;
+    const qte = Number(quantite);
+    if (!comptoirId || !qte || qte <= 0) {
+      return res.status(400).json({ message: 'comptoirId et quantite (> 0) sont requis.' });
+    }
+
+    const produit = await Produit.findById(req.params.id);
+    if (!produit) return res.status(404).json({ message: 'Produit introuvable.' });
+
+    if (req.user.role === 'admin' && produit.boutiqueId !== req.user.boutiqueId) {
+      return res.status(403).json({ message: 'Accès refusé.' });
+    }
+
+    if (produit.quantite < qte) {
+      return res.status(400).json({ message: `Stock Magasin insuffisant (disponible : ${produit.quantite}).` });
+    }
+
+    produit.quantite -= qte;
+    const entree = produit.stockComptoirs.find(sc => sc.comptoir === comptoirId);
+    if (entree) {
+      entree.quantite += qte;
+    } else {
+      produit.stockComptoirs.push({ comptoir: comptoirId, quantite: qte });
+    }
+    await produit.save();
+
+    const MouvementStock = require('../models/MouvementStock');
+    await new MouvementStock({
+      produit: produit._id,
+      boutiqueId: produit.boutiqueId,
+      type: 'transfert',
+      quantite: qte,
+      stockRestant: produit.quantite,
+      comptoirDestination: comptoirId,
+      note: req.body.note || '',
+    }).save();
+
+    await produit.populate('stockComptoirs.comptoir', 'nom actif');
+    res.json(produit);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
 

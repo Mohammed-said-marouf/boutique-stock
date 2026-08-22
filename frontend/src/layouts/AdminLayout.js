@@ -5,6 +5,8 @@ import { Icone } from '../context/IconesContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
+import { genererDataUrlQR, construirePdfEtiquettes, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
+import QRCode from 'qrcode';
 
 import { API_URL } from '../config';
 
@@ -433,20 +435,67 @@ function AdminProduits() {
       : `${API_URL}/api/produits`;
     const method = editId ? 'PUT' : 'POST';
 
-    await fetch(url, {
+    const reponse = await fetch(url, {
       method,
       headers: { Authorization: `Bearer ${token}` },
       body: formData
     });
+    const nouveauProduit = await reponse.json().catch(() => null);
     setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
     setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false); setEditId(null);
     charger();
+
+    // Après une création (pas une modification), proposer d'imprimer directement les étiquettes QR
+    if (!editId && nouveauProduit?._id && nouveauProduit.quantite > 0) {
+      if (window.confirm(`Produit créé. Imprimer maintenant ${nouveauProduit.quantite} étiquette(s) QR ?`)) {
+        genererQR(nouveauProduit);
+      }
+    }
   };
 
   const supprimer = async (id) => {
     if (!window.confirm('Supprimer ce produit ?')) return;
     await fetch(`${API_URL}/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     charger();
+  };
+
+  const [genererQrId, setGenererQrId] = useState(null);
+  const [qrApercu, setQrApercu] = useState(null); // { produit, nombre, dataUrl }
+  const [demandeQuantiteQR, setDemandeQuantiteQR] = useState(null); // { produit, valeur }
+
+  // Ouvre la petite fenêtre de saisie du nombre d'étiquettes. On n'utilise PAS
+  // window.prompt() ici : Electron ne l'implémente pas (contrairement à
+  // window.alert/confirm) — l'appel resterait silencieusement sans effet
+  // dans l'app desktop.
+  const genererQR = (p) => {
+    setDemandeQuantiteQR({ produit: p, valeur: String(p.quantite || 1) });
+  };
+
+  const confirmerDemandeQuantiteQR = async () => {
+    if (!demandeQuantiteQR) return;
+    const { produit } = demandeQuantiteQR;
+    const nombre = parseInt(demandeQuantiteQR.valeur, 10);
+    if (!nombre || nombre <= 0) {
+      window.alert('Veuillez saisir un nombre valide.');
+      return;
+    }
+    setDemandeQuantiteQR(null);
+    setGenererQrId(produit._id);
+    try {
+      const dataUrl = await genererDataUrlQR(produit);
+      setQrApercu({ produit, nombre, dataUrl });
+    } catch (e) {
+      window.alert("Erreur lors de la génération des étiquettes QR : " + e.message);
+    } finally {
+      setGenererQrId(null);
+    }
+  };
+
+  const telechargerDepuisApercu = () => {
+    if (!qrApercu) return;
+    const doc = construirePdfEtiquettes(qrApercu.produit, qrApercu.nombre, qrApercu.dataUrl);
+    telechargerPdfEtiquettes(doc, qrApercu.produit);
+    setQrApercu(null);
   };
 
   const filtres = produits.filter(p => p.nom.toLowerCase().includes(recherche.toLowerCase()));
@@ -565,6 +614,10 @@ function AdminProduits() {
                 </td>
                 <td style={{ padding: '10px 8px' }}>
                   <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => genererQR(p)} disabled={genererQrId === p._id} title="Générer et imprimer les étiquettes QR"
+                      style={{ padding: '4px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: genererQrId === p._id ? 'not-allowed' : 'pointer', fontSize: '12px', color: '#16a34a', opacity: genererQrId === p._id ? 0.6 : 1 }}>
+                      {genererQrId === p._id ? '⏳' : '🔳 QR'}
+                    </button>
                     <button onClick={() => ouvrirModification(p)} style={{ padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb' }}>
                       <Icone nom="modifier" size={14} />
                     </button>
@@ -582,6 +635,100 @@ function AdminProduits() {
         </table>
         </div>
       </div>
+
+      {demandeQuantiteQR && (
+        <div onClick={() => setDemandeQuantiteQR(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px'
+          }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Générer les étiquettes QR</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              Combien d'étiquettes imprimer pour <strong>{demandeQuantiteQR.produit.nom}</strong> ? (une par unité à coller en boutique)
+            </p>
+            <input
+              type="number"
+              min="1"
+              autoFocus
+              value={demandeQuantiteQR.valeur}
+              onChange={e => setDemandeQuantiteQR({ ...demandeQuantiteQR, valeur: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') confirmerDemandeQuantiteQR(); }}
+              style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setDemandeQuantiteQR(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerDemandeQuantiteQR} style={{
+                flex: 1, padding: '10px', background: '#059669', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700'
+              }}>Continuer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {qrApercu && (
+        <div onClick={() => setQrApercu(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'white', borderRadius: '14px', padding: '24px',
+            width: '100%', maxWidth: '640px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#0f172a' }}>Aperçu des étiquettes QR</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666' }}>
+                  {qrApercu.produit.nom} — {qrApercu.nombre} étiquette{qrApercu.nombre > 1 ? 's' : ''} identique{qrApercu.nombre > 1 ? 's' : ''}, {GRILLE_ETIQUETTES.colonnes} colonnes par page A4 (feuille d'étiquettes autocollantes)
+                </p>
+              </div>
+              <button onClick={() => setQrApercu(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999', lineHeight: 1 }}>✕</button>
+            </div>
+
+            <div style={{
+              flex: 1, overflowY: 'auto', margin: '16px 0', padding: '12px',
+              background: '#f8fafc', borderRadius: '10px',
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px'
+            }}>
+              {Array.from({ length: qrApercu.nombre }).map((_, i) => (
+                <div key={i} style={{
+                  background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px',
+                  padding: '8px', display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
+                  <img src={qrApercu.dataUrl} alt={`QR ${i + 1}`} style={{ width: '46px', height: '46px', flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {qrApercu.produit.nom}
+                    </div>
+                    {qrApercu.produit.ref && (
+                      <div style={{ fontSize: '10px', color: '#999' }}>Réf: {qrApercu.produit.ref}</div>
+                    )}
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#16a34a' }}>
+                      {Number(qrApercu.produit.prix || 0).toLocaleString()} FCFA
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setQrApercu(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={telechargerDepuisApercu} style={{
+                flex: 2, padding: '10px', background: '#059669', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700'
+              }}>⬇️ Télécharger le PDF ({qrApercu.nombre} étiquette{qrApercu.nombre > 1 ? 's' : ''})</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -599,6 +746,111 @@ function AdminStocks() {
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
+  // --- Vue active : Mouvements (historique existant) / Magasin / Comptoirs ---
+  const [vueActive, setVueActive] = useState('mouvements');
+  const [comptoirs, setComptoirs] = useState([]);
+  const [comptoirSelectionne, setComptoirSelectionne] = useState('');
+  const [nouveauComptoirNom, setNouveauComptoirNom] = useState('');
+  const [envoiComptoir, setEnvoiComptoir] = useState(false);
+  const [transfertProduit, setTransfertProduit] = useState(null); // { produit, comptoirId, quantite }
+  const [envoiTransfert, setEnvoiTransfert] = useState(false);
+  const [erreurTransfert, setErreurTransfert] = useState('');
+
+  const chargerComptoirs = () => {
+    fetch(`${API_URL}/api/comptoirs`, authHeaders)
+      .then(r => r.json())
+      .then(d => {
+        const liste = Array.isArray(d) ? d : [];
+        setComptoirs(liste);
+        setComptoirSelectionne(prev => prev || (liste[0]?._id ?? ''));
+      })
+      .catch(() => {});
+  };
+
+  const creerComptoir = async () => {
+    if (!nouveauComptoirNom.trim()) return;
+    setEnvoiComptoir(true);
+    try {
+      const res = await fetch(`${API_URL}/api/comptoirs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom: nouveauComptoirNom.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      setNouveauComptoirNom('');
+      chargerComptoirs();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEnvoiComptoir(false);
+    }
+  };
+
+  const basculerActifComptoir = async (comptoir) => {
+    try {
+      await fetch(`${API_URL}/api/comptoirs/${comptoir._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ actif: !comptoir.actif }),
+      });
+      chargerComptoirs();
+    } catch (e) { /* silencieux, l'utilisateur peut réessayer */ }
+  };
+
+  const supprimerComptoir = async (comptoir) => {
+    if (!window.confirm(`Supprimer le comptoir "${comptoir.nom}" ?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/comptoirs/${comptoir._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      chargerComptoirs();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  };
+
+  const ouvrirTransfert = (produit) => {
+    setErreurTransfert('');
+    setTransfertProduit({ produit, comptoirId: comptoirs[0]?._id || '', quantite: '' });
+  };
+
+  const confirmerTransfert = async () => {
+    if (!transfertProduit) return;
+    const { produit, comptoirId, quantite } = transfertProduit;
+    const qte = parseInt(quantite, 10);
+    if (!comptoirId) { setErreurTransfert('Choisissez un comptoir.'); return; }
+    if (!qte || qte <= 0) { setErreurTransfert('Quantité invalide.'); return; }
+    if (qte > produit.quantite) { setErreurTransfert(`Stock Magasin insuffisant (disponible : ${produit.quantite}).`); return; }
+
+    setEnvoiTransfert(true);
+    setErreurTransfert('');
+    try {
+      const res = await fetch(`${API_URL}/api/produits/${produit._id}/transferer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ comptoirId, quantite: qte }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreurTransfert(data.message || 'Erreur'); return; }
+      setTransfertProduit(null);
+      chargerProduits();
+      charger(); // rafraîchit aussi l'historique des mouvements (le transfert y apparaît)
+    } catch (e) {
+      setErreurTransfert(e.message);
+    } finally {
+      setEnvoiTransfert(false);
+    }
+  };
+
+  const stockAuComptoir = (produit, comptoirId) => {
+    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
+    return entree ? entree.quantite : 0;
+  };
+
   const charger = () => {
     setChargement(true);
     fetch(`${API_URL}/api/mouvements-stock`, authHeaders)
@@ -615,7 +867,7 @@ function AdminStocks() {
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); chargerProduits(); }, []);
+  useEffect(() => { charger(); chargerProduits(); chargerComptoirs(); }, []);
 
   const ajouterMouvement = async () => {
     if (!form.produit || !form.quantite) {
@@ -645,15 +897,35 @@ function AdminStocks() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Icone nom="stock" size={28} /> Gestion des Stocks
         </h2>
-        <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-          + Entrée de stock
-        </button>
+        {vueActive === 'mouvements' && (
+          <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            + Entrée de stock
+          </button>
+        )}
       </div>
 
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
+        {[
+          { id: 'mouvements', label: '📋 Mouvements' },
+          { id: 'magasin', label: '🏬 Magasin' },
+          { id: 'comptoirs', label: '🏪 Comptoirs' },
+        ].map(onglet => (
+          <button key={onglet.id} onClick={() => setVueActive(onglet.id)} style={{
+            padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+            fontWeight: '600', fontSize: '14px',
+            color: vueActive === onglet.id ? '#2563eb' : '#666',
+            borderBottom: vueActive === onglet.id ? '2px solid #2563eb' : '2px solid transparent',
+            marginBottom: '-1px',
+          }}>{onglet.label}</button>
+        ))}
+      </div>
+
+      {vueActive === 'mouvements' && (
+      <>
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: '12px', marginBottom: '12px' }}>
@@ -715,10 +987,10 @@ function AdminStocks() {
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{m.produit?.nom || '—'}</td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{
-                      background: m.type === 'entree' ? '#dcfce7' : '#fee2e2',
-                      color: m.type === 'entree' ? '#16a34a' : '#dc2626',
+                      background: m.type === 'entree' ? '#dcfce7' : m.type === 'transfert' ? '#dbeafe' : '#fee2e2',
+                      color: m.type === 'entree' ? '#16a34a' : m.type === 'transfert' ? '#2563eb' : '#dc2626',
                       padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
-                    }}>{m.type === 'entree' ? 'Entrée' : 'Sortie'}</span>
+                    }}>{m.type === 'entree' ? 'Entrée' : m.type === 'transfert' ? '🏬→🏪 Transfert' : 'Sortie'}</span>
                   </td>
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.quantite}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{m.stockRestant}</td>
@@ -730,6 +1002,174 @@ function AdminStocks() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {vueActive === 'magasin' && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 style={{ margin: '0 0 4px', color: '#0f172a', fontSize: '15px' }}>🏬 Stock Magasin (réserve)</h3>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#666' }}>
+            Ce stock n'est pas vendable tel quel — transférez-le vers un comptoir pour qu'il devienne disponible à la vente.
+          </p>
+          {produits.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun produit.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                    {['Produit', 'Réf', 'Stock Magasin', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {produits.map(p => (
+                    <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
+                      <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
+                      <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{p.quantite}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        <button onClick={() => ouvrirTransfert(p)} disabled={p.quantite <= 0 || comptoirs.length === 0} style={{
+                          padding: '6px 14px', background: p.quantite <= 0 || comptoirs.length === 0 ? '#f1f5f9' : '#eff6ff',
+                          color: p.quantite <= 0 || comptoirs.length === 0 ? '#aaa' : '#2563eb',
+                          border: '1px solid ' + (p.quantite <= 0 || comptoirs.length === 0 ? '#e2e8f0' : '#bfdbfe'),
+                          borderRadius: '6px', cursor: p.quantite <= 0 || comptoirs.length === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600'
+                        }}>🏪 Transférer</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {comptoirs.length === 0 && (
+                <div style={{ marginTop: '14px', fontSize: '13px', color: '#999' }}>
+                  Créez d'abord un comptoir (onglet "🏪 Comptoirs") pour pouvoir y transférer du stock.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {vueActive === 'comptoirs' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) 1fr', gap: '20px', alignItems: 'start' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '15px' }}>🏪 Comptoirs</h3>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input value={nouveauComptoirNom} onChange={e => setNouveauComptoirNom(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') creerComptoir(); }}
+                placeholder="Ex: Caisse 1" style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+              <button onClick={creerComptoir} disabled={envoiComptoir || !nouveauComptoirNom.trim()} style={{
+                padding: '9px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
+                cursor: envoiComptoir ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600'
+              }}>+ Ajouter</button>
+            </div>
+
+            {comptoirs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '13px' }}>Aucun comptoir créé pour l'instant.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {comptoirs.map(c => (
+                  <div key={c._id} onClick={() => setComptoirSelectionne(c._id)} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
+                    background: comptoirSelectionne === c._id ? '#eff6ff' : '#f8fafc',
+                    border: '1px solid ' + (comptoirSelectionne === c._id ? '#bfdbfe' : '#e2e8f0'),
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: c.actif ? '#333' : '#aaa' }}>{c.nom}</div>
+                      {!c.actif && <div style={{ fontSize: '11px', color: '#dc2626' }}>Désactivé</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                      <button onClick={() => basculerActifComptoir(c)} title={c.actif ? 'Désactiver' : 'Activer'} style={{
+                        padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
+                      }}>{c.actif ? '⏸️' : '▶️'}</button>
+                      <button onClick={() => supprimerComptoir(c)} title="Supprimer" style={{
+                        padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626'
+                      }}>🗑️</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>
+              Stock du comptoir {comptoirs.find(c => c._id === comptoirSelectionne)?.nom ? `— ${comptoirs.find(c => c._id === comptoirSelectionne).nom}` : ''}
+            </h3>
+            {!comptoirSelectionne ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Créez ou sélectionnez un comptoir pour voir son stock.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                      {['Produit', 'Réf', 'Stock au comptoir'].map(h => (
+                        <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {produits.filter(p => stockAuComptoir(p, comptoirSelectionne) > 0).map(p => (
+                      <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
+                        <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
+                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockAuComptoir(p, comptoirSelectionne)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {produits.every(p => stockAuComptoir(p, comptoirSelectionne) === 0) && (
+                  <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>
+                    Aucun stock ici pour l'instant — transférez des produits depuis l'onglet "🏬 Magasin".
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {transfertProduit && (
+        <div onClick={() => setTransfertProduit(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers un comptoir</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              <strong>{transfertProduit.produit.nom}</strong> — stock Magasin disponible : {transfertProduit.produit.quantite}
+            </p>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Comptoir de destination</label>
+            <select value={transfertProduit.comptoirId} onChange={e => setTransfertProduit({ ...transfertProduit, comptoirId: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
+              {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+            </select>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Quantité à transférer</label>
+            <input type="number" min="1" max={transfertProduit.produit.quantite} autoFocus
+              value={transfertProduit.quantite}
+              onChange={e => setTransfertProduit({ ...transfertProduit, quantite: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') confirmerTransfert(); }}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
+
+            {erreurTransfert && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurTransfert}</div>}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setTransfertProduit(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerTransfert} disabled={envoiTransfert} style={{
+                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: envoiTransfert ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiTransfert ? 0.7 : 1
+              }}>{envoiTransfert ? '...' : 'Transférer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1641,6 +2081,31 @@ function AdminParametres({ user }) {
 
   const inputStyle = { width: '100%', padding: '10px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', color: '#333', outline: 'none', boxSizing: 'border-box' };
 
+  // --- Scanner vendeur (réseau Wi-Fi local, uniquement disponible depuis
+  // l'app desktop — silencieusement absent sur le site web en ligne, où
+  // cette route n'existe pas). ---
+  const [reseauInfo, setReseauInfo] = useState(null);
+  const [qrReseauUrl, setQrReseauUrl] = useState(null);
+  const [qrCertificatUrl, setQrCertificatUrl] = useState(null);
+  useEffect(() => {
+    let annule = false;
+    fetch(`${API_URL}/api/reseau-info`)
+      .then(r => r.ok ? r.json() : null)
+      .then(async (data) => {
+        if (annule || !data || !data.url) return;
+        setReseauInfo(data);
+        try {
+          setQrReseauUrl(await QRCode.toDataURL(data.url, { margin: 1, width: 180 }));
+          if (data.certificatUrl) {
+            setQrCertificatUrl(await QRCode.toDataURL(data.certificatUrl, { margin: 1, width: 180 }));
+          }
+        } catch { /* pas grave si le QR ne se génère pas, l'URL texte suffit */ }
+      })
+      .catch(() => {}); // silencieux : normal sur le site web en ligne
+    return () => { annule = true; };
+  }, []);
+
+
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1758,6 +2223,44 @@ function AdminParametres({ user }) {
             <Icone nom="modifier" size={16} /> {envoiBoutique ? 'Enregistrement...' : 'Modifier les infos'}
           </button>
         </div>
+
+        {reseauInfo && (
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: '16px' }}>📶 Scanner Vendeur (réseau local)</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#666' }}>
+              Sur le téléphone d'un vendeur connecté au <strong>même Wi-Fi</strong> que ce poste — fonctionne même sans connexion internet. À faire <strong>une seule fois</strong> par téléphone :
+            </p>
+
+            <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1', minWidth: '160px', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#2563eb', marginBottom: '6px' }}>① Installer le certificat</div>
+                {qrCertificatUrl && <img src={qrCertificatUrl} alt="QR du certificat" style={{ width: '140px', height: '140px' }} />}
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                  Ouvre le fichier, puis dans les réglages du téléphone : installer et faire confiance au profil/certificat.
+                </div>
+              </div>
+              <div style={{ flex: '1', minWidth: '160px', textAlign: 'center' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#059669', marginBottom: '6px' }}>② Ouvrir le scanner</div>
+                {qrReseauUrl && <img src={qrReseauUrl} alt="QR de connexion au scanner" style={{ width: '140px', height: '140px' }} />}
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                  À refaire à chaque vente (ou garder l'onglet ouvert).
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '14px', padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', textAlign: 'center' }}>
+              {reseauInfo.url}
+            </div>
+
+            <details style={{ marginTop: '14px', fontSize: '12px', color: '#666' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: '600' }}>Comment installer le certificat ?</summary>
+              <div style={{ marginTop: '8px', lineHeight: '1.6' }}>
+                <strong>iPhone :</strong> ouvrir le lien dans Safari → Autoriser le téléchargement → Réglages → Général → VPN et gestion d'appareil → installer le profil → puis Réglages → Général → Informations → Confiance des certificats → activer la confiance totale pour "Boutique Stock".<br/><br/>
+                <strong>Android :</strong> ouvrir le lien → le fichier se télécharge → l'ouvrir depuis les téléchargements → nommer le certificat et confirmer l'installation (Android peut demander de définir un code de verrouillage d'écran si aucun n'est actif).
+              </div>
+            </details>
+          </div>
+        )}
       </div>
     </div>
   );

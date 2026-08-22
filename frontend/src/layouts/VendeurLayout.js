@@ -1,10 +1,12 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Icone } from '../context/IconesContext';
+import { Html5Qrcode } from 'html5-qrcode';
+import { bipSucces, bipErreur } from '../utils/bip';
 
 import { API_URL } from '../config';
 
@@ -31,8 +33,6 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// Réutilise les mêmes clés d'icônes que AdminLayout / SuperAdminLayout
-// pour que l'éditeur d'icônes du Super Admin les modifie toutes en même temps.
 const menuItems = [
   { path: '/vendeur', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/vendeur/produits', iconKey: 'produits', label: 'Produits' },
@@ -54,7 +54,6 @@ export default function VendeurLayout() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5', position: 'relative', overflow: 'hidden' }}>
-      {/* Voile sombre derrière le menu en mode tiroir mobile */}
       {isMobile && !collapsed && (
         <div onClick={() => setCollapsed(true)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40
@@ -79,7 +78,7 @@ export default function VendeurLayout() {
             {user?.boutique?.logo ? (
               <img src={resoudreImage(user.boutique.logo)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={`${process.env.PUBLIC_URL}/logo512.png`} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
           </div>
           {(!collapsed || isMobile) && (
@@ -298,7 +297,7 @@ function VendeurDashboard({ user }) {
                     background: 'rgba(255,255,255,0.15)', color: 'white', padding: '4px 12px',
                     borderRadius: '20px', fontSize: '12px', fontWeight: '600'
                   }}>
-                    Stock: {produitVedette.quantite}
+                    Stock magasin: {produitVedette.quantite}
                   </span>
                 </div>
               </div>
@@ -395,10 +394,103 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
   const [encaissement, setEncaissement] = useState(false);
   const [erreur, setErreur] = useState('');
 
+  // ----- Comptoir de vente -----
+  // Le stock affecté par une vente est désormais celui d'un COMPTOIR précis
+  // (le stock Magasin n'est qu'une réserve, jamais vendu directement — voir
+  // backend/routes/ventes.js). Le vendeur choisit son comptoir une fois ;
+  // on retient son choix pour la prochaine visite sur ce même appareil.
+  const [comptoirs, setComptoirs] = useState([]);
+  const [comptoirId, setComptoirId] = useState(() => localStorage.getItem('bs_comptoir_id') || '');
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/comptoirs`, authHeaders())
+      .then(res => {
+        const liste = (res.data || []).filter(c => c.actif);
+        setComptoirs(liste);
+        setComptoirId(prev => (prev && liste.some(c => c._id === prev)) ? prev : (liste[0]?._id || ''));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (comptoirId) localStorage.setItem('bs_comptoir_id', comptoirId);
+  }, [comptoirId]);
+
+  // Stock vendable d'un produit AU COMPTOIR sélectionné (pas p.quantite, qui
+  // est désormais le stock Magasin, non vendable directement).
+  const stockComptoirDe = (produit) => {
+    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
+    return entree ? entree.quantite : 0;
+  };
+
+  // ----- Scan QR -----
+  const [scanActif, setScanActif] = useState(false);
+  const [scanMessage, setScanMessage] = useState(null); // { type: 'ok'|'erreur', texte }
+  const scannerRef = useRef(null);
+  const produitsRef = useRef(produits); // évite un scanner "figé" sur l'ancienne liste de produits
+  const dernierScanRef = useRef({ code: null, ts: 0 });
+
+  useEffect(() => { produitsRef.current = produits; }, [produits]);
+
+  useEffect(() => {
+    if (!scanActif) return;
+
+    const scanner = new Html5Qrcode('lecteur-qr-vendeur');
+    scannerRef.current = scanner;
+    let arrete = false;
+
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (texteDecode) => {
+        // Ignore un re-scan du même code QR dans les 2 secondes (le flux caméra le détecte en continu)
+        const maintenant = Date.now();
+        if (dernierScanRef.current.code === texteDecode && maintenant - dernierScanRef.current.ts < 2000) return;
+        dernierScanRef.current = { code: texteDecode, ts: maintenant };
+
+        let donnees;
+        try {
+          donnees = JSON.parse(texteDecode);
+        } catch {
+          bipErreur();
+          setScanMessage({ type: 'erreur', texte: 'QR non reconnu (pas une étiquette produit)' });
+          return;
+        }
+
+        const produit = produitsRef.current.find(p => p._id === donnees.id);
+        if (!produit) {
+          bipErreur();
+          setScanMessage({ type: 'erreur', texte: `Produit introuvable ou plus disponible : ${donnees.nom || ''}` });
+          return;
+        }
+        if (stockComptoirDe(produit) <= 0) {
+          bipErreur();
+          setScanMessage({ type: 'erreur', texte: `Rupture de stock à ce comptoir : ${produit.nom}` });
+          return;
+        }
+
+        bipSucces();
+        setScanMessage({ type: 'ok', texte: `${produit.nom} ajouté au panier` });
+        ajouterAuPanier(produit);
+      },
+      () => { /* pas de QR dans le champ à cet instant — pas une erreur, on ignore */ }
+    ).catch((err) => {
+      setScanMessage({ type: 'erreur', texte: "Impossible d'accéder à la caméra : " + err });
+      setScanActif(false);
+    });
+
+    return () => {
+      arrete = true;
+      if (scannerRef.current) {
+        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanActif]);
+
   useEffect(() => {
     axios.get(`${API_BASE}/api/produits`, authHeaders())
       .then(res => {
-        setProduits(res.data.filter(p => p.quantite > 0));
+        setProduits(res.data || []);
         setChargement(false);
       })
       .catch(() => {
@@ -407,16 +499,19 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
       });
   }, []);
 
-  const produitsFiltres = produits.filter(p =>
-    p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
-    (p.categorie && p.categorie.toLowerCase().includes(recherche.toLowerCase()))
-  );
+  const produitsFiltres = produits
+    .filter(p => stockComptoirDe(p) > 0)
+    .filter(p =>
+      p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
+      (p.categorie && p.categorie.toLowerCase().includes(recherche.toLowerCase()))
+    );
 
   const ajouterAuPanier = (produit) => {
+    const stockDispo = stockComptoirDe(produit);
     setPanier(prev => {
       const existant = prev.find(p => p._id === produit._id);
       if (existant) {
-        if (existant.qte >= produit.quantite) return prev;
+        if (existant.qte >= stockDispo) return prev;
         return prev.map(p => p._id === produit._id ? { ...p, qte: p.qte + 1 } : p);
       }
       return [...prev, { ...produit, qte: 1 }];
@@ -428,7 +523,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
       if (p._id !== id) return p;
       const newQte = p.qte + delta;
       if (newQte <= 0) return null;
-      if (newQte > p.quantite) return p;
+      if (newQte > stockComptoirDe(p)) return p;
       return { ...p, qte: newQte };
     }).filter(Boolean));
   };
@@ -437,12 +532,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
 
   const total = panier.reduce((sum, p) => sum + p.prix * p.qte, 0);
 
-  // Formatte un montant avec des espaces normaux (jsPDF ne supporte pas
-  // l'espace insécable fine utilisé par toLocaleString('fr-FR'))
   const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
 
-  // Charge une image distante et la convertit en base64 pour jsPDF.
-  // Retourne null si l'image ne peut pas être chargée (CORS, réseau, etc.)
   const chargerImageBase64 = async (url) => {
     if (!url) return null;
     try {
@@ -459,8 +550,14 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
     }
   };
 
-  const genererFacture = async () => {
+  const [venteAConfirmer, setVenteAConfirmer] = useState(null); // { numFacture, date, heure, panier, clientNom, total }
+
+  const finaliserVente = async () => {
     if (panier.length === 0) return;
+    if (!comptoirId) {
+      setErreur("Sélectionnez d'abord un comptoir de vente en haut de l'écran.");
+      return;
+    }
     setEncaissement(true);
     setErreur('');
 
@@ -476,118 +573,146 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
         vendeur: vendeurId,
         nomVendeur: nomVendeur,
         clientNom: clientNom || 'Client anonyme',
+        comptoirId,
       };
 
       const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
-      const nomBoutique = boutique?.nom || 'Boutique Stock';
-      const logoBase64 = await chargerImageBase64(resoudreImage(boutique?.logo));
-
-      const doc = new jsPDF();
-      const date = new Date().toLocaleDateString('fr-FR');
-      const heure = new Date().toLocaleTimeString('fr-FR');
-
-      // Dessine une copie complète de la facture à partir de yBase (mm)
-      const dessinerCopie = (yBase, labelCopie) => {
-        // Bandeau d'en-tête
-        doc.setFillColor(6, 78, 59);
-        doc.rect(0, yBase, 210, 30, 'F');
-
-        let xTexte = 14;
-        if (logoBase64) {
-          try {
-            doc.addImage(logoBase64, 'JPEG', 14, yBase + 5, 20, 20, undefined, 'FAST');
-            xTexte = 40;
-          } catch (e) { /* image illisible, on continue sans */ }
-        }
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text(nomBoutique, xTexte, yBase + 12);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Votre boutique de confiance', xTexte, yBase + 18);
-        doc.text(`Facture N° ${numFacture}`, xTexte, yBase + 25);
-
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(labelCopie, 196, yBase + 12, { align: 'right' });
-
-        // Infos
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
-        doc.text(`Vendeur : ${nomVendeur || 'Vendeur'}`, 120, yBase + 46);
-        doc.text(`Client : ${clientNom || 'Client anonyme'}`, 120, yBase + 52);
-
-        autoTable(doc, {
-          startY: yBase + 58,
-          head: [['Produit', 'Categorie', 'Prix unitaire', 'Qte', 'Total']],
-          body: panier.map(p => [
-            p.nom,
-            p.categorie || '-',
-            formatMontant(p.prix),
-            p.qte,
-            formatMontant(p.prix * p.qte)
-          ]),
-          headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-          alternateRowStyles: { fillColor: [240, 253, 244] },
-          styles: { fontSize: 9 },
-          margin: { left: 14, right: 14 },
-        });
-
-        const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : yBase + 90) + 6;
-        doc.setFillColor(240, 253, 244);
-        doc.rect(134, finalY, 62, 18, 'F');
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(6, 78, 59);
-        doc.text('TOTAL A PAYER :', 138, finalY + 7);
-        doc.text(formatMontant(total), 138, finalY + 14);
-
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Merci pour votre achat !', 105, yBase + 138, { align: 'center' });
-      };
-
-      // Copie 1 : pour la caisse
-      dessinerCopie(0, 'COPIE CAISSE');
-
-      // Ligne de coupe
-      doc.setDrawColor(180, 180, 180);
-      doc.setLineDashPattern([2, 2], 0);
-      doc.line(0, 148, 210, 148);
-      doc.setLineDashPattern([], 0);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text('✂ - - - - - - - - - - - - - - - - - découper ici - - - - - - - - - - - - - - - - - ✂', 105, 148, { align: 'center' });
-
-      // Copie 2 : pour le client
-      dessinerCopie(150, 'COPIE CLIENT');
-
-      doc.save(`Facture-${numFacture}.pdf`);
-      doc.save(`Facture-${numFacture}.pdf`);
+      setVenteAConfirmer({
+        numFacture,
+        date: new Date().toLocaleDateString('fr-FR'),
+        heure: new Date().toLocaleTimeString('fr-FR'),
+        panier: [...panier],
+        clientNom: clientNom || 'Client anonyme',
+        total,
+      });
 
       setProduits(prev => prev.map(p => {
         const vendu = panier.find(v => v._id === p._id);
-        if (vendu) return { ...p, quantite: p.quantite - vendu.qte };
-        return p;
-      }).filter(p => p.quantite > 0));
+        if (!vendu) return p;
+        return {
+          ...p,
+          stockComptoirs: (p.stockComptoirs || []).map(sc =>
+            (sc.comptoir?._id || sc.comptoir) === comptoirId
+              ? { ...sc, quantite: sc.quantite - vendu.qte }
+              : sc
+          ),
+        };
+      }));
 
       setPanier([]);
       setClientNom('');
-      alert(`Vente enregistree ! Facture ${numFacture} telechargee.`);
-
     } catch (err) {
       setErreur("Erreur lors de l'enregistrement : " + (err.response?.data?.message || err.message));
     } finally {
       setEncaissement(false);
     }
   };
+
+  const genererFacturePdfA4 = async (vente) => {
+    const numFacture = vente.numFacture;
+    const nomBoutique = boutique?.nom || 'Boutique Stock';
+    const logoBase64 = await chargerImageBase64(resoudreImage(boutique?.logo));
+
+    const doc = new jsPDF();
+    const date = vente.date;
+    const heure = vente.heure;
+
+    const dessinerCopie = (yBase, labelCopie) => {
+      doc.setFillColor(6, 78, 59);
+      doc.rect(0, yBase, 210, 30, 'F');
+
+      let xTexte = 14;
+      if (logoBase64) {
+        try {
+          doc.addImage(logoBase64, 'JPEG', 14, yBase + 5, 20, 20, undefined, 'FAST');
+          xTexte = 40;
+        } catch (e) { /* image illisible, on continue sans */ }
+      }
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(nomBoutique, xTexte, yBase + 12);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Votre boutique de confiance', xTexte, yBase + 18);
+      doc.text(`Facture N° ${numFacture}`, xTexte, yBase + 25);
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(labelCopie, 196, yBase + 12, { align: 'right' });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
+      doc.text(`Vendeur : ${nomVendeur || 'Vendeur'}`, 120, yBase + 46);
+      doc.text(`Client : ${vente.clientNom}`, 120, yBase + 52);
+
+      autoTable(doc, {
+        startY: yBase + 58,
+        head: [['Produit', 'Categorie', 'Prix unitaire', 'Qte', 'Total']],
+        body: vente.panier.map(p => [
+          p.nom,
+          p.categorie || '-',
+          formatMontant(p.prix),
+          p.qte,
+          formatMontant(p.prix * p.qte)
+        ]),
+        headStyles: { fillColor: [6, 78, 59], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 253, 244] },
+        styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+
+      const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : yBase + 90) + 6;
+      doc.setFillColor(240, 253, 244);
+      doc.rect(134, finalY, 62, 18, 'F');
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(6, 78, 59);
+      doc.text('TOTAL A PAYER :', 138, finalY + 7);
+      doc.text(formatMontant(vente.total), 138, finalY + 14);
+
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Merci pour votre achat !', 105, yBase + 138, { align: 'center' });
+    };
+
+    dessinerCopie(0, 'COPIE CAISSE');
+
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(0, 148, 210, 148);
+    doc.setLineDashPattern([], 0);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('✂ - - - - - - - - - - - - - - - - - découper ici - - - - - - - - - - - - - - - - - ✂', 105, 148, { align: 'center' });
+
+    dessinerCopie(150, 'COPIE CLIENT');
+
+    doc.save(`Facture-${numFacture}.pdf`);
+    setVenteAConfirmer(null);
+  };
+
+  // Ticket thermique (58/80mm) : imprimé via le navigateur (window.print), pas
+  // de PDF généré — la plupart des imprimantes thermiques s'installent comme
+  // une imprimante système classique, sélectionnable dans la boîte de
+  // dialogue d'impression du navigateur.
+  const [venteThermique, setVenteThermique] = useState(null);
+  const imprimerTicketThermique = (vente) => {
+    setVenteThermique(vente);
+    setVenteAConfirmer(null);
+  };
+  useEffect(() => {
+    if (venteThermique) {
+      const t = setTimeout(() => window.print(), 60);
+      return () => clearTimeout(t);
+    }
+  }, [venteThermique]);
 
   return (
     <div style={{
@@ -597,7 +722,50 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
       height: isMobile ? 'auto' : 'calc(100vh - 140px)'
     }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', overflow: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ margin: '0 0 16px', color: '#064e3b', fontSize: '16px' }}>📦 Produits disponibles</h3>
+        {comptoirs.length > 0 && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: '600' }}>🏪 Comptoir de vente :</span>
+            <select value={comptoirId} onChange={e => setComptoirId(e.target.value)} style={{
+              padding: '6px 10px', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '13px', background: 'white', fontWeight: '600', color: '#1e40af'
+            }}>
+              {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+            </select>
+          </div>
+        )}
+        {comptoirs.length === 0 && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', fontSize: '13px', color: '#dc2626' }}>
+            ⚠️ Aucun comptoir actif n'est configuré — demandez à l'admin d'en créer un dans Stocks → Comptoirs avant de pouvoir vendre.
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ margin: 0, color: '#064e3b', fontSize: '16px' }}>📦 Produits disponibles</h3>
+          <button onClick={() => { setScanMessage(null); setScanActif(v => !v); }} style={{
+            padding: '8px 16px', background: scanActif ? '#dc2626' : '#059669', color: 'white',
+            border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+            display: 'flex', alignItems: 'center', gap: '6px'
+          }}>
+            {scanActif ? '✖ Fermer le scanner' : '📷 Scanner un QR'}
+          </button>
+        </div>
+
+        {scanActif && (
+          <div style={{ marginBottom: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+            <div id="lecteur-qr-vendeur" style={{ width: '100%', maxWidth: '360px', margin: '0 auto', borderRadius: '8px', overflow: 'hidden' }} />
+            {scanMessage && (
+              <div style={{
+                marginTop: '10px', textAlign: 'center', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                background: scanMessage.type === 'ok' ? '#dcfce7' : '#fee2e2',
+                color: scanMessage.type === 'ok' ? '#16a34a' : '#dc2626'
+              }}>
+                {scanMessage.type === 'ok' ? '✅ ' : '⚠️ '}{scanMessage.texte}
+              </div>
+            )}
+            <div style={{ marginTop: '8px', textAlign: 'center', fontSize: '12px', color: '#666' }}>
+              Visez l'étiquette QR collée sur le produit — un bip confirme chaque ajout au panier.
+            </div>
+          </div>
+        )}
+
         <input value={recherche} onChange={e => setRecherche(e.target.value)}
           placeholder="Rechercher un produit..." style={{
             width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0',
@@ -638,8 +806,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#059669', marginBottom: '4px' }}>
                   {(p.prix || 0).toLocaleString()} FCFA
                 </div>
-                <div style={{ fontSize: '11px', color: p.quantite <= p.seuilAlerte ? '#dc2626' : '#666' }}>
-                  Stock: {p.quantite}
+                <div style={{ fontSize: '11px', color: stockComptoirDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
+                  Stock comptoir : {stockComptoirDe(p)}
                 </div>
               </div>
             ))}
@@ -719,7 +887,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
             }}>⏸️ Suspendre</button>
           </div>
           <button
-            onClick={genererFacture}
+            onClick={finaliserVente}
             disabled={panier.length === 0 || encaissement}
             style={{
               width: '100%', padding: '14px',
@@ -732,6 +900,71 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
           </button>
         </div>
       </div>
+
+      {venteAConfirmer && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div style={{ background: 'white', borderRadius: '14px', padding: '28px 24px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px' }}>✅</div>
+            <h3 style={{ margin: '8px 0 4px' }}>Vente enregistrée</h3>
+            <div style={{ color: '#666', fontSize: '13px', marginBottom: '20px' }}>Facture {venteAConfirmer.numFacture}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button onClick={() => genererFacturePdfA4(venteAConfirmer)} style={{
+                padding: '12px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '14px'
+              }}>🧾 Facture PDF A4</button>
+              <button onClick={() => imprimerTicketThermique(venteAConfirmer)} style={{
+                padding: '12px', background: '#059669', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '14px'
+              }}>🖨️ Ticket thermique (58/80mm)</button>
+              <button onClick={() => setVenteAConfirmer(null)} style={{
+                padding: '10px', background: '#f1f5f9', color: '#666', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '13px'
+              }}>Fermer sans imprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zone imprimable pour le ticket thermique — invisible à l'écran, visible
+          uniquement dans la boîte de dialogue d'impression (voir <style> ci-dessous). */}
+      <style>{`
+        #ticket-thermique-print { display: none; }
+        @media print {
+          body * { visibility: hidden; }
+          #ticket-thermique-print, #ticket-thermique-print * { visibility: visible; }
+          #ticket-thermique-print {
+            display: block; position: absolute; top: 0; left: 0;
+            width: 76mm; font-family: 'Courier New', monospace; font-size: 11px;
+          }
+          #ticket-thermique-print .centre { text-align: center; }
+          #ticket-thermique-print .titre { font-weight: bold; }
+          #ticket-thermique-print .separateur { border-top: 1px dashed #000; margin: 5px 0; }
+          #ticket-thermique-print .ligne { display: flex; justify-content: space-between; }
+          @page { size: 80mm auto; margin: 2mm; }
+        }
+      `}</style>
+      {venteThermique && (
+        <div id="ticket-thermique-print">
+          <div className="centre titre">{boutique?.nom || 'BOUTIQUE'}</div>
+          <div className="separateur" />
+          <div>Facture N° {venteThermique.numFacture}</div>
+          <div>{venteThermique.date}  {venteThermique.heure}</div>
+          <div className="separateur" />
+          {venteThermique.panier.map(p => (
+            <div key={p._id}>
+              <div>{p.nom}</div>
+              <div className="ligne"><span>{p.qte} x {formatMontant(p.prix)}</span><span>{formatMontant(p.prix * p.qte)}</span></div>
+            </div>
+          ))}
+          <div className="separateur" />
+          <div className="ligne titre"><span>TOTAL</span><span>{formatMontant(venteThermique.total)}</span></div>
+          <div className="separateur" />
+          <div className="centre">Merci pour votre achat</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -809,7 +1042,7 @@ function ProduitsVendeur() {
                   background: p.quantite === 0 ? '#fee2e2' : p.quantite <= p.seuilAlerte ? '#fef9c3' : '#dcfce7',
                   color: p.quantite === 0 ? '#dc2626' : p.quantite <= p.seuilAlerte ? '#ca8a04' : '#16a34a',
                   padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
-                }}>Stock: {p.quantite}</span>
+                }} title="Stock au Magasin (réserve) — le stock réellement vendable dépend du comptoir, voir Nouvelle vente">Stock magasin : {p.quantite}</span>
               </div>
             </div>
           ))}

@@ -21,7 +21,9 @@ router.get('/', verifierToken, async (req, res) => {
   }
 });
 
-// POST - Enregistrer un mouvement (entrée ou sortie) et mettre à jour le stock du produit
+// POST - Enregistrer un mouvement (entrée ou sortie) sur le stock MAGASIN et
+// mettre à jour produit.quantite. Pour déplacer du stock vers un comptoir,
+// voir POST /api/produits/:id/transferer (crée un mouvement type "transfert").
 router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
     const { produit: produitId, type, quantite, note } = req.body;

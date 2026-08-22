@@ -35,11 +35,18 @@ function versFormatApi(ligne) {
 // GET - Lister les mouvements (filtrable par boutiqueId)
 router.get('/', (req, res) => {
   try {
+    // Même logique que ventes.js / produits.js : priorité au token pour
+    // un admin/vendeur, sinon on retombe sur le filtre optionnel
+    // ?boutiqueId= déjà existant.
+    const boutiqueFiltre = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
+      ? req.user.boutiqueId
+      : req.query.boutiqueId;
+
     let sql = 'SELECT * FROM mouvements_stock WHERE is_deleted = 0';
     const params = [];
-    if (req.query.boutiqueId) {
+    if (boutiqueFiltre) {
       sql += ' AND boutique_id = ?';
-      params.push(req.query.boutiqueId);
+      params.push(boutiqueFiltre);
     }
     sql += ' ORDER BY created_at DESC';
 
@@ -84,9 +91,6 @@ router.post('/', (req, res) => {
     db.prepare('UPDATE produits SET quantite = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
       .run(nouveauStock, maintenantIso, produit);
 
-    // Payload rempli avec les données du mouvement (avant : envoyé à `null`,
-    // ce qui provoquait un body vide côté push et une erreur HTTP 400
-    // sur le backend en ligne, faute de produit/boutiqueId/type/quantite).
     ajouterAOutbox('mouvements_stock', 'create', id, {
       produit,
       boutiqueId,
@@ -95,11 +99,24 @@ router.post('/', (req, res) => {
       note: note || '',
     });
 
-    // Idem pour la mise à jour du stock produit associée : payload rempli
-    // au lieu de `null`, pour quand cette collection sera prise en charge
-    // dans sync/push.js.
+    // Payload rempli avec les vraies données du produit après mise à jour
+    // (avant : envoyé à `null`, ce qui empêchait la nouvelle quantité
+    // d'être transmise au serveur en ligne lors du push — le produit
+    // restait marqué "modifié" sans jamais transmettre ni recevoir la
+    // bonne valeur, d'où une divergence silencieuse entre local et en ligne).
+    const produitMisAJour = db.prepare('SELECT * FROM produits WHERE id = ?').get(produit);
     ajouterAOutbox('produits', 'update', produit, {
-      quantite: nouveauStock,
+      _id: produitMisAJour.id,
+      nom: produitMisAJour.nom,
+      description: produitMisAJour.description,
+      prix: produitMisAJour.prix,
+      quantite: produitMisAJour.quantite,
+      categorie: produitMisAJour.categorie,
+      fournisseur: produitMisAJour.fournisseur,
+      boutiqueId: produitMisAJour.boutique_id,
+      seuilAlerte: produitMisAJour.seuil_alerte,
+      ref: produitMisAJour.ref,
+      image: produitMisAJour.image,
     });
 
     return id;

@@ -163,12 +163,27 @@ const COLLECTIONS = {
     }),
   },
 
+  clients: {
+    endpoint: '/api/clients',
+    table: 'clients',
+    versColonnes: (item) => ({
+      id: item._id,
+      nom: item.nom,
+      telephone: item.telephone || null,
+      email: item.email || null,
+      boutique_id: item.boutiqueId || null,
+      achats: item.achats ?? 0,
+      total: item.total ?? 0,
+      created_at: item.createdAt || maintenant(),
+      updated_at: item.updatedAt || maintenant(),
+    }),
+  },
+
   // "ventes" : nécessite de gérer aussi vente_produits (table de jonction)
   //            — traité à part, pas dans cette première version.
   // "users"  : le backend ne renvoie jamais motDePasse (.select('-motDePasse')),
   //            impossible d'insérer un nouvel utilisateur local sans mot de
   //            passe (colonne NOT NULL) — à traiter séparément.
-  // "clients": volontairement laissé de côté (voir push.js).
 };
 
 // Insère ou met à jour une ligne locale. Ne touche jamais une ligne locale

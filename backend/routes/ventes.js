@@ -25,10 +25,33 @@ router.get('/', verifierToken, async (req, res) => {
 // POST - Enregistrer une vente
 router.post('/', verifierToken, async (req, res) => {
   try {
-    for (const item of req.body.produits) {
-      await Produit.findByIdAndUpdate(item.produit, {
-        $inc: { quantite: -item.quantite }
-      });
+    const { comptoirId, produits: lignes } = req.body;
+    if (!comptoirId) {
+      return res.status(400).json({ message: 'comptoirId requis : choisissez le comptoir de vente.' });
+    }
+    if (!Array.isArray(lignes) || lignes.length === 0) {
+      return res.status(400).json({ message: 'Le panier est vide.' });
+    }
+
+    // Validation préalable : on vérifie que CHAQUE produit a bien assez de
+    // stock à ce comptoir avant de committer quoi que ce soit — pour ne
+    // jamais laisser une vente à moitié appliquée.
+    const produitsCharges = await Promise.all(lignes.map(item => Produit.findById(item.produit)));
+    for (let i = 0; i < lignes.length; i++) {
+      const produit = produitsCharges[i];
+      if (!produit) return res.status(404).json({ message: `Produit introuvable (id: ${lignes[i].produit}).` });
+      const entree = (produit.stockComptoirs || []).find(sc => sc.comptoir === comptoirId);
+      const dispo = entree ? entree.quantite : 0;
+      if (dispo < lignes[i].quantite) {
+        return res.status(400).json({ message: `Stock insuffisant à ce comptoir pour "${produit.nom}" (disponible : ${dispo}).` });
+      }
+    }
+
+    for (const item of lignes) {
+      await Produit.updateOne(
+        { _id: item.produit, 'stockComptoirs.comptoir': comptoirId },
+        { $inc: { 'stockComptoirs.$.quantite': -item.quantite } }
+      );
     }
     const numFacture = 'FAC-' + Date.now().toString().slice(-6);
     const boutiqueId = req.user.boutiqueId || null;

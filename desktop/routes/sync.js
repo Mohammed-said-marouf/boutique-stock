@@ -10,6 +10,7 @@ const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
 const { enregistrerSession, lireSession, effacerSession } = require('../sync/token-store');
 const { pousserOutbox } = require('../sync/push');
 const { tirerTout } = require('../sync/pull');
+const { obtenirEtat, executerCycleSynchronisation } = require('../sync/scheduler');
 const db = require('../local-db/db');
 
 // GET - Vérifie si le serveur en ligne est joignable
@@ -103,6 +104,18 @@ router.get('/outbox', (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// GET - État de la synchronisation automatique (dernier cycle, en cours, besoin de reconnexion...)
+router.get('/auto-statut', (req, res) => {
+  res.json(obtenirEtat());
+});
+
+// POST - Déclenche immédiatement un cycle de synchronisation automatique
+// (utile pour un futur bouton "synchroniser maintenant" côté frontend)
+router.post('/auto-declencher', async (req, res) => {
+  await executerCycleSynchronisation();
+  res.json(obtenirEtat());
 });
 
 // DELETE - Supprime une entrée précise de l'outbox (ex: donnée de test

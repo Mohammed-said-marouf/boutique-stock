@@ -4,7 +4,8 @@
   "description": "Boutique Stock - Application desktop hors-ligne",
   "main": "main/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder"
   },
   "author": "",
   "license": "ISC",
@@ -17,6 +18,34 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
-    "express": "^4.19.0"
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "selfsigned": "^5.5.0"
+  },
+  "build": {
+    "appId": "com.boutiquestock.desktop",
+    "productName": "Boutique Stock",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/build",
+        "to": "frontend-build"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "main/logo.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }
