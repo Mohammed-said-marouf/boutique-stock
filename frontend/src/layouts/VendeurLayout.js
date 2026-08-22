@@ -436,7 +436,6 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
 
     const scanner = new Html5Qrcode('lecteur-qr-vendeur');
     scannerRef.current = scanner;
-    let arrete = false;
 
     scanner.start(
       { facingMode: 'environment' },
@@ -479,7 +478,6 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
     });
 
     return () => {
-      arrete = true;
       if (scannerRef.current) {
         scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
       }
