@@ -54,6 +54,29 @@ export async function genererDataUrlQR(produit) {
  * par page A4, pour une feuille d'étiquettes autocollantes pré-découpées. Ne télécharge rien —
  * c'est à l'appelant de décider (après validation de l'aperçu).
  */
+function dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUrlQR, produit) {
+  const tailleQR = Math.min(hauteurEtiquette - 4, largeurEtiquette * 0.42);
+  const padding = 1.5;
+
+  doc.addImage(dataUrlQR, 'PNG', x + padding, y + (hauteurEtiquette - tailleQR) / 2, tailleQR, tailleQR);
+
+  const xTexte = x + padding + tailleQR + 2;
+  const largeurTexte = (x + largeurEtiquette) - xTexte - padding;
+  const centreY = y + hauteurEtiquette / 2;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text(doc.splitTextToSize(produit.nom, largeurTexte), xTexte, centreY - 4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  if (produit.ref) doc.text(`Ref: ${produit.ref}`, xTexte, centreY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text(`${Number(produit.prix || 0).toLocaleString()} FCFA`, xTexte, centreY + 5);
+}
+
 export function construirePdfEtiquettes(produit, nombre, dataUrlQR) {
   const n = Math.max(1, Math.floor(Number(nombre) || 1));
   const { colonnes, lignes, margeExterieureMm, espacementMm } = GRILLE_ETIQUETTES;
@@ -71,26 +94,41 @@ export function construirePdfEtiquettes(produit, nombre, dataUrlQR) {
     const x = margeExterieureMm + col * (largeurEtiquette + espacementMm);
     const y = margeExterieureMm + ligne * (hauteurEtiquette + espacementMm);
 
-    const tailleQR = Math.min(hauteurEtiquette - 4, largeurEtiquette * 0.42);
-    const padding = 1.5;
+    dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUrlQR, produit);
+  }
 
-    doc.addImage(dataUrlQR, 'PNG', x + padding, y + (hauteurEtiquette - tailleQR) / 2, tailleQR, tailleQR);
+  return doc;
+}
 
-    const xTexte = x + padding + tailleQR + 2;
-    const largeurTexte = (x + largeurEtiquette) - xTexte - padding;
-    const centreY = y + hauteurEtiquette / 2;
+/**
+ * Variante "sélection multiple" : construit un seul PDF regroupant les
+ * étiquettes de plusieurs produits à la suite (ex: 10 étiquettes du produit
+ * A, puis 10 du produit B...), pratique pour tout imprimer en une fois après
+ * une sélection groupée sur la page Produits.
+ * `items` : [{ produit, nombre, dataUrl }, ...]
+ */
+export function construirePdfEtiquettesMultiples(items) {
+  const { colonnes, lignes, margeExterieureMm, espacementMm } = GRILLE_ETIQUETTES;
+  const { largeurEtiquette, hauteurEtiquette } = dimensionsEtiquette();
+  const parPage = colonnes * lignes;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.text(doc.splitTextToSize(produit.nom, largeurTexte), xTexte, centreY - 4);
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  let indexGlobal = 0;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    if (produit.ref) doc.text(`Ref: ${produit.ref}`, xTexte, centreY);
+  for (const { produit, nombre, dataUrl } of items) {
+    const n = Math.max(1, Math.floor(Number(nombre) || 1));
+    for (let i = 0; i < n; i++) {
+      const indexSurPage = indexGlobal % parPage;
+      if (indexGlobal > 0 && indexSurPage === 0) doc.addPage('a4', 'portrait');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.text(`${Number(produit.prix || 0).toLocaleString()} FCFA`, xTexte, centreY + 5);
+      const col = indexSurPage % colonnes;
+      const ligne = Math.floor(indexSurPage / colonnes);
+      const x = margeExterieureMm + col * (largeurEtiquette + espacementMm);
+      const y = margeExterieureMm + ligne * (hauteurEtiquette + espacementMm);
+
+      dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUrl, produit);
+      indexGlobal++;
+    }
   }
 
   return doc;

@@ -5,7 +5,7 @@ import { Icone } from '../context/IconesContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
-import { genererDataUrlQR, construirePdfEtiquettes, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
+import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
 
 import { API_URL } from '../config';
@@ -430,6 +430,108 @@ function AdminProduits() {
     }
   };
 
+  // --- Sélection multiple & actions groupées ---
+  const [selection, setSelection] = useState(new Set());
+  const basculerSelection = (id) => {
+    setSelection(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const basculerToutSelectionner = (produitsVisibles) => {
+    setSelection(prev => {
+      const tousSelectionnes = produitsVisibles.length > 0 && produitsVisibles.every(p => prev.has(p._id));
+      if (tousSelectionnes) return new Set();
+      return new Set(produitsVisibles.map(p => p._id));
+    });
+  };
+  const viderSelection = () => setSelection(new Set());
+
+  const supprimerSelection = async () => {
+    if (selection.size === 0) return;
+    if (!window.confirm(`Supprimer les ${selection.size} produit(s) sélectionné(s) ? Cette action est irréversible.`)) return;
+    setEnvoiActionGroupee(true);
+    try {
+      await Promise.all([...selection].map(id =>
+        fetch(`${API_URL}/api/produits/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      ));
+      viderSelection();
+      charger();
+    } finally {
+      setEnvoiActionGroupee(false);
+    }
+  };
+
+  const [envoiActionGroupee, setEnvoiActionGroupee] = useState(false);
+  const [demandeQuantiteQRGroupee, setDemandeQuantiteQRGroupee] = useState(null); // { valeur }
+  const [transfertGroupe, setTransfertGroupe] = useState(null); // { comptoirId }
+  const [erreurTransfertGroupe, setErreurTransfertGroupe] = useState('');
+
+  const genererQRSelection = () => {
+    setDemandeQuantiteQRGroupee({ valeur: '1' });
+  };
+
+  const confirmerQRSelection = async () => {
+    const nombre = parseInt(demandeQuantiteQRGroupee.valeur, 10);
+    if (!nombre || nombre <= 0) { window.alert('Veuillez saisir un nombre valide.'); return; }
+    const produitsSelectionnes = produits.filter(p => selection.has(p._id));
+    setDemandeQuantiteQRGroupee(null);
+    setEnvoiActionGroupee(true);
+    try {
+      const items = [];
+      for (const produit of produitsSelectionnes) {
+        const dataUrl = await genererDataUrlQR(produit);
+        items.push({ produit, nombre, dataUrl });
+      }
+      const doc = construirePdfEtiquettesMultiples(items);
+      doc.save(`Etiquettes-QR-groupe-${Date.now()}.pdf`);
+    } catch (e) {
+      window.alert('Erreur lors de la génération : ' + e.message);
+    } finally {
+      setEnvoiActionGroupee(false);
+    }
+  };
+
+  const ouvrirTransfertSelection = () => {
+    setErreurTransfertGroupe('');
+    setTransfertGroupe({ comptoirId: '' });
+  };
+
+  const confirmerTransfertSelection = async () => {
+    if (!transfertGroupe.comptoirId) { setErreurTransfertGroupe('Choisissez un comptoir.'); return; }
+    const produitsSelectionnes = produits.filter(p => selection.has(p._id) && p.quantite > 0);
+    if (produitsSelectionnes.length === 0) { setErreurTransfertGroupe('Aucun produit sélectionné n\'a de stock Magasin à transférer.'); return; }
+
+    setEnvoiActionGroupee(true);
+    setErreurTransfertGroupe('');
+    try {
+      const resultats = await Promise.all(produitsSelectionnes.map(p =>
+        fetch(`${API_URL}/api/produits/${p._id}/transferer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ comptoirId: transfertGroupe.comptoirId, quantite: p.quantite }),
+        })
+      ));
+      const echecs = resultats.filter(r => !r.ok).length;
+      setTransfertGroupe(null);
+      viderSelection();
+      charger();
+      if (echecs > 0) window.alert(`${echecs} transfert(s) ont échoué (vérifiez le stock disponible).`);
+    } catch (e) {
+      setErreurTransfertGroupe(e.message);
+    } finally {
+      setEnvoiActionGroupee(false);
+    }
+  };
+
+  const exporterSelectionExcel = async () => {
+    const produitsSelectionnes = produits.filter(p => selection.has(p._id));
+    const entetes = ['Nom', 'Référence', 'Catégorie', 'Prix', 'Stock Magasin', 'Description'];
+    const lignes = produitsSelectionnes.map(p => [p.nom, p.ref || '', p.categorie, p.prix, p.quantite, p.description || '']);
+    await telechargerXLSX(`produits-selection-${Date.now()}.xlsx`, 'Produits sélectionnés', entetes, lignes);
+  };
+
   const token = localStorage.getItem('token');
 
   const charger = () => {
@@ -437,8 +539,14 @@ function AdminProduits() {
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
   };
 
+  const [comptoirs, setComptoirs] = useState([]);
+  const chargerComptoirs = () => {
+    fetch(`${API_URL}/api/comptoirs`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setComptoirs(d.filter(c => c.actif)); });
+  };
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); }, []);
+  useEffect(() => { charger(); chargerComptoirs(); }, []);
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -630,10 +738,31 @@ function AdminProduits() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher un produit..."
           style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '280px', marginBottom: '16px' }} />
+
+        {selection.size > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+            background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px'
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e40af' }}>{selection.size} sélectionné(s)</span>
+            <button onClick={genererQRSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#16a34a', fontWeight: '600' }}>🔳 Générer QR</button>
+            <button onClick={ouvrirTransfertSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>🏪 Transférer tout vers un comptoir</button>
+            <button onClick={exporterSelectionExcel} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#475569', fontWeight: '600' }}>📊 Exporter Excel</button>
+            <button onClick={supprimerSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626', fontWeight: '600' }}>🗑️ Supprimer</button>
+            <button onClick={viderSelection} style={{ marginLeft: 'auto', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#94a3b8' }}>Annuler</button>
+          </div>
+        )}
+
         <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+              <th style={{ padding: '10px 8px', width: '32px' }}>
+                <input type="checkbox"
+                  checked={filtres.length > 0 && filtres.every(p => selection.has(p._id))}
+                  onChange={() => basculerToutSelectionner(filtres)}
+                  style={{ cursor: 'pointer' }} />
+              </th>
               {['Photo', 'Réf', 'Nom', 'Catégorie', 'Prix', 'Stock', 'Statut', 'Actions'].map(h => (
                 <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
               ))}
@@ -641,7 +770,10 @@ function AdminProduits() {
           </thead>
           <tbody>
             {filtres.map((p, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+              <tr key={i} style={{ borderBottom: '1px solid #f8fafc', background: selection.has(p._id) ? '#f0f9ff' : 'transparent' }}>
+                <td style={{ padding: '10px 8px' }}>
+                  <input type="checkbox" checked={selection.has(p._id)} onChange={() => basculerSelection(p._id)} style={{ cursor: 'pointer' }} />
+                </td>
                 <td style={{ padding: '8px' }}>
                   {p.image ? (
                     <img src={resoudreImage(p.image)} alt={p.nom}
@@ -682,12 +814,75 @@ function AdminProduits() {
               </tr>
             ))}
             {filtres.length === 0 && (
-              <tr><td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#999' }}>Aucun produit trouvé</td></tr>
+              <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#999' }}>Aucun produit trouvé</td></tr>
             )}
           </tbody>
         </table>
         </div>
       </div>
+
+      {demandeQuantiteQRGroupee && (
+        <div onClick={() => setDemandeQuantiteQRGroupee(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Générer les étiquettes QR</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              Combien d'étiquettes par produit ? ({selection.size} produits sélectionnés)
+            </p>
+            <input type="number" min="1" autoFocus
+              value={demandeQuantiteQRGroupee.valeur}
+              onChange={e => setDemandeQuantiteQRGroupee({ valeur: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') confirmerQRSelection(); }}
+              style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setDemandeQuantiteQRGroupee(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerQRSelection} disabled={envoiActionGroupee} style={{
+                flex: 1, padding: '10px', background: '#059669', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700'
+              }}>{envoiActionGroupee ? '...' : 'Générer le PDF'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transfertGroupe && (
+        <div onClick={() => setTransfertGroupe(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers un comptoir</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              Transfère <strong>tout le stock Magasin disponible</strong> de chaque produit sélectionné vers le comptoir choisi.
+            </p>
+            {comptoirs.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#dc2626' }}>Aucun comptoir actif — créez-en un dans Stocks → Comptoirs.</div>
+            ) : (
+              <select value={transfertGroupe.comptoirId} onChange={e => setTransfertGroupe({ comptoirId: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                <option value="">-- Choisir un comptoir --</option>
+                {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+              </select>
+            )}
+            {erreurTransfertGroupe && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurTransfertGroupe}</div>}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setTransfertGroupe(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerTransfertSelection} disabled={envoiActionGroupee || comptoirs.length === 0} style={{
+                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiActionGroupee ? 0.7 : 1
+              }}>{envoiActionGroupee ? '...' : 'Transférer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {apercuImport && (
         <div onClick={() => setApercuImport(null)} style={{
