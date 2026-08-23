@@ -10,9 +10,26 @@ router.get('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res
     const filtre = req.user.role === 'admin'
       ? { boutiqueId: req.user.boutiqueId, role: 'vendeur' }
       : {};
-    const users = await User.find(filtre).select('-motDePasse').populate('boutiqueId', 'nom');
+    const users = await User.find(filtre).select('-motDePasse').populate('boutiqueId', 'nom').populate('caisseId', 'nom comptoirId');
     res.json(users);
   } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// (Ré)assigner la caisse fixe d'un vendeur — décision de l'admin, jamais du
+// vendeur lui-même. Passer caisseId: null retire l'assignation (le vendeur
+// ne pourra alors plus enregistrer de vente tant qu'il n'en a pas une).
+router.put('/:id/caisse', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
+  try {
+    const cible = await User.findById(req.params.id);
+    if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    if (req.user.role === 'admin' && String(cible.boutiqueId) !== String(req.user.boutiqueId)) {
+      return res.status(403).json({ message: 'Accès refusé.' });
+    }
+    cible.caisseId = req.body.caisseId || null;
+    await cible.save();
+    const { motDePasse, ...userSansMotDePasse } = cible.toObject();
+    res.json(userSansMotDePasse);
+  } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
 // Récupérer mon propre profil

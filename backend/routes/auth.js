@@ -32,7 +32,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, nom: user.nom, role: user.role, boutiqueId: user.boutiqueId?._id },
+      { id: user._id, nom: user.nom, role: user.role, boutiqueId: user.boutiqueId?._id, caisseId: user.caisseId || null },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -45,9 +45,15 @@ router.post('/login', async (req, res) => {
       niveau: 'info'
     });
 
+    let caisseInfo = null;
+    if (user.caisseId) {
+      const Caisse = require('../models/Caisse');
+      caisseInfo = await Caisse.findById(user.caisseId);
+    }
+
     res.json({
       token,
-      user: { id: user._id, nom: user.nom, email: user.email, role: user.role, boutique: user.boutiqueId }
+      user: { id: user._id, nom: user.nom, email: user.email, role: user.role, boutique: user.boutiqueId, caisseId: user.caisseId || null, caisse: caisseInfo }
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

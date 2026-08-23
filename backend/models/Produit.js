@@ -6,17 +6,26 @@ const produitSchema = new mongoose.Schema({
   nom: { type: String, required: true },
   description: { type: String },
   prix: { type: Number, required: true },
-  // Stock au MAGASIN (réserve, pas directement vendable). Les entrées de
-  // stock (approvisionnement fournisseur) créditent ce champ. Pour rendre
-  // un produit vendable, il faut le transférer vers un comptoir via
-  // POST /api/produits/:id/transferer, qui déplace du stock d'ici vers
-  // l'entrée correspondante dans stockComptoirs ci-dessous.
+  // "quantite" reste le TOTAL du stock Magasin, tenu à jour automatiquement
+  // = somme de stockMagasins[].quantite (recalculé à chaque écriture qui
+  // touche stockMagasins — voir routes/produits.js et routes/mouvements.js).
+  // Conservé pour ne pas casser tout le code existant qui l'affiche
+  // (dashboards, alertes, colonne "Stock"...). La répartition réelle par
+  // magasin est dans stockMagasins ci-dessous.
   quantite: { type: Number, required: true, default: 0 },
-  // Stock par comptoir (point de vente). C'est CE stock qui est décompté à
-  // la vente (caisse classique ou scan QR) — jamais le stock Magasin
-  // directement, voir routes/ventes.js.
-  stockComptoirs: [{
-    comptoir: { type: String, ref: 'Comptoir' },
+  // Stock par MAGASIN (réserve). Un même produit peut être réparti sur
+  // plusieurs magasins d'un même Compte. Pour rendre du stock vendable, il
+  // faut le transférer d'un magasin vers une caisse via
+  // POST /api/produits/:id/transferer.
+  stockMagasins: [{
+    magasin: { type: String, ref: 'Magasin' },
+    quantite: { type: Number, default: 0 },
+  }],
+  // Stock par CAISSE (point de vente concret, au sein d'une Boutique). C'est
+  // CE stock qui est décompté à la vente (caisse classique ou scan QR) —
+  // jamais le stock Magasin directement, voir routes/ventes.js.
+  stockCaisses: [{
+    caisse: { type: String, ref: 'Caisse' },
     quantite: { type: Number, default: 0 },
   }],
   categorie: { type: String, required: true },

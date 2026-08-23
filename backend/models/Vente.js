@@ -15,7 +15,8 @@ const venteSchema = new mongoose.Schema({
   clientNom: { type: String, default: 'Client anonyme' },
   numFacture: { type: String },
   boutiqueId: { type: String, ref: 'Boutique', default: null },
-  comptoirId: { type: String, ref: 'Comptoir', default: null },
+  comptoirId: { type: String, ref: 'Comptoir', default: null }, // la Boutique (point de vente) — dénormalisé pour filtrer sans jointure
+  caisseId: { type: String, ref: 'Caisse', default: null },     // la Caisse précise — c'est elle qui détermine le stock décompté
   dateVente: { type: Date, default: Date.now },
   notes: { type: String }
 }, { timestamps: true });

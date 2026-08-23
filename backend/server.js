@@ -28,6 +28,8 @@ app.get('/', (req, res) => {
 // Routes existantes
 app.use('/api/produits', require('./routes/produits'));
 app.use('/api/comptoirs', require('./routes/comptoirs'));
+app.use('/api/caisses', require('./routes/caisses'));
+app.use('/api/magasins', require('./routes/magasins'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/fournisseurs', require('./routes/fournisseurs'));
 app.use('/api/ventes', require('./routes/ventes'));
@@ -44,8 +46,10 @@ app.use('/api/maintenance', require('./routes/maintenance'));
 const { demarrerVerificationStock } = require('./services/stockVerifier');
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ Connecté à MongoDB');
+    const { migrerVersCaissesEtMagasins } = require('./migrations/versCaissesEtMagasins');
+    await migrerVersCaissesEtMagasins();
     demarrerVerificationStock();
     app.listen(process.env.PORT || 5000, () => {
       console.log('✅ Serveur démarré sur le port', process.env.PORT || 5000);

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Comptoir = require('../models/Comptoir');
+const Caisse = require('../models/Caisse');
 const Produit = require('../models/Produit');
 const { verifierToken, autoriser } = require('../middleware/auth');
 
@@ -65,12 +66,13 @@ router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (re
       return res.status(403).json({ message: 'Accès refusé.' });
     }
 
+    const caissesDuComptoir = await Caisse.find({ comptoirId: req.params.id }, '_id');
     const produitAvecStock = await Produit.findOne({
-      'stockComptoirs': { $elemMatch: { comptoir: req.params.id, quantite: { $gt: 0 } } }
+      'stockCaisses': { $elemMatch: { caisse: { $in: caissesDuComptoir.map(c => c._id) }, quantite: { $gt: 0 } } }
     });
     if (produitAvecStock) {
       return res.status(400).json({
-        message: `Impossible de supprimer : il reste du stock sur ce comptoir (ex: "${produitAvecStock.nom}"). Transférez-le d'abord ailleurs.`
+        message: `Impossible de supprimer : il reste du stock sur une caisse de cette boutique (ex: "${produitAvecStock.nom}"). Transférez-le d'abord ailleurs.`
       });
     }
 
