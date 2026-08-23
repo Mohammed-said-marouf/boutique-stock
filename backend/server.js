@@ -48,7 +48,7 @@ const { demarrerVerificationStock } = require('./services/stockVerifier');
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('✅ Connecté à MongoDB');
-    const { migrerVersCaissesEtMagasins } = require('./migrations/versCaissesEtMagasins');
+    const { migrerVersCaissesEtMagasins } = require('./migration/versCaissesEtMagasins');
     await migrerVersCaissesEtMagasins();
     demarrerVerificationStock();
     app.listen(process.env.PORT || 5000, () => {
