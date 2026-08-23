@@ -48,6 +48,39 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), upload.single(
   }
 });
 
+// POST - Import en masse (depuis un fichier Excel analysé côté frontend) —
+// reçoit un tableau JSON déjà parsé, pas le fichier lui-même. Chaque ligne
+// est tentée indépendamment : une ligne invalide n'empêche pas les autres
+// d'être importées, le détail des échecs est renvoyé pour affichage.
+router.post('/import', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
+  try {
+    const lignes = Array.isArray(req.body.produits) ? req.body.produits : [];
+    if (lignes.length === 0) {
+      return res.status(400).json({ message: 'Aucune ligne à importer.' });
+    }
+
+    const boutiqueId = req.user.role === 'admin' ? req.user.boutiqueId : (req.body.boutiqueId || req.user.boutiqueId);
+
+    const succes = [];
+    const echecs = [];
+
+    for (let i = 0; i < lignes.length; i++) {
+      try {
+        const data = { ...lignes[i], boutiqueId };
+        const produit = new Produit(data);
+        const enregistre = await produit.save();
+        succes.push({ ligne: i + 1, nom: enregistre.nom });
+      } catch (err) {
+        echecs.push({ ligne: i + 1, nom: lignes[i]?.nom || '(sans nom)', erreur: err.message });
+      }
+    }
+
+    res.status(200).json({ nbSucces: succes.length, nbEchecs: echecs.length, succes, echecs });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // PUT - Modifier un produit avec photo
 router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.single('image'), async (req, res) => {
   try {

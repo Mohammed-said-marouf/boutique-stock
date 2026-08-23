@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icone } from '../context/IconesContext';
@@ -386,6 +386,50 @@ function AdminProduits() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
 
+  // --- Import Excel en masse ---
+  const [apercuImport, setApercuImport] = useState(null); // tableau de lignes { numeroLigne, valide, erreurs, produit }
+  const [envoiImport, setEnvoiImport] = useState(false);
+  const [resultatImport, setResultatImport] = useState(null); // { nbSucces, nbEchecs, echecs }
+  const inputFichierImportRef = useRef(null);
+
+  const onFichierImportChoisi = async (e) => {
+    const fichier = e.target.files?.[0];
+    e.target.value = ''; // permet de re-choisir le même fichier ensuite
+    if (!fichier) return;
+    try {
+      const lignes = await lireFichierImportProduits(fichier);
+      if (lignes.length === 0) {
+        window.alert("Le fichier ne contient aucune ligne de données (en dehors de l'en-tête).");
+        return;
+      }
+      setApercuImport(lignes);
+    } catch (err) {
+      window.alert('Impossible de lire ce fichier : ' + err.message);
+    }
+  };
+
+  const confirmerImport = async () => {
+    const lignesValides = apercuImport.filter(l => l.valide).map(l => l.produit);
+    if (lignesValides.length === 0) return;
+    setEnvoiImport(true);
+    try {
+      const res = await fetch(`${API_URL}/api/produits/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ produits: lignesValides }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur import'); return; }
+      setResultatImport(data);
+      setApercuImport(null);
+      charger();
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      setEnvoiImport(false);
+    }
+  };
+
   const token = localStorage.getItem('token');
 
   const charger = () => {
@@ -506,9 +550,18 @@ function AdminProduits() {
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Icone nom="produits" size={28} /> Gestion des Produits
         </h2>
-        <button onClick={ouvrirNouveau} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-          + Ajouter un produit
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={telechargerModeleImportProduits} title="Télécharger un fichier Excel vierge à remplir" style={{ padding: '10px 16px', background: 'white', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+            📄 Modèle Excel
+          </button>
+          <button onClick={() => inputFichierImportRef.current?.click()} style={{ padding: '10px 16px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
+            📥 Importer Excel
+          </button>
+          <input ref={inputFichierImportRef} type="file" accept=".xlsx,.xls" onChange={onFichierImportChoisi} style={{ display: 'none' }} />
+          <button onClick={ouvrirNouveau} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+            + Ajouter un produit
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -635,6 +688,88 @@ function AdminProduits() {
         </table>
         </div>
       </div>
+
+      {apercuImport && (
+        <div onClick={() => setApercuImport(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'white', borderRadius: '14px', padding: '24px',
+            width: '100%', maxWidth: '720px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
+          }}>
+            <h3 style={{ margin: '0 0 4px', color: '#0f172a' }}>Aperçu de l'import</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              {apercuImport.filter(l => l.valide).length} ligne(s) valide(s) sur {apercuImport.length} — les lignes en erreur ci-dessous ne seront pas importées.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
+                  <tr>
+                    {['Ligne', 'Nom', 'Catégorie', 'Réf', 'Prix', 'Qté', 'Statut'].map(h => (
+                      <th key={h} style={{ padding: '8px', textAlign: 'left', color: '#666', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {apercuImport.map(l => (
+                    <tr key={l.numeroLigne} style={{ background: l.valide ? 'white' : '#fef2f2' }}>
+                      <td style={{ padding: '8px', color: '#999' }}>{l.numeroLigne}</td>
+                      <td style={{ padding: '8px', fontWeight: '600' }}>{l.produit.nom || '—'}</td>
+                      <td style={{ padding: '8px' }}>{l.produit.categorie || '—'}</td>
+                      <td style={{ padding: '8px' }}>{l.produit.ref || '—'}</td>
+                      <td style={{ padding: '8px' }}>{l.produit.prix || '—'}</td>
+                      <td style={{ padding: '8px' }}>{l.produit.quantite}</td>
+                      <td style={{ padding: '8px' }}>
+                        {l.valide
+                          ? <span style={{ color: '#16a34a', fontWeight: '600' }}>✅ OK</span>
+                          : <span style={{ color: '#dc2626', fontWeight: '600' }} title={l.erreurs.join(', ')}>⚠️ {l.erreurs.join(', ')}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button onClick={() => setApercuImport(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerImport} disabled={envoiImport || apercuImport.every(l => !l.valide)} style={{
+                flex: 2, padding: '10px', background: '#16a34a', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: envoiImport ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '14px',
+                opacity: envoiImport || apercuImport.every(l => !l.valide) ? 0.6 : 1
+              }}>{envoiImport ? 'Import en cours...' : `Importer ${apercuImport.filter(l => l.valide).length} produit(s)`}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resultatImport && (
+        <div onClick={() => setResultatImport(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '28px 24px', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px' }}>{resultatImport.nbEchecs === 0 ? '✅' : '⚠️'}</div>
+            <h3 style={{ margin: '8px 0 4px' }}>Import terminé</h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '16px' }}>
+              {resultatImport.nbSucces} produit(s) créé(s){resultatImport.nbEchecs > 0 ? `, ${resultatImport.nbEchecs} échec(s)` : ''}
+            </p>
+            {resultatImport.echecs.length > 0 && (
+              <div style={{ textAlign: 'left', background: '#fef2f2', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#dc2626', marginBottom: '16px', maxHeight: '150px', overflowY: 'auto' }}>
+                {resultatImport.echecs.map(e => <div key={e.ligne}>Ligne {e.ligne} ({e.nom}) : {e.erreur}</div>)}
+              </div>
+            )}
+            <button onClick={() => setResultatImport(null)} style={{
+              width: '100%', padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+              borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '14px'
+            }}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       {demandeQuantiteQR && (
         <div onClick={() => setDemandeQuantiteQR(null)} style={{
@@ -1849,6 +1984,99 @@ async function telechargerXLSX(nomFichier, titreFeuille, entetes, lignes) {
   a.download = nomFichier;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// Import de produits en masse depuis Excel
+// ============================================================================
+
+const COLONNES_IMPORT_PRODUITS = [
+  { entete: 'Nom*', champ: 'nom' },
+  { entete: 'Categorie*', champ: 'categorie' },
+  { entete: 'Reference', champ: 'ref' },
+  { entete: 'Prix*', champ: 'prix' },
+  { entete: 'Quantite (stock magasin)', champ: 'quantite' },
+  { entete: 'Seuil alerte', champ: 'seuilAlerte' },
+  { entete: 'Description', champ: 'description' },
+];
+
+// Génère et télécharge le modèle vierge (avec une ligne d'exemple) que
+// l'utilisateur doit remplir avant de l'importer. Structure volontairement
+// simple (pas de ligne de titre fusionnée) pour un parsing sans ambiguïté :
+// la ligne 1 est TOUJOURS l'en-tête.
+async function telechargerModeleImportProduits() {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Boutique Stock';
+  const sheet = workbook.addWorksheet('Produits');
+
+  const entetes = COLONNES_IMPORT_PRODUITS.map(c => c.entete);
+  const headerRow = sheet.addRow(entetes);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+    cell.alignment = { vertical: 'middle' };
+  });
+
+  sheet.addRow(['Ordinateur portable HP', 'Electronique', 'ORD-001', 350000, 10, 5, 'Ligne exemple - a remplacer ou supprimer']);
+
+  entetes.forEach((h, i) => { sheet.getColumn(i + 1).width = Math.max(String(h).length + 4, 18); });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'modele-import-produits.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Lit un fichier .xlsx choisi par l'utilisateur et le transforme en tableau
+// d'objets produit. Ne fait AUCUN appel réseau — juste la lecture locale,
+// pour permettre un aperçu avant import.
+async function lireFichierImportProduits(fichier) {
+  const workbook = new ExcelJS.Workbook();
+  const buffer = await fichier.arrayBuffer();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) throw new Error('Le fichier ne contient aucune feuille.');
+
+  const lignes = [];
+  sheet.eachRow((row, numeroLigne) => {
+    if (numeroLigne === 1) return; // en-tête, ignorée
+    const valeurs = row.values; // index 1-based, valeurs[0] est vide
+    const estVide = !valeurs || valeurs.slice(1).every(v => v === null || v === undefined || v === '');
+    if (estVide) return;
+
+    const produit = {};
+    COLONNES_IMPORT_PRODUITS.forEach((col, i) => {
+      const brut = valeurs ? valeurs[i + 1] : undefined;
+      produit[col.champ] = (brut === null || brut === undefined) ? '' : brut;
+    });
+
+    const erreurs = [];
+    if (!String(produit.nom || '').trim()) erreurs.push('Nom manquant');
+    if (!String(produit.categorie || '').trim()) erreurs.push('Catégorie manquante');
+    const prixNum = Number(produit.prix);
+    if (!produit.prix || isNaN(prixNum) || prixNum < 0) erreurs.push('Prix invalide');
+
+    lignes.push({
+      numeroLigne,
+      valide: erreurs.length === 0,
+      erreurs,
+      produit: {
+        nom: String(produit.nom || '').trim(),
+        categorie: String(produit.categorie || '').trim(),
+        ref: String(produit.ref || '').trim(),
+        prix: prixNum,
+        quantite: Number(produit.quantite) || 0,
+        seuilAlerte: produit.seuilAlerte !== '' && !isNaN(Number(produit.seuilAlerte)) ? Number(produit.seuilAlerte) : 5,
+        description: String(produit.description || '').trim(),
+      },
+    });
+  });
+
+  return lignes;
 }
 
 function AdminRapports() {
