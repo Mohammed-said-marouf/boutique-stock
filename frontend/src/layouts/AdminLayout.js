@@ -384,7 +384,7 @@ function AdminProduits() {
   const [imagePreview, setImagePreview] = useState(null);
   const [envoi, setEnvoi] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+  const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '', magasinId: '' });
 
   // --- Import Excel en masse ---
   const [apercuImport, setApercuImport] = useState(null); // tableau de lignes { numeroLigne, valide, erreurs, produit }
@@ -465,7 +465,7 @@ function AdminProduits() {
 
   const [envoiActionGroupee, setEnvoiActionGroupee] = useState(false);
   const [demandeQuantiteQRGroupee, setDemandeQuantiteQRGroupee] = useState(null); // { valeur }
-  const [transfertGroupe, setTransfertGroupe] = useState(null); // { comptoirId }
+  const [transfertGroupe, setTransfertGroupe] = useState(null); // { magasinId, boutiqueId, caisseId }
   const [erreurTransfertGroupe, setErreurTransfertGroupe] = useState('');
 
   const genererQRSelection = () => {
@@ -493,15 +493,22 @@ function AdminProduits() {
     }
   };
 
+  const stockDansMagasinGroupe = (produit, magasinId) => {
+    const entree = (produit.stockMagasins || []).find(sm => (sm.magasin?._id || sm.magasin) === magasinId);
+    return entree ? entree.quantite : 0;
+  };
+
   const ouvrirTransfertSelection = () => {
     setErreurTransfertGroupe('');
-    setTransfertGroupe({ comptoirId: '' });
+    setTransfertGroupe({ magasinId: magasins[0]?._id || '', boutiqueId: boutiques[0]?._id || '', caisseId: '' });
   };
 
   const confirmerTransfertSelection = async () => {
-    if (!transfertGroupe.comptoirId) { setErreurTransfertGroupe('Choisissez un comptoir.'); return; }
-    const produitsSelectionnes = produits.filter(p => selection.has(p._id) && p.quantite > 0);
-    if (produitsSelectionnes.length === 0) { setErreurTransfertGroupe('Aucun produit sélectionné n\'a de stock Magasin à transférer.'); return; }
+    const { magasinId, caisseId } = transfertGroupe;
+    if (!magasinId) { setErreurTransfertGroupe('Choisissez un magasin source.'); return; }
+    if (!caisseId) { setErreurTransfertGroupe('Choisissez une caisse de destination.'); return; }
+    const produitsSelectionnes = produits.filter(p => selection.has(p._id) && stockDansMagasinGroupe(p, magasinId) > 0);
+    if (produitsSelectionnes.length === 0) { setErreurTransfertGroupe("Aucun produit sélectionné n'a de stock dans ce magasin."); return; }
 
     setEnvoiActionGroupee(true);
     setErreurTransfertGroupe('');
@@ -510,7 +517,7 @@ function AdminProduits() {
         fetch(`${API_URL}/api/produits/${p._id}/transferer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ comptoirId: transfertGroupe.comptoirId, quantite: p.quantite }),
+          body: JSON.stringify({ magasinId, caisseId, quantite: stockDansMagasinGroupe(p, magasinId) }),
         })
       ));
       const echecs = resultats.filter(r => !r.ok).length;
@@ -539,14 +546,26 @@ function AdminProduits() {
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setProduits(d); });
   };
 
-  const [comptoirs, setComptoirs] = useState([]);
-  const chargerComptoirs = () => {
+  const [magasins, setMagasins] = useState([]);
+  const chargerMagasins = () => {
+    fetch(`${API_URL}/api/magasins`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setMagasins(d.filter(m => m.actif)); });
+  };
+
+  const [boutiques, setBoutiques] = useState([]);
+  const chargerBoutiques = () => {
     fetch(`${API_URL}/api/comptoirs`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setComptoirs(d.filter(c => c.actif)); });
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setBoutiques(d.filter(b => b.actif)); });
+  };
+
+  const [caisses, setCaisses] = useState([]);
+  const chargerCaisses = () => {
+    fetch(`${API_URL}/api/caisses`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setCaisses(d.filter(c => c.actif)); });
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); chargerComptoirs(); }, []);
+  useEffect(() => { charger(); chargerMagasins(); chargerBoutiques(); chargerCaisses(); }, []);
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -557,7 +576,7 @@ function AdminProduits() {
 
   const ouvrirNouveau = () => {
     setEditId(null);
-    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '', magasinId: '' });
     setImageFile(null); setImagePreview(null);
     setShowForm(v => !v);
   };
@@ -593,7 +612,7 @@ function AdminProduits() {
       body: formData
     });
     const nouveauProduit = await reponse.json().catch(() => null);
-    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '' });
+    setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '', magasinId: '' });
     setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false); setEditId(null);
     charger();
 
@@ -717,6 +736,16 @@ function AdminProduits() {
                     placeholder={f.ph} style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               ))}
+              {magasins.length > 0 && (
+                <div>
+                  <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Magasin (stock initial)</label>
+                  <select value={form.magasinId} onChange={e => setForm(p => ({ ...p, magasinId: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}>
+                    <option value="">-- Magasin par défaut --</option>
+                    {magasins.map(m => <option key={m._id} value={m._id}>{m.nom}</option>)}
+                  </select>
+                </div>
+              )}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Description</label>
                 <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Description du produit..."
@@ -855,19 +884,36 @@ function AdminProduits() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
-            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers un comptoir</h3>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une caisse</h3>
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
-              Transfère <strong>tout le stock Magasin disponible</strong> de chaque produit sélectionné vers le comptoir choisi.
+              Transfère <strong>tout le stock disponible dans le magasin choisi</strong> de chaque produit sélectionné vers la caisse choisie.
             </p>
-            {comptoirs.length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#dc2626' }}>Aucun comptoir actif — créez-en un dans Stocks → Comptoirs.</div>
+            {magasins.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#dc2626' }}>Aucun magasin actif — créez-en un dans Stocks → Magasins.</div>
             ) : (
-              <select value={transfertGroupe.comptoirId} onChange={e => setTransfertGroupe({ comptoirId: e.target.value })}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
-                <option value="">-- Choisir un comptoir --</option>
-                {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
-              </select>
+              <>
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Magasin source</label>
+                <select value={transfertGroupe.magasinId} onChange={e => setTransfertGroupe({ ...transfertGroupe, magasinId: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
+                  {magasins.map(m => <option key={m._id} value={m._id}>{m.nom}</option>)}
+                </select>
+
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Boutique de destination</label>
+                <select value={transfertGroupe.boutiqueId} onChange={e => setTransfertGroupe({ ...transfertGroupe, boutiqueId: e.target.value, caisseId: '' })}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
+                  {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
+                </select>
+
+                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Caisse de destination</label>
+                <select value={transfertGroupe.caisseId} onChange={e => setTransfertGroupe({ ...transfertGroupe, caisseId: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                  <option value="">-- Choisir une caisse --</option>
+                  {caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === transfertGroupe.boutiqueId).map(c => (
+                    <option key={c._id} value={c._id}>{c.nom}</option>
+                  ))}
+                </select>
+              </>
             )}
             {erreurTransfertGroupe && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurTransfertGroupe}</div>}
             <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
@@ -875,7 +921,7 @@ function AdminProduits() {
                 flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
                 borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
               }}>Annuler</button>
-              <button onClick={confirmerTransfertSelection} disabled={envoiActionGroupee || comptoirs.length === 0} style={{
+              <button onClick={confirmerTransfertSelection} disabled={envoiActionGroupee || magasins.length === 0} style={{
                 flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
                 borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiActionGroupee ? 0.7 : 1
               }}>{envoiActionGroupee ? '...' : 'Transférer'}</button>
@@ -1071,90 +1117,225 @@ function AdminStocks() {
   const [showForm, setShowForm] = useState(!!location.state?.openForm);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState('');
-  const [form, setForm] = useState({ produit: '', type: 'entree', quantite: '', note: '' });
+  const [form, setForm] = useState({ produit: '', magasinId: '', type: 'entree', quantite: '', note: '' });
 
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
-  // --- Vue active : Mouvements (historique existant) / Magasin / Comptoirs ---
+  // --- Vue active : Mouvements (historique) / Magasins / Boutiques ---
   const [vueActive, setVueActive] = useState('mouvements');
-  const [comptoirs, setComptoirs] = useState([]);
-  const [comptoirSelectionne, setComptoirSelectionne] = useState('');
-  const [nouveauComptoirNom, setNouveauComptoirNom] = useState('');
-  const [envoiComptoir, setEnvoiComptoir] = useState(false);
-  const [transfertProduit, setTransfertProduit] = useState(null); // { produit, comptoirId, quantite }
-  const [envoiTransfert, setEnvoiTransfert] = useState(false);
-  const [erreurTransfert, setErreurTransfert] = useState('');
 
-  const chargerComptoirs = () => {
-    fetch(`${API_URL}/api/comptoirs`, authHeaders)
+  // ---------- Magasins (plusieurs par Compte) ----------
+  const [magasins, setMagasins] = useState([]);
+  const [magasinSelectionne, setMagasinSelectionne] = useState('');
+  const [nouveauMagasinNom, setNouveauMagasinNom] = useState('');
+  const [envoiMagasin, setEnvoiMagasin] = useState(false);
+
+  const chargerMagasins = () => {
+    fetch(`${API_URL}/api/magasins`, authHeaders)
       .then(r => r.json())
       .then(d => {
         const liste = Array.isArray(d) ? d : [];
-        setComptoirs(liste);
-        setComptoirSelectionne(prev => prev || (liste[0]?._id ?? ''));
+        setMagasins(liste);
+        setMagasinSelectionne(prev => (prev && liste.some(m => m._id === prev)) ? prev : (liste[0]?._id ?? ''));
       })
       .catch(() => {});
   };
 
-  const creerComptoir = async () => {
-    if (!nouveauComptoirNom.trim()) return;
-    setEnvoiComptoir(true);
+  const creerMagasin = async () => {
+    if (!nouveauMagasinNom.trim()) return;
+    setEnvoiMagasin(true);
     try {
-      const res = await fetch(`${API_URL}/api/comptoirs`, {
+      const res = await fetch(`${API_URL}/api/magasins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nom: nouveauComptoirNom.trim() }),
+        body: JSON.stringify({ nom: nouveauMagasinNom.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
-      setNouveauComptoirNom('');
-      chargerComptoirs();
+      setNouveauMagasinNom('');
+      chargerMagasins();
     } catch (e) {
       window.alert(e.message);
     } finally {
-      setEnvoiComptoir(false);
+      setEnvoiMagasin(false);
     }
   };
 
-  const basculerActifComptoir = async (comptoir) => {
+  const basculerActifMagasin = async (magasin) => {
     try {
-      await fetch(`${API_URL}/api/comptoirs/${comptoir._id}`, {
+      await fetch(`${API_URL}/api/magasins/${magasin._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ actif: !comptoir.actif }),
+        body: JSON.stringify({ actif: !magasin.actif }),
       });
-      chargerComptoirs();
-    } catch (e) { /* silencieux, l'utilisateur peut réessayer */ }
+      chargerMagasins();
+    } catch (e) { /* silencieux */ }
   };
 
-  const supprimerComptoir = async (comptoir) => {
-    if (!window.confirm(`Supprimer le comptoir "${comptoir.nom}" ?`)) return;
+  const supprimerMagasin = async (magasin) => {
+    if (!window.confirm(`Supprimer le magasin "${magasin.nom}" ?`)) return;
     try {
-      const res = await fetch(`${API_URL}/api/comptoirs/${comptoir._id}`, {
+      const res = await fetch(`${API_URL}/api/magasins/${magasin._id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
-      chargerComptoirs();
+      chargerMagasins();
     } catch (e) {
       window.alert(e.message);
     }
   };
 
-  const ouvrirTransfert = (produit) => {
+  // ---------- Boutiques (ex-Comptoirs) + Caisses imbriquées ----------
+  const [boutiques, setBoutiques] = useState([]);
+  const [boutiqueSelectionnee, setBoutiqueSelectionnee] = useState('');
+  const [nouvelleBoutiqueNom, setNouvelleBoutiqueNom] = useState('');
+  const [envoiBoutique, setEnvoiBoutique] = useState(false);
+
+  const [caisses, setCaisses] = useState([]); // TOUTES les caisses du Compte (filtrées côté client par boutique)
+  const [caisseSelectionnee, setCaisseSelectionnee] = useState('');
+  const [nouvelleCaisseNom, setNouvelleCaisseNom] = useState('');
+  const [envoiCaisse, setEnvoiCaisse] = useState(false);
+
+  const chargerBoutiques = () => {
+    fetch(`${API_URL}/api/comptoirs`, authHeaders)
+      .then(r => r.json())
+      .then(d => {
+        const liste = Array.isArray(d) ? d : [];
+        setBoutiques(liste);
+        setBoutiqueSelectionnee(prev => (prev && liste.some(b => b._id === prev)) ? prev : (liste[0]?._id ?? ''));
+      })
+      .catch(() => {});
+  };
+
+  const chargerCaisses = () => {
+    fetch(`${API_URL}/api/caisses`, authHeaders)
+      .then(r => r.json())
+      .then(d => setCaisses(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  };
+
+  const creerBoutique = async () => {
+    if (!nouvelleBoutiqueNom.trim()) return;
+    setEnvoiBoutique(true);
+    try {
+      const res = await fetch(`${API_URL}/api/comptoirs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom: nouvelleBoutiqueNom.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      setNouvelleBoutiqueNom('');
+      chargerBoutiques();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEnvoiBoutique(false);
+    }
+  };
+
+  const basculerActifBoutique = async (boutique) => {
+    try {
+      await fetch(`${API_URL}/api/comptoirs/${boutique._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ actif: !boutique.actif }),
+      });
+      chargerBoutiques();
+    } catch (e) { /* silencieux */ }
+  };
+
+  const supprimerBoutique = async (boutique) => {
+    if (!window.confirm(`Supprimer la boutique "${boutique.nom}" ?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/comptoirs/${boutique._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      chargerBoutiques();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  };
+
+  const creerCaisse = async () => {
+    if (!nouvelleCaisseNom.trim() || !boutiqueSelectionnee) return;
+    setEnvoiCaisse(true);
+    try {
+      const res = await fetch(`${API_URL}/api/caisses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom: nouvelleCaisseNom.trim(), comptoirId: boutiqueSelectionnee }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      setNouvelleCaisseNom('');
+      chargerCaisses();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEnvoiCaisse(false);
+    }
+  };
+
+  const basculerActifCaisse = async (caisse) => {
+    try {
+      await fetch(`${API_URL}/api/caisses/${caisse._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ actif: !caisse.actif }),
+      });
+      chargerCaisses();
+    } catch (e) { /* silencieux */ }
+  };
+
+  const supprimerCaisse = async (caisse) => {
+    if (!window.confirm(`Supprimer la caisse "${caisse.nom}" ?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/caisses/${caisse._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      chargerCaisses();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  };
+
+  const caissesDeLaBoutique = caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === boutiqueSelectionnee);
+
+  // ---------- Transfert Magasin -> Caisse ----------
+  const [transfertProduit, setTransfertProduit] = useState(null); // { produit, magasinId, boutiqueId, caisseId, quantite }
+  const [envoiTransfert, setEnvoiTransfert] = useState(false);
+  const [erreurTransfert, setErreurTransfert] = useState('');
+
+  const ouvrirTransfert = (produit, magasinIdPreselectionne) => {
     setErreurTransfert('');
-    setTransfertProduit({ produit, comptoirId: comptoirs[0]?._id || '', quantite: '' });
+    setTransfertProduit({
+      produit,
+      magasinId: magasinIdPreselectionne || magasins[0]?._id || '',
+      boutiqueId: boutiques[0]?._id || '',
+      caisseId: '',
+      quantite: '',
+    });
   };
 
   const confirmerTransfert = async () => {
     if (!transfertProduit) return;
-    const { produit, comptoirId, quantite } = transfertProduit;
+    const { produit, magasinId, caisseId, quantite } = transfertProduit;
     const qte = parseInt(quantite, 10);
-    if (!comptoirId) { setErreurTransfert('Choisissez un comptoir.'); return; }
+    if (!magasinId) { setErreurTransfert('Choisissez un magasin source.'); return; }
+    if (!caisseId) { setErreurTransfert('Choisissez une caisse de destination.'); return; }
     if (!qte || qte <= 0) { setErreurTransfert('Quantité invalide.'); return; }
-    if (qte > produit.quantite) { setErreurTransfert(`Stock Magasin insuffisant (disponible : ${produit.quantite}).`); return; }
+    const dispo = stockDansMagasin(produit, magasinId);
+    if (qte > dispo) { setErreurTransfert(`Stock insuffisant dans ce magasin (disponible : ${dispo}).`); return; }
 
     setEnvoiTransfert(true);
     setErreurTransfert('');
@@ -1162,13 +1343,13 @@ function AdminStocks() {
       const res = await fetch(`${API_URL}/api/produits/${produit._id}/transferer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ comptoirId, quantite: qte }),
+        body: JSON.stringify({ magasinId, caisseId, quantite: qte }),
       });
       const data = await res.json();
       if (!res.ok) { setErreurTransfert(data.message || 'Erreur'); return; }
       setTransfertProduit(null);
       chargerProduits();
-      charger(); // rafraîchit aussi l'historique des mouvements (le transfert y apparaît)
+      charger();
     } catch (e) {
       setErreurTransfert(e.message);
     } finally {
@@ -1176,11 +1357,17 @@ function AdminStocks() {
     }
   };
 
-  const stockAuComptoir = (produit, comptoirId) => {
-    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
+  const stockDansMagasin = (produit, magasinId) => {
+    const entree = (produit.stockMagasins || []).find(sm => (sm.magasin?._id || sm.magasin) === magasinId);
     return entree ? entree.quantite : 0;
   };
 
+  const stockDansCaisse = (produit, caisseId) => {
+    const entree = (produit.stockCaisses || []).find(sc => (sc.caisse?._id || sc.caisse) === caisseId);
+    return entree ? entree.quantite : 0;
+  };
+
+  // ---------- Chargement général ----------
   const charger = () => {
     setChargement(true);
     fetch(`${API_URL}/api/mouvements-stock`, authHeaders)
@@ -1197,11 +1384,11 @@ function AdminStocks() {
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); chargerProduits(); chargerComptoirs(); }, []);
+  useEffect(() => { charger(); chargerProduits(); chargerMagasins(); chargerBoutiques(); chargerCaisses(); }, []);
 
-  const ajouterMouvement = async () => {
-    if (!form.produit || !form.quantite) {
-      setErreur('Sélectionnez un produit et une quantité.');
+  const ajouterApprovisionnement = async () => {
+    if (!form.produit || !form.magasinId || !form.quantite) {
+      setErreur('Sélectionnez un produit, un magasin et une quantité.');
       return;
     }
     setEnvoi(true);
@@ -1214,7 +1401,7 @@ function AdminStocks() {
       });
       const data = await res.json();
       if (!res.ok) { setErreur(data.message || 'Erreur'); setEnvoi(false); return; }
-      setForm({ produit: '', type: 'entree', quantite: '', note: '' });
+      setForm({ produit: '', magasinId: '', type: 'entree', quantite: '', note: '' });
       setShowForm(false);
       charger();
       chargerProduits();
@@ -1225,6 +1412,13 @@ function AdminStocks() {
     }
   };
 
+  const styleChip = (actif) => ({
+    padding: '8px 14px', borderRadius: '20px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+    border: '1px solid ' + (actif ? '#2563eb' : '#e2e8f0'),
+    background: actif ? '#2563eb' : 'white',
+    color: actif ? 'white' : '#475569',
+  });
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
@@ -1233,7 +1427,7 @@ function AdminStocks() {
         </h2>
         {vueActive === 'mouvements' && (
           <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-            + Entrée de stock
+            + Approvisionnement
           </button>
         )}
       </div>
@@ -1241,8 +1435,8 @@ function AdminStocks() {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
         {[
           { id: 'mouvements', label: '📋 Mouvements' },
-          { id: 'magasin', label: '🏬 Magasin' },
-          { id: 'comptoirs', label: '🏪 Comptoirs' },
+          { id: 'magasins', label: '🏬 Magasins' },
+          { id: 'boutiques', label: '🏪 Boutiques' },
         ].map(onglet => (
           <button key={onglet.id} onClick={() => setVueActive(onglet.id)} style={{
             padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
@@ -1258,39 +1452,48 @@ function AdminStocks() {
       <>
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: '12px', marginBottom: '12px' }}>
+          <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>📦 Nouvel approvisionnement</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Produit</label>
-              <select value={form.produit} onChange={e => setForm(p => ({ ...p, produit: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}>
-                <option value="">Sélectionner...</option>
-                {produits.map(p => <option key={p._id} value={p._id}>{p.nom} (stock: {p.quantite})</option>)}
+              <select value={form.produit} onChange={e => setForm({ ...form, produit: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                <option value="">-- Choisir --</option>
+                {produits.map(p => <option key={p._id} value={p._id}>{p.nom} (stock total: {p.quantite})</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Magasin</label>
+              <select value={form.magasinId} onChange={e => setForm({ ...form, magasinId: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                <option value="">-- Choisir --</option>
+                {magasins.map(m => <option key={m._id} value={m._id}>{m.nom}</option>)}
               </select>
             </div>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Type</label>
-              <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}>
-                <option value="entree">Entrée</option>
-                <option value="sortie">Sortie</option>
+              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                <option value="entree">Entrée (approvisionnement)</option>
+                <option value="sortie">Sortie (perte, casse...)</option>
               </select>
             </div>
             <div>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Quantité</label>
-              <input type="number" value={form.quantite} onChange={e => setForm(p => ({ ...p, quantite: e.target.value }))} placeholder="0"
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Note</label>
-              <input value={form.note} onChange={e => setForm(p => ({ ...p, note: e.target.value }))} placeholder="Ex: Commande fournisseur"
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              <input type="number" min="1" value={form.quantite} onChange={e => setForm({ ...form, quantite: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
             </div>
           </div>
-          {erreur && <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '10px' }}>⚠️ {erreur}</div>}
-          <button onClick={ajouterMouvement} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', marginRight: '10px', opacity: envoi ? 0.7 : 1 }}>
-            {envoi ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
-          <button onClick={() => setShowForm(false)} style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
+          <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Note (optionnel)</label>
+          <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Ex: livraison fournisseur X"
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '16px' }} />
+          {erreur && <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '12px' }}>⚠️ {erreur}</div>}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowForm(false)} style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#666', fontWeight: '600' }}>Annuler</button>
+            <button onClick={ajouterApprovisionnement} disabled={envoi} style={{ padding: '10px 18px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', opacity: envoi ? 0.7 : 1 }}>
+              {envoi ? 'Enregistrement...' : '✅ Enregistrer'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1311,7 +1514,7 @@ function AdminStocks() {
               </tr>
             </thead>
             <tbody>
-              {mouvements.map((m) => (
+              {mouvements.map(m => (
                 <tr key={m._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                   <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{new Date(m.createdAt).toLocaleDateString('fr-FR')}</td>
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{m.produit?.nom || '—'}</td>
@@ -1320,7 +1523,7 @@ function AdminStocks() {
                       background: m.type === 'entree' ? '#dcfce7' : m.type === 'transfert' ? '#dbeafe' : '#fee2e2',
                       color: m.type === 'entree' ? '#16a34a' : m.type === 'transfert' ? '#2563eb' : '#dc2626',
                       padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
-                    }}>{m.type === 'entree' ? 'Entrée' : m.type === 'transfert' ? '🏬→🏪 Transfert' : 'Sortie'}</span>
+                    }}>{m.type === 'entree' ? 'Approvisionnement' : m.type === 'transfert' ? '🏬→🏪 Transfert' : 'Sortie'}</span>
                   </td>
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.quantite}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{m.stockRestant}</td>
@@ -1335,45 +1538,72 @@ function AdminStocks() {
       </>
       )}
 
-      {vueActive === 'magasin' && (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ margin: '0 0 4px', color: '#0f172a', fontSize: '15px' }}>🏬 Stock Magasin (réserve)</h3>
-          <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#666' }}>
-            Ce stock n'est pas vendable tel quel — transférez-le vers un comptoir pour qu'il devienne disponible à la vente.
-          </p>
-          {produits.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun produit.</div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                    {['Produit', 'Réf', 'Stock Magasin', ''].map(h => (
-                      <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {produits.map(p => (
-                    <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
-                      <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
-                      <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{p.quantite}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                        <button onClick={() => ouvrirTransfert(p)} disabled={p.quantite <= 0 || comptoirs.length === 0} style={{
-                          padding: '6px 14px', background: p.quantite <= 0 || comptoirs.length === 0 ? '#f1f5f9' : '#eff6ff',
-                          color: p.quantite <= 0 || comptoirs.length === 0 ? '#aaa' : '#2563eb',
-                          border: '1px solid ' + (p.quantite <= 0 || comptoirs.length === 0 ? '#e2e8f0' : '#bfdbfe'),
-                          borderRadius: '6px', cursor: p.quantite <= 0 || comptoirs.length === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600'
-                        }}>🏪 Transférer</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {comptoirs.length === 0 && (
-                <div style={{ marginTop: '14px', fontSize: '13px', color: '#999' }}>
-                  Créez d'abord un comptoir (onglet "🏪 Comptoirs") pour pouvoir y transférer du stock.
+      {vueActive === 'magasins' && (
+        <div>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
+            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '15px' }}>🏬 Vos magasins</h3>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+              <input value={nouveauMagasinNom} onChange={e => setNouveauMagasinNom(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') creerMagasin(); }}
+                placeholder="Ex: Entrepôt Nord" style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+              <button onClick={creerMagasin} disabled={envoiMagasin || !nouveauMagasinNom.trim()} style={{
+                padding: '9px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
+                cursor: envoiMagasin ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600'
+              }}>+ Ajouter</button>
+            </div>
+            {magasins.length === 0 ? (
+              <div style={{ color: '#999', fontSize: '13px' }}>Aucun magasin — créez-en un ci-dessus.</div>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {magasins.map(m => (
+                  <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span onClick={() => setMagasinSelectionne(m._id)} style={styleChip(magasinSelectionne === m._id)}>
+                      {m.nom}{!m.actif && ' (désactivé)'}
+                    </span>
+                    <button onClick={() => basculerActifMagasin(m)} title={m.actif ? 'Désactiver' : 'Activer'} style={{ padding: '4px 6px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '11px' }}>{m.actif ? '⏸️' : '▶️'}</button>
+                    <button onClick={() => supprimerMagasin(m)} title="Supprimer" style={{ padding: '4px 6px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', color: '#dc2626' }}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {magasinSelectionne && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <h3 style={{ margin: '0 0 4px', color: '#0f172a', fontSize: '15px' }}>
+                Stock — {magasins.find(m => m._id === magasinSelectionne)?.nom}
+              </h3>
+              <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#666' }}>
+                Ce stock n'est pas vendable tel quel — transférez-le vers une caisse pour qu'il devienne disponible à la vente.
+              </p>
+              {produits.filter(p => stockDansMagasin(p, magasinSelectionne) > 0).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>Aucun stock dans ce magasin pour l'instant.</div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                        {['Produit', 'Réf', 'Stock ici', ''].map(h => (
+                          <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {produits.filter(p => stockDansMagasin(p, magasinSelectionne) > 0).map(p => (
+                        <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                          <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
+                          <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
+                          <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockDansMagasin(p, magasinSelectionne)}</td>
+                          <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                            <button onClick={() => ouvrirTransfert(p, magasinSelectionne)} style={{
+                              padding: '6px 14px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe',
+                              borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600'
+                            }}>🏪 Transférer</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -1381,42 +1611,37 @@ function AdminStocks() {
         </div>
       )}
 
-      {vueActive === 'comptoirs' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) 1fr', gap: '20px', alignItems: 'start' }}>
+      {vueActive === 'boutiques' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) minmax(220px, 280px) 1fr', gap: '20px', alignItems: 'start' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '15px' }}>🏪 Comptoirs</h3>
+            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '15px' }}>🏪 Vos boutiques</h3>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <input value={nouveauComptoirNom} onChange={e => setNouveauComptoirNom(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') creerComptoir(); }}
-                placeholder="Ex: Caisse 1" style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
-              <button onClick={creerComptoir} disabled={envoiComptoir || !nouveauComptoirNom.trim()} style={{
+              <input value={nouvelleBoutiqueNom} onChange={e => setNouvelleBoutiqueNom(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') creerBoutique(); }}
+                placeholder="Ex: Boutique Centre-ville" style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+              <button onClick={creerBoutique} disabled={envoiBoutique || !nouvelleBoutiqueNom.trim()} style={{
                 padding: '9px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
-                cursor: envoiComptoir ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600'
-              }}>+ Ajouter</button>
+                cursor: envoiBoutique ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600'
+              }}>+</button>
             </div>
-
-            {comptoirs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '13px' }}>Aucun comptoir créé pour l'instant.</div>
+            {boutiques.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '13px' }}>Aucune boutique créée pour l'instant.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {comptoirs.map(c => (
-                  <div key={c._id} onClick={() => setComptoirSelectionne(c._id)} style={{
+                {boutiques.map(b => (
+                  <div key={b._id} onClick={() => setBoutiqueSelectionnee(b._id)} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-                    background: comptoirSelectionne === c._id ? '#eff6ff' : '#f8fafc',
-                    border: '1px solid ' + (comptoirSelectionne === c._id ? '#bfdbfe' : '#e2e8f0'),
+                    background: boutiqueSelectionnee === b._id ? '#eff6ff' : '#f8fafc',
+                    border: '1px solid ' + (boutiqueSelectionnee === b._id ? '#bfdbfe' : '#e2e8f0'),
                   }}>
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: c.actif ? '#333' : '#aaa' }}>{c.nom}</div>
-                      {!c.actif && <div style={{ fontSize: '11px', color: '#dc2626' }}>Désactivé</div>}
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: b.actif ? '#333' : '#aaa' }}>{b.nom}</div>
+                      {!b.actif && <div style={{ fontSize: '11px', color: '#dc2626' }}>Désactivée</div>}
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => basculerActifComptoir(c)} title={c.actif ? 'Désactiver' : 'Activer'} style={{
-                        padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
-                      }}>{c.actif ? '⏸️' : '▶️'}</button>
-                      <button onClick={() => supprimerComptoir(c)} title="Supprimer" style={{
-                        padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626'
-                      }}>🗑️</button>
+                      <button onClick={() => basculerActifBoutique(b)} title={b.actif ? 'Désactiver' : 'Activer'} style={{ padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{b.actif ? '⏸️' : '▶️'}</button>
+                      <button onClick={() => supprimerBoutique(b)} title="Supprimer" style={{ padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>🗑️</button>
                     </div>
                   </div>
                 ))}
@@ -1425,34 +1650,78 @@ function AdminStocks() {
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-            <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>
-              Stock du comptoir {comptoirs.find(c => c._id === comptoirSelectionne)?.nom ? `— ${comptoirs.find(c => c._id === comptoirSelectionne).nom}` : ''}
+            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '15px' }}>
+              🧾 Caisses {boutiques.find(b => b._id === boutiqueSelectionnee)?.nom ? `— ${boutiques.find(b => b._id === boutiqueSelectionnee).nom}` : ''}
             </h3>
-            {!comptoirSelectionne ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Créez ou sélectionnez un comptoir pour voir son stock.</div>
+            {!boutiqueSelectionnee ? (
+              <div style={{ color: '#999', fontSize: '13px' }}>Sélectionnez une boutique à gauche.</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                  <input value={nouvelleCaisseNom} onChange={e => setNouvelleCaisseNom(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') creerCaisse(); }}
+                    placeholder="Ex: Caisse 1" style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+                  <button onClick={creerCaisse} disabled={envoiCaisse || !nouvelleCaisseNom.trim()} style={{
+                    padding: '9px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
+                    cursor: envoiCaisse ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600'
+                  }}>+</button>
+                </div>
+                {caissesDeLaBoutique.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '13px' }}>Aucune caisse dans cette boutique.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {caissesDeLaBoutique.map(c => (
+                      <div key={c._id} onClick={() => setCaisseSelectionnee(c._id)} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
+                        background: caisseSelectionnee === c._id ? '#f0fdf4' : '#f8fafc',
+                        border: '1px solid ' + (caisseSelectionnee === c._id ? '#bbf7d0' : '#e2e8f0'),
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: c.actif ? '#333' : '#aaa' }}>{c.nom}</div>
+                          {!c.actif && <div style={{ fontSize: '11px', color: '#dc2626' }}>Désactivée</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => basculerActifCaisse(c)} title={c.actif ? 'Désactiver' : 'Activer'} style={{ padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{c.actif ? '⏸️' : '▶️'}</button>
+                          <button onClick={() => supprimerCaisse(c)} title="Supprimer" style={{ padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>🗑️</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>
+              Stock {caisses.find(c => c._id === caisseSelectionnee)?.nom ? `— ${caisses.find(c => c._id === caisseSelectionnee).nom}` : ''}
+            </h3>
+            {!caisseSelectionnee ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Sélectionnez une caisse pour voir son stock.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '300px' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                      {['Produit', 'Réf', 'Stock au comptoir'].map(h => (
+                      {['Produit', 'Réf', 'Stock ici'].map(h => (
                         <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {produits.filter(p => stockAuComptoir(p, comptoirSelectionne) > 0).map(p => (
+                    {produits.filter(p => stockDansCaisse(p, caisseSelectionnee) > 0).map(p => (
                       <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                         <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
                         <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
-                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockAuComptoir(p, comptoirSelectionne)}</td>
+                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockDansCaisse(p, caisseSelectionnee)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {produits.every(p => stockAuComptoir(p, comptoirSelectionne) === 0) && (
+                {produits.every(p => stockDansCaisse(p, caisseSelectionnee) === 0) && (
                   <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>
-                    Aucun stock ici pour l'instant — transférez des produits depuis l'onglet "🏬 Magasin".
+                    Aucun stock ici — transférez des produits depuis l'onglet "🏬 Magasins".
                   </div>
                 )}
               </div>
@@ -1466,20 +1735,38 @@ function AdminStocks() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
-            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers un comptoir</h3>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une caisse</h3>
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
-              <strong>{transfertProduit.produit.nom}</strong> — stock Magasin disponible : {transfertProduit.produit.quantite}
+              <strong>{transfertProduit.produit.nom}</strong>
             </p>
 
-            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Comptoir de destination</label>
-            <select value={transfertProduit.comptoirId} onChange={e => setTransfertProduit({ ...transfertProduit, comptoirId: e.target.value })}
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Magasin source</label>
+            <select value={transfertProduit.magasinId} onChange={e => setTransfertProduit({ ...transfertProduit, magasinId: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '4px', boxSizing: 'border-box' }}>
+              {magasins.map(m => <option key={m._id} value={m._id}>{m.nom} (dispo: {stockDansMagasin(transfertProduit.produit, m._id)})</option>)}
+            </select>
+            <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>
+              Disponible dans ce magasin : {stockDansMagasin(transfertProduit.produit, transfertProduit.magasinId)}
+            </div>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Boutique de destination</label>
+            <select value={transfertProduit.boutiqueId} onChange={e => setTransfertProduit({ ...transfertProduit, boutiqueId: e.target.value, caisseId: '' })}
               style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
-              {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+              {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
+            </select>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Caisse de destination</label>
+            <select value={transfertProduit.caisseId} onChange={e => setTransfertProduit({ ...transfertProduit, caisseId: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
+              <option value="">-- Choisir --</option>
+              {caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === transfertProduit.boutiqueId).map(c => (
+                <option key={c._id} value={c._id}>{c.nom}</option>
+              ))}
             </select>
 
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Quantité à transférer</label>
-            <input type="number" min="1" max={transfertProduit.produit.quantite} autoFocus
+            <input type="number" min="1" autoFocus
               value={transfertProduit.quantite}
               onChange={e => setTransfertProduit({ ...transfertProduit, quantite: e.target.value })}
               onKeyDown={e => { if (e.key === 'Enter') confirmerTransfert(); }}
@@ -1815,8 +2102,43 @@ function AdminVendeurs() {
       .catch(() => setChargement(false));
   };
 
+  const [boutiques, setBoutiques] = useState([]);
+  const [caisses, setCaisses] = useState([]);
+  const chargerBoutiquesEtCaisses = () => {
+    fetch(`${API_URL}/api/comptoirs`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setBoutiques(d.filter(b => b.actif)); });
+    fetch(`${API_URL}/api/caisses`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setCaisses(d.filter(c => c.actif)); });
+  };
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); }, []);
+  useEffect(() => { charger(); chargerBoutiquesEtCaisses(); }, []);
+
+  const [assignationCaisse, setAssignationCaisse] = useState(null); // { vendeur, boutiqueId, caisseId }
+  const [envoiAssignation, setEnvoiAssignation] = useState(false);
+
+  const ouvrirAssignationCaisse = (vendeur) => {
+    const caisseActuelle = caisses.find(c => c._id === (vendeur.caisseId?._id || vendeur.caisseId));
+    const boutiqueActuelle = caisseActuelle ? (caisseActuelle.comptoirId?._id || caisseActuelle.comptoirId) : (boutiques[0]?._id || '');
+    setAssignationCaisse({ vendeur, boutiqueId: boutiqueActuelle, caisseId: vendeur.caisseId?._id || vendeur.caisseId || '' });
+  };
+
+  const confirmerAssignationCaisse = async () => {
+    setEnvoiAssignation(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/${assignationCaisse.vendeur._id}/caisse`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ caisseId: assignationCaisse.caisseId || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      setAssignationCaisse(null);
+      charger();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEnvoiAssignation(false);
+    }
+  };
 
   const ajouterVendeur = async () => {
     setErreur('');
@@ -1902,7 +2224,7 @@ function AdminVendeurs() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['Nom', 'Email', 'Statut', 'Actions'].map(h => (
+                {['Nom', 'Email', 'Caisse assignée', 'Statut', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
                 ))}
               </tr>
@@ -1912,6 +2234,15 @@ function AdminVendeurs() {
                 <tr key={v._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                   <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{v.nom}</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{v.email}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <button onClick={() => ouvrirAssignationCaisse(v)} style={{
+                      padding: '4px 10px', background: v.caisseId ? '#eff6ff' : '#fef2f2',
+                      border: '1px solid ' + (v.caisseId ? '#bfdbfe' : '#fecaca'), borderRadius: '6px',
+                      cursor: 'pointer', fontSize: '12px', color: v.caisseId ? '#2563eb' : '#dc2626', fontWeight: '600'
+                    }}>
+                      🏪 {v.caisseId?.nom || 'Aucune — assigner'}
+                    </button>
+                  </td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{ background: v.actif ? '#dcfce7' : '#fee2e2', color: v.actif ? '#16a34a' : '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
                       {v.actif ? 'Actif' : 'Inactif'}
@@ -1936,6 +2267,46 @@ function AdminVendeurs() {
           </div>
         )}
       </div>
+
+      {assignationCaisse && (
+        <div onClick={() => setAssignationCaisse(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Assigner une caisse</h3>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              <strong>{assignationCaisse.vendeur.nom}</strong> vendra toujours depuis cette caisse — il ne peut pas en changer lui-même.
+            </p>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Boutique</label>
+            <select value={assignationCaisse.boutiqueId} onChange={e => setAssignationCaisse({ ...assignationCaisse, boutiqueId: e.target.value, caisseId: '' })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
+              {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
+            </select>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Caisse</label>
+            <select value={assignationCaisse.caisseId} onChange={e => setAssignationCaisse({ ...assignationCaisse, caisseId: e.target.value })}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+              <option value="">-- Aucune (retirer l'assignation) --</option>
+              {caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === assignationCaisse.boutiqueId).map(c => (
+                <option key={c._id} value={c._id}>{c.nom}</option>
+              ))}
+            </select>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setAssignationCaisse(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerAssignationCaisse} disabled={envoiAssignation} style={{
+                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: envoiAssignation ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiAssignation ? 0.7 : 1
+              }}>{envoiAssignation ? '...' : 'Enregistrer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

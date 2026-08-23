@@ -190,7 +190,7 @@ export default function VendeurLayout() {
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '14px' : '24px' }}>
           <Routes>
             <Route path="" element={<VendeurDashboard user={user} />} />
-            <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} boutique={user?.boutique} />} />
+            <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} boutique={user?.boutique} caisseId={user?.caisseId} caisseInfo={user?.caisse} />} />
             <Route path="produits" element={<ProduitsVendeur />} />
             <Route path="factures" element={<FacturesVendeur />} />
             <Route path="clients" element={<ClientsVendeur />} />
@@ -384,7 +384,7 @@ function VendeurDashboard({ user }) {
 }
 
 // ===================== CAISSE =====================
-function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
+function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }) {
   const isMobile = useIsMobile();
   const [panier, setPanier] = useState([]);
   const [recherche, setRecherche] = useState('');
@@ -394,31 +394,16 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
   const [encaissement, setEncaissement] = useState(false);
   const [erreur, setErreur] = useState('');
 
-  // ----- Comptoir de vente -----
-  // Le stock affecté par une vente est désormais celui d'un COMPTOIR précis
-  // (le stock Magasin n'est qu'une réserve, jamais vendu directement — voir
-  // backend/routes/ventes.js). Le vendeur choisit son comptoir une fois ;
-  // on retient son choix pour la prochaine visite sur ce même appareil.
-  const [comptoirs, setComptoirs] = useState([]);
-  const [comptoirId, setComptoirId] = useState(() => localStorage.getItem('bs_comptoir_id') || '');
-  useEffect(() => {
-    axios.get(`${API_BASE}/api/comptoirs`, authHeaders())
-      .then(res => {
-        const liste = (res.data || []).filter(c => c.actif);
-        setComptoirs(liste);
-        setComptoirId(prev => (prev && liste.some(c => c._id === prev)) ? prev : (liste[0]?._id || ''));
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    if (comptoirId) localStorage.setItem('bs_comptoir_id', comptoirId);
-  }, [comptoirId]);
+  // ----- Caisse de vente -----
+  // Le stock affecté par une vente est celui d'une CAISSE précise (le stock
+  // Magasin n'est qu'une réserve, jamais vendu directement — voir
+  // backend/routes/ventes.js). La caisse est assignée fixement par l'admin
+  // (voir Utilisateurs → Vendeurs) — le vendeur ne la choisit pas.
 
-  // Stock vendable d'un produit AU COMPTOIR sélectionné (pas p.quantite, qui
-  // est désormais le stock Magasin, non vendable directement).
-  const stockComptoirDe = (produit) => {
-    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
+  // Stock vendable d'un produit À LA CAISSE assignée (pas p.quantite, qui
+  // est le stock Magasin, non vendable directement).
+  const stockCaisseDe = (produit) => {
+    const entree = (produit.stockCaisses || []).find(sc => (sc.caisse?._id || sc.caisse) === caisseId);
     return entree ? entree.quantite : 0;
   };
 
@@ -461,9 +446,9 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
           setScanMessage({ type: 'erreur', texte: `Produit introuvable ou plus disponible : ${donnees.nom || ''}` });
           return;
         }
-        if (stockComptoirDe(produit) <= 0) {
+        if (stockCaisseDe(produit) <= 0) {
           bipErreur();
-          setScanMessage({ type: 'erreur', texte: `Rupture de stock à ce comptoir : ${produit.nom}` });
+          setScanMessage({ type: 'erreur', texte: `Rupture de stock à cette caisse : ${produit.nom}` });
           return;
         }
 
@@ -498,14 +483,14 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
   }, []);
 
   const produitsFiltres = produits
-    .filter(p => stockComptoirDe(p) > 0)
+    .filter(p => stockCaisseDe(p) > 0)
     .filter(p =>
       p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
       (p.categorie && p.categorie.toLowerCase().includes(recherche.toLowerCase()))
     );
 
   const ajouterAuPanier = (produit) => {
-    const stockDispo = stockComptoirDe(produit);
+    const stockDispo = stockCaisseDe(produit);
     setPanier(prev => {
       const existant = prev.find(p => p._id === produit._id);
       if (existant) {
@@ -521,7 +506,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
       if (p._id !== id) return p;
       const newQte = p.qte + delta;
       if (newQte <= 0) return null;
-      if (newQte > stockComptoirDe(p)) return p;
+      if (newQte > stockCaisseDe(p)) return p;
       return { ...p, qte: newQte };
     }).filter(Boolean));
   };
@@ -552,8 +537,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
 
   const finaliserVente = async () => {
     if (panier.length === 0) return;
-    if (!comptoirId) {
-      setErreur("Sélectionnez d'abord un comptoir de vente en haut de l'écran.");
+    if (!caisseId) {
+      setErreur("Aucune caisse ne vous est assignée — demandez à l'admin de vous en attribuer une (Utilisateurs → Vendeurs).");
       return;
     }
     setEncaissement(true);
@@ -571,7 +556,12 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
         vendeur: vendeurId,
         nomVendeur: nomVendeur,
         clientNom: clientNom || 'Client anonyme',
-        comptoirId,
+        // caisseId n'est même pas nécessaire ici : le backend utilise
+        // toujours la caisse assignée au vendeur (lue depuis son propre
+        // token), jamais une valeur envoyée par le client — c'est une
+        // sécurité pour qu'un vendeur ne puisse pas vendre "au nom" d'une
+        // autre caisse. On l'envoie quand même pour la clarté des logs.
+        caisseId,
       };
 
       const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
@@ -591,8 +581,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
         if (!vendu) return p;
         return {
           ...p,
-          stockComptoirs: (p.stockComptoirs || []).map(sc =>
-            (sc.comptoir?._id || sc.comptoir) === comptoirId
+          stockCaisses: (p.stockCaisses || []).map(sc =>
+            (sc.caisse?._id || sc.caisse) === caisseId
               ? { ...sc, quantite: sc.quantite - vendu.qte }
               : sc
           ),
@@ -720,19 +710,14 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
       height: isMobile ? 'auto' : 'calc(100vh - 140px)'
     }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', overflow: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        {comptoirs.length > 0 && (
-          <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: '600' }}>🏪 Comptoir de vente :</span>
-            <select value={comptoirId} onChange={e => setComptoirId(e.target.value)} style={{
-              padding: '6px 10px', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '13px', background: 'white', fontWeight: '600', color: '#1e40af'
-            }}>
-              {comptoirs.map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
-            </select>
+        {caisseId && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: '600' }}>🏪 Caisse : {caisseInfo?.nom || '—'}</span>
           </div>
         )}
-        {comptoirs.length === 0 && (
+        {!caisseId && (
           <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', fontSize: '13px', color: '#dc2626' }}>
-            ⚠️ Aucun comptoir actif n'est configuré — demandez à l'admin d'en créer un dans Stocks → Comptoirs avant de pouvoir vendre.
+            ⚠️ Aucune caisse ne vous est assignée — demandez à l'admin de vous en attribuer une (Utilisateurs → Vendeurs) avant de pouvoir vendre.
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
@@ -804,8 +789,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique }) {
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#059669', marginBottom: '4px' }}>
                   {(p.prix || 0).toLocaleString()} FCFA
                 </div>
-                <div style={{ fontSize: '11px', color: stockComptoirDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
-                  Stock comptoir : {stockComptoirDe(p)}
+                <div style={{ fontSize: '11px', color: stockCaisseDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
+                  Stock caisse : {stockCaisseDe(p)}
                 </div>
               </div>
             ))}
