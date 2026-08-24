@@ -1118,6 +1118,7 @@ function AdminStocks() {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState('');
   const [form, setForm] = useState({ produit: '', magasinId: '', type: 'entree', quantite: '', note: '' });
+  const [rechercheMouvements, setRechercheMouvements] = useState('');
 
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
@@ -1412,6 +1413,73 @@ function AdminStocks() {
     }
   };
 
+  const origineDestination = (m) => {
+    if (m.type === 'transfert') {
+      const magasinNom = m.magasinId?.nom || '—';
+      const caisseNom = m.caisseDestination?.nom || '—';
+      const boutiqueNom = m.caisseDestination?.comptoirId?.nom;
+      return `${magasinNom} → ${caisseNom}${boutiqueNom ? ' (' + boutiqueNom + ')' : ''}`;
+    }
+    if (m.magasinId?.nom) return `Magasin : ${m.magasinId.nom}`;
+    return '—';
+  };
+
+  const [filtreTypeMouvement, setFiltreTypeMouvement] = useState('tous'); // tous | entree | sortie | transfert
+  const [menuFiltreOuvert, setMenuFiltreOuvert] = useState(false);
+  const [triMouvements, setTriMouvements] = useState({ colonne: 'date', sens: 'desc' });
+  const [pageMouvements, setPageMouvements] = useState(1);
+  const LIGNES_PAR_PAGE = 5;
+
+  const basculerTri = (colonne) => {
+    setTriMouvements(prev => prev.colonne === colonne
+      ? { colonne, sens: prev.sens === 'asc' ? 'desc' : 'asc' }
+      : { colonne, sens: 'asc' });
+    setPageMouvements(1);
+  };
+
+  const mouvementsFiltres = mouvements
+    .filter(m => {
+      const q = rechercheMouvements.trim().toLowerCase();
+      if (q && !((m.produit?.nom || '').toLowerCase().includes(q) || (m.note || '').toLowerCase().includes(q))) return false;
+      if (filtreTypeMouvement !== 'tous' && m.type !== filtreTypeMouvement) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const { colonne, sens } = triMouvements;
+      let va, vb;
+      if (colonne === 'date') { va = new Date(a.createdAt).getTime(); vb = new Date(b.createdAt).getTime(); }
+      else if (colonne === 'produit') { va = a.produit?.nom || ''; vb = b.produit?.nom || ''; }
+      else if (colonne === 'quantite') { va = a.quantite; vb = b.quantite; }
+      else if (colonne === 'stockRestant') { va = a.stockRestant; vb = b.stockRestant; }
+      else { va = a[colonne]; vb = b[colonne]; }
+      if (va < vb) return sens === 'asc' ? -1 : 1;
+      if (va > vb) return sens === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  const totalPagesMouvements = Math.max(1, Math.ceil(mouvementsFiltres.length / LIGNES_PAR_PAGE));
+  const mouvementsPageActuelle = mouvementsFiltres.slice((pageMouvements - 1) * LIGNES_PAR_PAGE, pageMouvements * LIGNES_PAR_PAGE);
+
+  const exporterMouvementsExcel = async () => {
+    const entetes = ['Date', 'Produit', 'Type', 'Quantité', 'Stock restant', 'Origine / Destination', 'Note'];
+    const lignes = mouvementsFiltres.map(m => [
+      new Date(m.createdAt).toLocaleString('fr-FR'),
+      m.produit?.nom || '',
+      m.type === 'entree' ? 'Approvisionnement' : m.type === 'transfert' ? 'Transfert' : 'Sortie',
+      m.quantite,
+      m.stockRestant,
+      origineDestination(m),
+      m.note || '',
+    ]);
+    await telechargerXLSX(`mouvements-stock-${Date.now()}.xlsx`, 'Mouvements de stock', entetes, lignes);
+  };
+
+  const enteteTriable = (label, colonne) => (
+    <th onClick={() => basculerTri(colonne)} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      {label} <span style={{ color: triMouvements.colonne === colonne ? '#2563eb' : '#ccc' }}>{triMouvements.colonne === colonne ? (triMouvements.sens === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </th>
+  );
+
   const styleChip = (actif) => ({
     padding: '8px 14px', borderRadius: '20px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
     border: '1px solid ' + (actif ? '#2563eb' : '#e2e8f0'),
@@ -1497,41 +1565,155 @@ function AdminStocks() {
         </div>
       )}
 
+      {(() => {
+        const aujourdhui = new Date().toDateString();
+        const mouvementsAujourdhui = mouvements.filter(m => new Date(m.createdAt).toDateString() === aujourdhui).length;
+        const stockTotalMagasins = produits.reduce((s, p) => s + (p.quantite || 0), 0);
+        const stockFaible = produits.filter(p => (p.quantite || 0) <= (p.seuilAlerte || 5)).length;
+        const boutiquesActives = boutiques.filter(b => b.actif).length;
+
+        const cartes = [
+          { label: 'Mouvements aujourd\'hui', valeur: mouvementsAujourdhui, sous: `sur ${mouvements.length} au total`, icone: '🔄', bg: '#dcfce7', couleur: '#16a34a' },
+          { label: 'Produits en stock', valeur: stockTotalMagasins.toLocaleString(), sous: 'Dans tous les magasins', icone: '📦', bg: '#dbeafe', couleur: '#2563eb' },
+          { label: 'Stock faible', valeur: stockFaible, sous: stockFaible > 0 ? 'Besoin d\'attention' : 'Tout va bien', icone: '⚠️', bg: '#fef9c3', couleur: '#ca8a04' },
+          { label: 'Boutiques actives', valeur: boutiquesActives, sous: `Sur ${boutiques.length} boutique${boutiques.length > 1 ? 's' : ''}`, icone: '🏪', bg: '#ede9fe', couleur: '#7c3aed' },
+        ];
+
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            {cartes.map(c => (
+              <div key={c.label} style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{c.icone}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{c.label}</div>
+                  <div style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{c.valeur}</div>
+                  <div style={{ fontSize: '11px', color: c.couleur, fontWeight: '600' }}>{c.sous}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>📋 Historique des mouvements</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0, color: '#0f172a', fontSize: '15px' }}>📋 Historique des mouvements</h3>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input value={rechercheMouvements} onChange={e => { setRechercheMouvements(e.target.value); setPageMouvements(1); }} placeholder="🔍 Rechercher un produit, une note..."
+              style={{ padding: '8px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', width: '230px' }} />
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setMenuFiltreOuvert(v => !v)} style={{
+                padding: '8px 14px', background: filtreTypeMouvement !== 'tous' ? '#eff6ff' : 'white',
+                border: '1px solid ' + (filtreTypeMouvement !== 'tous' ? '#bfdbfe' : '#e2e8f0'), borderRadius: '8px',
+                cursor: 'pointer', fontSize: '13px', color: filtreTypeMouvement !== 'tous' ? '#2563eb' : '#475569', fontWeight: '600'
+              }}>🔽 Filtrer{filtreTypeMouvement !== 'tous' ? ' (1)' : ''}</button>
+              {menuFiltreOuvert && (
+                <div style={{ position: 'absolute', top: '38px', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 20, minWidth: '180px', overflow: 'hidden' }}>
+                  {[
+                    { id: 'tous', label: 'Tous les types' },
+                    { id: 'entree', label: '↓ Approvisionnement' },
+                    { id: 'sortie', label: '↑ Sortie' },
+                    { id: 'transfert', label: '⇄ Transfert' },
+                  ].map(opt => (
+                    <div key={opt.id} onClick={() => { setFiltreTypeMouvement(opt.id); setMenuFiltreOuvert(false); setPageMouvements(1); }} style={{
+                      padding: '9px 14px', fontSize: '13px', cursor: 'pointer',
+                      background: filtreTypeMouvement === opt.id ? '#eff6ff' : 'white',
+                      color: filtreTypeMouvement === opt.id ? '#2563eb' : '#333', fontWeight: filtreTypeMouvement === opt.id ? '600' : '400'
+                    }}>{opt.label}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={exporterMouvementsExcel} title="Exporter en Excel" style={{
+              padding: '8px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px'
+            }}>⬇️</button>
+          </div>
+        </div>
         {chargement ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
         ) : mouvements.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun mouvement enregistré.</div>
+        ) : mouvementsFiltres.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucun mouvement ne correspond à cette recherche/filtre.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['Date', 'Produit', 'Type', 'Quantité', 'Stock restant', 'Note'].map(h => (
-                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-                ))}
+                {enteteTriable('Date', 'date')}
+                {enteteTriable('Produit', 'produit')}
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>Type</th>
+                {enteteTriable('Quantité', 'quantite')}
+                {enteteTriable('Stock restant', 'stockRestant')}
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>Origine / Destination</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>Note</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {mouvements.map(m => (
+              {mouvementsPageActuelle.map(m => (
                 <tr key={m._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                  <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{new Date(m.createdAt).toLocaleDateString('fr-FR')}</td>
-                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{m.produit?.nom || '—'}</td>
+                  <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                    {new Date(m.createdAt).toLocaleDateString('fr-FR')}<br/>
+                    <span style={{ fontSize: '11px', color: '#999' }}>{new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {m.produit?.image ? (
+                        <img src={resoudreImage(m.produit.image)} alt="" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />
+                      ) : (
+                        <span style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>📦</span>
+                      )}
+                      {m.produit?.nom || '—'}
+                    </div>
+                  </td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{
                       background: m.type === 'entree' ? '#dcfce7' : m.type === 'transfert' ? '#dbeafe' : '#fee2e2',
                       color: m.type === 'entree' ? '#16a34a' : m.type === 'transfert' ? '#2563eb' : '#dc2626',
-                      padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
-                    }}>{m.type === 'entree' ? 'Approvisionnement' : m.type === 'transfert' ? '🏬→🏪 Transfert' : 'Sortie'}</span>
+                      padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap'
+                    }}>{m.type === 'entree' ? '↓ Approvisionnement' : m.type === 'transfert' ? '⇄ Transfert' : '↑ Sortie'}</span>
                   </td>
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.quantite}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{m.stockRestant}</td>
+                  <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{origineDestination(m)}</td>
                   <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{m.note || '—'}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <button onClick={() => window.alert(
+                      `Produit : ${m.produit?.nom || '—'}\nType : ${m.type}\nQuantité : ${m.quantite}\nStock restant : ${m.stockRestant}\nOrigine/Destination : ${origineDestination(m)}\nNote : ${m.note || '—'}\nDate : ${new Date(m.createdAt).toLocaleString('fr-FR')}`
+                    )} title="Voir les détails" style={{
+                      width: '28px', height: '28px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '14px'
+                    }}>⋮</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <span style={{ fontSize: '13px', color: '#666' }}>
+              Affichage {(pageMouvements - 1) * LIGNES_PAR_PAGE + 1} à {Math.min(pageMouvements * LIGNES_PAR_PAGE, mouvementsFiltres.length)} sur {mouvementsFiltres.length} mouvement{mouvementsFiltres.length > 1 ? 's' : ''}
+            </span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button onClick={() => setPageMouvements(p => Math.max(1, p - 1))} disabled={pageMouvements === 1} style={{
+                width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white',
+                cursor: pageMouvements === 1 ? 'not-allowed' : 'pointer', opacity: pageMouvements === 1 ? 0.4 : 1
+              }}>‹</button>
+              {Array.from({ length: totalPagesMouvements }).map((_, i) => (
+                <button key={i} onClick={() => setPageMouvements(i + 1)} style={{
+                  width: '30px', height: '30px', borderRadius: '6px',
+                  border: '1px solid ' + (pageMouvements === i + 1 ? '#2563eb' : '#e2e8f0'),
+                  background: pageMouvements === i + 1 ? '#2563eb' : 'white',
+                  color: pageMouvements === i + 1 ? 'white' : '#333',
+                  cursor: 'pointer', fontSize: '13px', fontWeight: '600'
+                }}>{i + 1}</button>
+              ))}
+              <button onClick={() => setPageMouvements(p => Math.min(totalPagesMouvements, p + 1))} disabled={pageMouvements === totalPagesMouvements} style={{
+                width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white',
+                cursor: pageMouvements === totalPagesMouvements ? 'not-allowed' : 'pointer', opacity: pageMouvements === totalPagesMouvements ? 0.4 : 1
+              }}>›</button>
+            </div>
+          </div>
           </div>
         )}
       </div>
