@@ -51,7 +51,7 @@ export default function AdminLayout() {
   const fermerMenuMobile = () => { if (isMobile) setCollapsed(true); };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f0f2f5', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'Segoe UI, sans-serif', background: '#f7f8fa', position: 'relative', overflow: 'hidden' }}>
       {/* Voile sombre derrière le menu en mode tiroir mobile */}
       {isMobile && !collapsed && (
         <div onClick={() => setCollapsed(true)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} />
@@ -1424,6 +1424,31 @@ function AdminStocks() {
     return '—';
   };
 
+  const badgePill = (texte, bg, couleur, icone) => (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 9px', borderRadius: '12px',
+      background: bg, color: couleur, fontSize: '11.5px', fontWeight: '600', whiteSpace: 'nowrap'
+    }}>{icone} {texte}</span>
+  );
+
+  const origineDestinationBadges = (m) => {
+    if (m.type === 'transfert') {
+      const magasinNom = m.magasinId?.nom;
+      const caisseNom = m.caisseDestination?.nom;
+      const boutiqueNom = m.caisseDestination?.comptoirId?.nom;
+      if (!magasinNom && !caisseNom) return <span style={{ color: '#ccc', fontSize: '13px' }}>—</span>;
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {badgePill(magasinNom || '—', '#dcfce7', '#16a34a', '🏬')}
+          <span style={{ color: '#ccc', fontSize: '12px' }}>→</span>
+          {badgePill(caisseNom ? `${caisseNom}${boutiqueNom ? ' · ' + boutiqueNom : ''}` : '—', '#ffedd5', '#ea580c', '🏪')}
+        </div>
+      );
+    }
+    if (m.magasinId?.nom) return badgePill(m.magasinId.nom, '#dcfce7', '#16a34a', '🏬');
+    return <span style={{ color: '#ccc', fontSize: '13px' }}>—</span>;
+  };
+
   const [filtreTypeMouvement, setFiltreTypeMouvement] = useState('tous'); // tous | entree | sortie | transfert
   const [menuFiltreOuvert, setMenuFiltreOuvert] = useState(false);
   const [triMouvements, setTriMouvements] = useState({ colonne: 'date', sens: 'desc' });
@@ -1580,14 +1605,16 @@ function AdminStocks() {
         ];
 
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '18px' }}>
             {cartes.map(c => (
-              <div key={c.label} style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>{c.icone}</div>
+              <div key={c.label} style={{ background: 'white', borderRadius: '10px', padding: '12px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #f1f5f9', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>{c.icone}</div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', color: '#666' }}>{c.label}</div>
-                  <div style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{c.valeur}</div>
-                  <div style={{ fontSize: '11px', color: c.couleur, fontWeight: '600' }}>{c.sous}</div>
+                  <div style={{ fontSize: '11px', color: '#888' }}>{c.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '19px', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>{c.valeur}</span>
+                    <span style={{ fontSize: '10.5px', color: c.couleur, fontWeight: '600' }}>{c.sous}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1598,17 +1625,18 @@ function AdminStocks() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
           <h3 style={{ margin: 0, color: '#0f172a', fontSize: '15px' }}>📋 Historique des mouvements</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={rechercheMouvements} onChange={e => { setRechercheMouvements(e.target.value); setPageMouvements(1); }} placeholder="🔍 Rechercher un produit, une note..."
-              style={{ padding: '8px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', width: '230px' }} />
+              style={{ height: '38px', padding: '0 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', width: '230px', boxSizing: 'border-box' }} />
             <div style={{ position: 'relative' }}>
               <button onClick={() => setMenuFiltreOuvert(v => !v)} style={{
-                padding: '8px 14px', background: filtreTypeMouvement !== 'tous' ? '#eff6ff' : 'white',
+                height: '38px', padding: '0 16px', background: filtreTypeMouvement !== 'tous' ? '#eff6ff' : 'white',
                 border: '1px solid ' + (filtreTypeMouvement !== 'tous' ? '#bfdbfe' : '#e2e8f0'), borderRadius: '8px',
-                cursor: 'pointer', fontSize: '13px', color: filtreTypeMouvement !== 'tous' ? '#2563eb' : '#475569', fontWeight: '600'
+                cursor: 'pointer', fontSize: '13px', color: filtreTypeMouvement !== 'tous' ? '#2563eb' : '#475569', fontWeight: '600',
+                display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
               }}>🔽 Filtrer{filtreTypeMouvement !== 'tous' ? ' (1)' : ''}</button>
               {menuFiltreOuvert && (
-                <div style={{ position: 'absolute', top: '38px', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 20, minWidth: '180px', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '44px', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 20, minWidth: '180px', overflow: 'hidden' }}>
                   {[
                     { id: 'tous', label: 'Tous les types' },
                     { id: 'entree', label: '↓ Approvisionnement' },
@@ -1625,7 +1653,8 @@ function AdminStocks() {
               )}
             </div>
             <button onClick={exporterMouvementsExcel} title="Exporter en Excel" style={{
-              padding: '8px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px'
+              height: '38px', width: '38px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
             }}>⬇️</button>
           </div>
         </div>
@@ -1676,7 +1705,7 @@ function AdminStocks() {
                   </td>
                   <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.quantite}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{m.stockRestant}</td>
-                  <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{origineDestination(m)}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px' }}>{origineDestinationBadges(m)}</td>
                   <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{m.note || '—'}</td>
                   <td style={{ padding: '10px 8px' }}>
                     <button onClick={() => window.alert(
