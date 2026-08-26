@@ -12,7 +12,9 @@ router.get('/', verifierToken, async (req, res) => {
       filtre.boutiqueId = req.user.boutiqueId;
     }
     const mouvements = await MouvementStock.find(filtre)
-      .populate('produit', 'nom')
+      .populate('produit', 'nom image')
+      .populate('magasinId', 'nom')
+      .populate({ path: 'caisseDestination', select: 'nom comptoirId', populate: { path: 'comptoirId', select: 'nom' } })
       .sort({ createdAt: -1 })
       .limit(100);
     res.json(mouvements);
