@@ -34,6 +34,7 @@ const STATUTS = {
   en_attente: ['⏳ En attente', '#fef9c3', '#a16207'],
   valide: ['✅ Validé', '#dcfce7', '#166534'],
   refuse: ['❌ Refusé', '#fee2e2', '#b91c1c'],
+  inconnu: ['❔ Statut inconnu', '#f1f5f9', '#64748b'],
 };
 const boutonMini = { padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' };
 
@@ -324,7 +325,8 @@ export default function Tresorerie({ role, caisseId }) {
                     {onglet === 'versements' && (
                       <td style={{ padding: '10px 8px', fontSize: '12px' }}>
                         {(() => {
-                          const [libelle, fond, couleur] = STATUTS[l.statut] || STATUTS.valide;
+                          // Pas de statut = le serveur n'est pas à jour : on ne prétend jamais "validé"
+                          const [libelle, fond, couleur] = STATUTS[l.statut] || STATUTS.inconnu;
                           return <span style={{ background: fond, color: couleur, padding: '2px 9px', borderRadius: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>{libelle}</span>;
                         })()}
                         {l.statut === 'refuse' && l.motifRefus && <div style={{ color: '#b91c1c', marginTop: '3px' }}>{l.motifRefus}</div>}
