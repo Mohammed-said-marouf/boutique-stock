@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
 import Tresorerie from '../components/Tresorerie';
+import Sauvegarde from '../components/Sauvegarde';
 
 import { API_URL } from '../config';
 
@@ -39,6 +40,7 @@ const menuItems = [
   { path: '/admin/vendeurs', iconKey: 'utilisateurs', label: 'Utilisateurs (Vendeurs)' },
   { path: '/admin/factures', iconKey: 'ventes', label: 'Factures' },
   { path: '/admin/rapports', iconKey: 'dashboard', label: 'Rapports' },
+  { path: '/admin/sauvegarde', iconKey: 'parametres', label: 'Sauvegarde' },
   { path: '/admin/parametres', iconKey: 'parametres', label: 'Paramètres' },
 ];
 
@@ -205,6 +207,7 @@ export default function AdminLayout() {
             <Route path="stocks" element={<AdminStocks />} />
             <Route path="ventes" element={<AdminVentes />} />
             <Route path="tresorerie" element={<Tresorerie role="admin" />} />
+            <Route path="sauvegarde" element={<Sauvegarde role="admin" />} />
             <Route path="clients" element={<AdminClients />} />
             <Route path="fournisseurs" element={<AdminFournisseurs />} />
             <Route path="vendeurs" element={<AdminVendeurs />} />
