@@ -43,7 +43,17 @@ jobs:
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --console=plain --stacktrace 2>&1 | tee ../../gradle.log
+          exit "${PIPESTATUS[0]}"
+
+      # En cas d'échec, remonte la fin du journal Gradle dans une annotation
+      # (visible sans être connecté, contrairement aux journaux complets).
+      - name: Résumé de l'erreur
+        if: failure()
+        run: |
+          MSG=$(grep -n -B2 -A25 -m1 "What went wrong" gradle.log || tail -40 gradle.log)
+          MSG="${MSG//'%'/'%25'}"; MSG="${MSG//$'\n'/'%0A'}"; MSG="${MSG//$'\r'/'%0D'}"
+          echo "::error title=Erreur Gradle::${MSG:0:3500}"
 
       - uses: actions/upload-artifact@v4
         with:
