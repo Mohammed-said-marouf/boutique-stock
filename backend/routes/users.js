@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const User = require('../models/User');
 const { verifierToken, autoriser } = require('../middleware/auth');
@@ -77,14 +78,50 @@ router.put('/me/motdepasse', verifierToken, async (req, res) => {
     const correct = await user.verifierMotDePasse(ancienMotDePasse);
     if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
 
+    if (user.doitChangerMotDePasse && nouveauMotDePasse === ancienMotDePasse) {
+      return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+    }
+
     user.motDePasse = nouveauMotDePasse;
+    user.doitChangerMotDePasse = false;
     await user.save();
     res.json({ message: '✅ Mot de passe mis à jour' });
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
+// Réinitialiser le mot de passe oublié d'un admin ou d'un vendeur (super admin
+// uniquement). Génère un mot de passe TEMPORAIRE, renvoyé une seule fois au
+// super admin pour qu'il le transmette ; l'utilisateur devra le remplacer par
+// le sien dès sa prochaine connexion. Les comptes super admin ne sont pas
+// concernés.
+const ALPHABET_MDP = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+router.put('/:id/reinitialiser-mot-de-passe', verifierToken, autoriser('superadmin'), async (req, res) => {
+  try {
+    const cible = await User.findById(req.params.id);
+    if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    if (cible.role === 'superadmin') {
+      return res.status(403).json({ message: "Le mot de passe d'un super admin ne peut pas être réinitialisé ici." });
+    }
+
+    const motDePasseTemporaire = Array.from({ length: 10 }, () => ALPHABET_MDP[crypto.randomInt(ALPHABET_MDP.length)]).join('');
+    cible.motDePasse = motDePasseTemporaire; // haché par le hook pre('save') du modèle
+    cible.doitChangerMotDePasse = true;
+    await cible.save();
+
+    await enregistrerLog({
+      type: 'mot_de_passe_reinitialise',
+      message: `${cible.nom} (${cible.role})`,
+      utilisateur: req.user.id,
+      nomUtilisateur: req.user.nom || 'Super Admin',
+      niveau: 'info'
+    });
+
+    res.json({ message: '✅ Mot de passe réinitialisé', nom: cible.nom, email: cible.email, motDePasseTemporaire });
+  } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
 // Créer un utilisateur
-router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
+router.post('/',verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
     if (req.user.role === 'admin') {
       req.body.role = 'vendeur';

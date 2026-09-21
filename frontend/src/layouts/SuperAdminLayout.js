@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icone, useIcones } from '../context/IconesContext';
 import axios from 'axios';
-import ExcelJS from 'exceljs';
+import { LicencesAdmin, ModaleMotDePasseTemporaire } from '../components/SuperAdminOutils';
 
 import { API_URL } from '../config';
 
@@ -11,9 +11,7 @@ const menuItems = [
   { path: '/superadmin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/superadmin/boutiques', iconKey: 'boutiques', label: 'Boutiques' },
   { path: '/superadmin/utilisateurs', iconKey: 'utilisateurs', label: 'Utilisateurs' },
-  { path: '/superadmin/abonnements', icon: '💳', label: 'Abonnements' },
-  { path: '/superadmin/transactions', icon: '💰', label: 'Transactions' },
-  { path: '/superadmin/rapports', icon: '📈', label: 'Rapports' },
+  { path: '/superadmin/abonnements', icon: '🔑', label: 'Licences' },
   { path: '/superadmin/parametres', iconKey: 'parametres', label: 'Paramètres système' },
   { path: '/superadmin/journal', icon: '📋', label: "Journal d'activités" },
 ];
@@ -160,9 +158,7 @@ export default function SuperAdminLayout() {
             <Route path="" element={<SuperAdminDashboard />} />
             <Route path="boutiques" element={<BoutiquesAdmin />} />
             <Route path="utilisateurs" element={<UtilisateursAdmin />} />
-            <Route path="abonnements" element={<AbonnementsAdmin />} />
-            <Route path="transactions" element={<TransactionsAdmin />} />
-            <Route path="rapports" element={<RapportsSuperAdmin />} />
+            <Route path="abonnements" element={<LicencesAdmin />} />
             <Route path="parametres" element={<ParametresSuperAdmin user={user} />} />
             <Route path="journal" element={<JournalAdmin />} />
             <Route path="icones" element={<PageIcones />} />
@@ -178,13 +174,13 @@ export default function SuperAdminLayout() {
 }
 
 // ===================== DASHBOARD =====================
+// Le super admin gère les boutiques, leurs licences et leurs comptes : ce
+// tableau de bord ne montre volontairement aucune vente ni chiffre d'affaires.
 function SuperAdminDashboard() {
   const [stats, setStats] = useState({
     totalBoutiques: 0, boutiquesActives: 0,
     totalUsers: 0, usersActifs: 0,
-    ventesMois: 0, totalVentes: 0,
-    caMois: 0, caTotal: 0,
-    alertesStock: 0
+    abonnementsPayants: 0, abonnementsExpirant: 0
   });
 
   useEffect(() => {
@@ -198,41 +194,53 @@ function SuperAdminDashboard() {
   }, []);
 
   const cartes = [
-    { label: 'Boutiques totales', value: stats.totalBoutiques, sub: `Actives : ${stats.boutiquesActives}`, iconKey: 'boutiques', color: '#e0e7ff' },
-    { label: 'Utilisateurs totaux', value: stats.totalUsers, sub: `Actifs : ${stats.usersActifs}`, iconKey: 'utilisateurs', color: '#fce7f3' },
-    { label: 'Ventes du mois', value: stats.ventesMois, sub: `Total : ${stats.totalVentes} ventes`, iconKey: 'caisse', color: '#dcfce7' },
-    { label: "Chiffre d'affaires (mois)", value: `${stats.caMois.toLocaleString()} FCFA`, sub: `Total : ${stats.caTotal.toLocaleString()} FCFA`, iconKey: 'ventes', color: '#fef9c3' },
-    { label: 'Commandes totales', value: stats.totalVentes, sub: 'Toutes périodes', iconKey: 'produits', color: '#fee2e2' },
-    { label: 'Stock faible / rupture', value: stats.alertesStock, sub: 'Produits à réapprovisionner', iconKey: 'stock', color: '#e0f2fe' },
+    { label: 'Boutiques', value: stats.totalBoutiques, sub: `Actives : ${stats.boutiquesActives}`, iconKey: 'boutiques', color: '#e0e7ff' },
+    { label: 'Utilisateurs', value: stats.totalUsers, sub: `Actifs : ${stats.usersActifs}`, iconKey: 'utilisateurs', color: '#fce7f3' },
+    { label: 'Abonnements payants', value: stats.abonnementsPayants, sub: `Expirent sous 15 jours : ${stats.abonnementsExpirant}`, icon: '🔑', color: '#ede9fe' },
+  ];
+
+  const raccourcis = [
+    { to: '/superadmin/boutiques', label: 'Gérer les boutiques', icon: '🏪' },
+    { to: '/superadmin/abonnements', label: 'Générer une licence', icon: '🔑' },
+    { to: '/superadmin/utilisateurs', label: 'Réinitialiser un mot de passe', icon: '🔐' },
   ];
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         {cartes.map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icone nom={s.iconKey} size={22} />
+                {s.iconKey ? <Icone nom={s.iconKey} size={22} /> : <span style={{ fontSize: '22px' }}>{s.icon}</span>}
               </div>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: '500' }}>{s.label}</span>
             </div>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e1b4b', marginBottom: '4px' }}>{s.value}</div>
-            <div style={{ fontSize: '12px', color: s.sub.toString().includes('↑') ? '#16a34a' : '#666' }}>{s.sub}</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>{s.sub}</div>
           </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+        {raccourcis.map(r => (
+          <NavLink key={r.to} to={r.to} style={{
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 18px', background: 'white', borderRadius: '10px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)', textDecoration: 'none', color: '#1e1b4b', fontSize: '14px', fontWeight: '600'
+          }}>
+            <span style={{ fontSize: '18px' }}>{r.icon}</span> {r.label}
+          </NavLink>
         ))}
       </div>
 
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <h3 style={{ margin: '0 0 16px', color: '#1e1b4b', fontSize: '16px' }}>⚠️ Alertes</h3>
         {[
-          { label: "Boutiques en attente d'activation", count: stats.totalBoutiques - stats.boutiquesActives, color: '#fbbf24' },
-          { label: 'Paiements échoués', count: 0, color: '#ef4444' },
-          { label: 'Abonnements expirant bientôt', count: 0, color: '#f97316' },
-          { label: 'Stock faible dans les boutiques', count: stats.alertesStock, color: '#f97316' },
+          { label: 'Boutiques inactives', count: stats.totalBoutiques - stats.boutiquesActives, color: '#fbbf24' },
+          { label: 'Abonnements expirant sous 15 jours', count: stats.abonnementsExpirant, color: '#f97316' },
           { label: 'Utilisateurs inactifs', count: stats.totalUsers - stats.usersActifs, color: '#a855f7' },
-        ].map((a, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < 4 ? '1px solid #f1f5f9' : 'none' }}>
+        ].map((a, i, liste) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < liste.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
             <span style={{ fontSize: '14px', color: '#444' }}>{a.label}</span>
             <span style={{ background: a.color, color: 'white', borderRadius: '20px', padding: '2px 10px', fontSize: '13px', fontWeight: '600' }}>{a.count}</span>
           </div>
@@ -393,6 +401,9 @@ function BoutiquesAdmin() {
                 </span>
               </div>
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>📧 {b.email || '—'}</div>
+              {b.abonnement !== 'gratuit' && b.abonnementExpireLe && (
+                <div style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>⏳ Licence jusqu'au {new Date(b.abonnementExpireLe).toLocaleDateString('fr-FR')}</div>
+              )}
               <div style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>📞 {b.telephone || '—'}</div>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
                 <span style={{ background: b.actif ? '#dcfce7' : '#fee2e2', color: b.actif ? '#16a34a' : '#dc2626', padding: '4px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
@@ -422,6 +433,7 @@ function UtilisateursAdmin() {
   const [utilisateurs, setUtilisateurs] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [filtre, setFiltre] = useState('Tous');
+  const [reinit, setReinit] = useState(null); // résultat d'une réinitialisation (mot de passe temporaire)
 
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
@@ -444,6 +456,21 @@ function UtilisateursAdmin() {
       body: JSON.stringify({ actif: !u.actif })
     });
     charger();
+  };
+
+  const reinitialiserMotDePasse = async (u) => {
+    if (!window.confirm(`Réinitialiser le mot de passe de ${u.nom} (${u.email}) ?\n\nSon mot de passe actuel ne fonctionnera plus. Un mot de passe temporaire va être généré : il devra le remplacer à sa prochaine connexion.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/users/${u._id}/reinitialiser-mot-de-passe`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      setReinit(data);
+    } catch (e) {
+      window.alert(e.message);
+    }
   };
 
   const supprimer = async (id) => {
@@ -506,6 +533,12 @@ function UtilisateursAdmin() {
                   </td>
                   <td style={{ padding: '12px 8px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      {u.role !== 'superadmin' && (
+                        <button onClick={() => reinitialiserMotDePasse(u)} title="Réinitialiser le mot de passe oublié"
+                          style={{ padding: '5px 10px', background: '#fef9c3', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#a16207', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                          🔑 Mot de passe
+                        </button>
+                      )}
                       <button onClick={() => toggleActif(u)}
                         style={{ padding: '5px 10px', background: u.actif ? '#fee2e2' : '#dcfce7', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: u.actif ? '#dc2626' : '#16a34a', fontWeight: '600' }}>
                         {u.actif ? 'Désactiver' : 'Activer'}
@@ -522,349 +555,7 @@ function UtilisateursAdmin() {
           </table>
         )}
       </div>
-    </div>
-  );
-}
-
-// ===================== ABONNEMENTS =====================
-function AbonnementsAdmin() {
-  const [boutiques, setBoutiques] = useState([]);
-  const [chargement, setChargement] = useState(true);
-
-  const token = localStorage.getItem('token');
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/boutiques`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => { setBoutiques(Array.isArray(data) ? data : []); setChargement(false); })
-      .catch(() => setChargement(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
-
-  const plans = [
-    { nom: 'Gratuit', prix: '0 FCFA', features: ['1 vendeur', '50 produits', 'Support email'], color: '#16a34a', bg: '#dcfce7' },
-    { nom: 'Standard', prix: '75 000 FCFA/an', features: ['5 vendeurs', '500 produits', 'Support prioritaire', 'Rapports avancés'], color: '#2563eb', bg: '#dbeafe' },
-    { nom: 'Premium', prix: '150 000 FCFA/an', features: ['Vendeurs illimités', 'Produits illimités', 'Support 24/7', 'Toutes les fonctions'], color: '#7c3aed', bg: '#ede9fe' },
-  ];
-
-  return (
-    <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        💳 Abonnements
-      </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {plans.map((p, i) => (
-          <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: `2px solid ${p.bg}` }}>
-            <div style={{ width: '44px', height: '44px', background: p.bg, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-              <span style={{fontSize:"22px"}}>💳</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: '700', color: p.color, marginBottom: '4px' }}>{p.nom}</div>
-            <div style={{ fontSize: '16px', fontWeight: '700', color: '#1e1b4b', marginBottom: '12px' }}>{p.prix}</div>
-            {p.features.map((f, j) => (
-              <div key={j} style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>✅ {f}</div>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <h3 style={{ margin: '0 0 16px', color: '#1e1b4b' }}>📋 Abonnements par boutique</h3>
-        {chargement ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
-        ) : boutiques.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune boutique pour le moment.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['Boutique', 'Plan', 'Depuis', 'Montant', 'Statut'].map(h => (
-                  <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {boutiques.map((b) => (
-                <tr key={b._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{b.nom}</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <span style={{ background: b.abonnement === 'premium' ? '#ede9fe' : b.abonnement === 'standard' ? '#dbeafe' : '#dcfce7', color: b.abonnement === 'premium' ? '#7c3aed' : b.abonnement === 'standard' ? '#2563eb' : '#16a34a', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize' }}>{b.abonnement}</span>
-                  </td>
-                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
-                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{montantParPlan[b.abonnement] > 0 ? `${montantParPlan[b.abonnement].toLocaleString()} FCFA` : '—'}</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <span style={{ background: b.actif ? '#dcfce7' : '#fee2e2', color: b.actif ? '#16a34a' : '#dc2626', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{b.actif ? 'Actif' : 'Inactif'}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ===================== TRANSACTIONS =====================
-function TransactionsAdmin() {
-  const [boutiques, setBoutiques] = useState([]);
-  const [chargement, setChargement] = useState(true);
-
-  const token = localStorage.getItem('token');
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/boutiques`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => { setBoutiques(Array.isArray(data) ? data : []); setChargement(false); })
-      .catch(() => setChargement(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
-  const payantes = boutiques.filter(b => b.abonnement !== 'gratuit');
-  const revenusTotaux = payantes.reduce((s, b) => s + (b.actif ? (montantParPlan[b.abonnement] || 0) : 0), 0);
-  const reussies = payantes.filter(b => b.actif).length;
-  const echouees = payantes.filter(b => !b.actif).length;
-
-  return (
-    <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        💰 Transactions
-      </h2>
-      <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
-        Calculé à partir des abonnements payants actuellement actifs (pas de passerelle de paiement connectée pour l'instant).
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {[
-          { label: 'Revenus (abonnements actifs)', value: `${revenusTotaux.toLocaleString()} FCFA`, color: '#dcfce7' },
-          { label: 'Boutiques payantes actives', value: String(reussies), color: '#dbeafe' },
-          { label: 'Boutiques payantes inactives', value: String(echouees), color: '#fee2e2' },
-        ].map((s, i) => (
-          <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{fontSize:"26px"}}>💰</span>
-            </div>
-            <div>
-              <div style={{ fontSize: '13px', color: '#666' }}>{s.label}</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#1e1b4b' }}>{s.value}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        {chargement ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Chargement...</div>
-        ) : payantes.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Aucune boutique avec un abonnement payant.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                {['Boutique', 'Plan', 'Depuis', 'Montant', 'Statut'].map(h => (
-                  <th key={h} style={{ padding: '12px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {payantes.map((b) => (
-                <tr key={b._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{b.nom}</td>
-                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px', textTransform: 'capitalize' }}>{b.abonnement}</td>
-                  <td style={{ padding: '12px 8px', color: '#666', fontSize: '13px' }}>{b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
-                  <td style={{ padding: '12px 8px', fontWeight: '600', color: '#1e1b4b' }}>{(montantParPlan[b.abonnement] || 0).toLocaleString()} FCFA</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <span style={{ background: b.actif ? '#dcfce7' : '#fee2e2', color: b.actif ? '#16a34a' : '#dc2626', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{b.actif ? 'Actif' : 'Inactif'}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ===================== RAPPORTS =====================
-function RapportsSuperAdmin() {
-  const [export_, setExport_] = useState('');
-  const token = localStorage.getItem('token');
-  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
-
-  const telechargerExcel = async (nomFichier, lignes) => {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Rapport');
-    const [entetes, ...corps] = lignes;
-
-    const ligneEntete = sheet.addRow(entetes);
-    ligneEntete.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FF1E1B4B' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'left' };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      };
-    });
-    ligneEntete.height = 22;
-
-    corps.forEach((ligne, i) => {
-      const row = sheet.addRow(ligne);
-      row.eachCell(cell => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        };
-        if (i % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-      });
-    });
-
-    sheet.columns.forEach(col => {
-      let max = 12;
-      col.eachCell({ includeEmpty: true }, cell => {
-        const len = cell.value ? cell.value.toString().length : 0;
-        if (len > max) max = len;
-      });
-      col.width = Math.min(max + 3, 45);
-    });
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomFichier;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
-  const ouTiret = (v) => (v === null || v === undefined || v === '') ? '—' : v;
-  const capitaliser = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-
-  const montantParPlan = { gratuit: 0, standard: 75000, premium: 150000 };
-
-  const exporterVentes = async () => {
-    setExport_('ventes');
-    try {
-      const res = await fetch(`${API_URL}/api/ventes`, authHeaders);
-      const ventes = await res.json();
-      const lignes = [['N° Facture', 'Boutique / Vendeur', 'Client', 'Montant', 'Date']];
-      (Array.isArray(ventes) ? ventes : []).forEach(v => lignes.push([
-        ouTiret(v.numFacture), ouTiret(v.nomVendeur), ouTiret(v.clientNom), formatMontant(v.montantTotal),
-        v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : '—'
-      ]));
-      await telechargerExcel(`rapport-ventes-globales-${Date.now()}.xlsx`, lignes);
-    } catch (err) {
-      alert('Erreur export : ' + err.message);
-    } finally {
-      setExport_('');
-    }
-  };
-
-  const exporterAbonnements = async () => {
-    setExport_('abonnements');
-    try {
-      const res = await fetch(`${API_URL}/api/boutiques`, authHeaders);
-      const boutiques = await res.json();
-      const lignes = [['Boutique', 'Plan', 'Montant', 'Statut', 'Depuis']];
-      (Array.isArray(boutiques) ? boutiques : []).forEach(b => lignes.push([
-        ouTiret(b.nom), capitaliser(b.abonnement), formatMontant(montantParPlan[b.abonnement]),
-        b.actif ? 'Actif' : 'Inactif', b.createdAt ? new Date(b.createdAt).toLocaleDateString('fr-FR') : '—'
-      ]));
-      await telechargerExcel(`rapport-abonnements-${Date.now()}.xlsx`, lignes);
-    } catch (err) {
-      alert('Erreur export : ' + err.message);
-    } finally {
-      setExport_('');
-    }
-  };
-
-  const exporterUtilisateurs = async () => {
-    setExport_('utilisateurs');
-    try {
-      const res = await fetch(`${API_URL}/api/users`, authHeaders);
-      const users = await res.json();
-      const lignes = [['Nom', 'Email', 'Rôle', 'Boutique', 'Statut', 'Créé le']];
-      (Array.isArray(users) ? users : []).forEach(u => lignes.push([
-        ouTiret(u.nom), ouTiret(u.email), capitaliser(u.role), ouTiret(u.boutiqueId?.nom),
-        u.actif ? 'Actif' : 'Inactif', u.createdAt ? new Date(u.createdAt).toLocaleDateString('fr-FR') : '—'
-      ]));
-      await telechargerExcel(`rapport-utilisateurs-${Date.now()}.xlsx`, lignes);
-    } catch (err) {
-      alert('Erreur export : ' + err.message);
-    } finally {
-      setExport_('');
-    }
-  };
-
-  const exporterFinancier = async () => {
-    setExport_('financier');
-    try {
-      const [resVentes, resBoutiques] = await Promise.all([
-        fetch(`${API_URL}/api/ventes`, authHeaders),
-        fetch(`${API_URL}/api/boutiques`, authHeaders)
-      ]);
-      const ventes = await resVentes.json();
-      const boutiques = await resBoutiques.json();
-
-      const chiffreVentes = (Array.isArray(ventes) ? ventes : []).reduce((s, v) => s + (v.montantTotal || 0), 0);
-      const revenusAbonnements = (Array.isArray(boutiques) ? boutiques : [])
-        .filter(b => b.actif)
-        .reduce((s, b) => s + (montantParPlan[b.abonnement] || 0), 0);
-
-      const lignes = [
-        ['Indicateur', 'Montant'],
-        ['Chiffre d\'affaires ventes (toutes boutiques)', formatMontant(chiffreVentes)],
-        ['Revenus abonnements actifs', formatMontant(revenusAbonnements)],
-        ['Total consolidé', formatMontant(chiffreVentes + revenusAbonnements)],
-      ];
-      await telechargerExcel(`rapport-financier-global-${Date.now()}.xlsx`, lignes);
-    } catch (err) {
-      alert('Erreur export : ' + err.message);
-    } finally {
-      setExport_('');
-    }
-  };
-
-  const rapports = [
-    { label: 'Rapport global des ventes', sub: 'Toutes boutiques confondues', color: '#e0e7ff', action: exporterVentes, key: 'ventes' },
-    { label: 'Rapport des abonnements', sub: 'Revenus et plans par boutique', color: '#dcfce7', action: exporterAbonnements, key: 'abonnements' },
-    { label: 'Rapport des utilisateurs', sub: 'Liste complète, tous rôles', color: '#fce7f3', action: exporterUtilisateurs, key: 'utilisateurs' },
-    { label: 'Rapport financier global', sub: "Chiffre d'affaires consolidé", color: '#fef9c3', action: exporterFinancier, key: 'financier' },
-  ];
-
-  return (
-    <div>
-      <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        📈 Rapports globaux
-      </h2>
-      <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
-        Cliquez sur une carte pour télécharger un export CSV à jour de vos données.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        {rapports.map((r, i) => (
-          <button key={i} onClick={r.action} disabled={export_ === r.key} style={{
-            background: 'white', borderRadius: '12px', padding: '24px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex',
-            alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0',
-            cursor: export_ === r.key ? 'not-allowed' : 'pointer', textAlign: 'left',
-            opacity: export_ === r.key ? 0.6 : 1
-          }}>
-            <div style={{ width: '56px', height: '56px', background: r.color, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{fontSize:"28px"}}>📈</span>
-            </div>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e1b4b', marginBottom: '4px' }}>{r.label}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Génération...' : r.sub}</div>
-            </div>
-          </button>
-        ))}
-      </div>
+      <ModaleMotDePasseTemporaire resultat={reinit} onClose={() => setReinit(null)} />
     </div>
   );
 }

@@ -44,6 +44,12 @@ router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.singl
     }
 
     const data = { ...req.body };
+    // Un admin ne modifie que les infos de sa boutique : jamais son abonnement
+    // (il passe par une licence, voir routes/licences.js), son statut ou son
+    // propriétaire — sinon il pourrait se donner le plan premium lui-même.
+    if (req.user.role === 'admin') {
+      for (const champ of ['abonnement', 'abonnementExpireLe', 'actif', 'proprietaire']) delete data[champ];
+    }
     if (req.file) data.logo = req.file.path; // URL Cloudinary complète
 
     const boutique = await Boutique.findByIdAndUpdate(req.params.id, data, { new: true });

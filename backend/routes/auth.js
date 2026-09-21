@@ -53,7 +53,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      user: { id: user._id, nom: user.nom, email: user.email, role: user.role, boutique: user.boutiqueId, caisseId: user.caisseId || null, caisse: caisseInfo }
+      user: { id: user._id, nom: user.nom, email: user.email, role: user.role, boutique: user.boutiqueId, caisseId: user.caisseId || null, caisse: caisseInfo, doitChangerMotDePasse: !!user.doitChangerMotDePasse }
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

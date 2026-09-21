@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
 import Inscription from './pages/Inscription';
+import ChangementMotDePasseObligatoire from './components/ChangementMotDePasseObligatoire';
 
 // Layouts
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -23,6 +24,9 @@ function AppRoutes() {
   if (loading) return null;
 
   return (
+    <>
+    {/* Après une réinitialisation par le super admin : écran bloquant tant que le mot de passe temporaire n'est pas remplacé */}
+    {user?.doitChangerMotDePasse && <ChangementMotDePasseObligatoire />}
     <Routes>
       <Route path="/login" element={!user ? <Login /> : <Navigate to={
         user.role === 'superadmin' ? '/superadmin' :
@@ -54,6 +58,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
+    </>
   );
 }
 

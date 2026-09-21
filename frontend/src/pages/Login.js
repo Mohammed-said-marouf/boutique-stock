@@ -99,6 +99,9 @@ export default function Login() {
               Créer ma boutique
             </Link>
           </div>
+          <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+            Mot de passe oublié ? Contactez l'administrateur de la plateforme pour le réinitialiser.
+          </div>
         </form>
       </div>
     </div>

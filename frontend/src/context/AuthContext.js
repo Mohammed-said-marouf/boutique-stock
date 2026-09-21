@@ -36,8 +36,19 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Met à jour des champs de l'utilisateur connecté (ex: après avoir changé son
+  // mot de passe temporaire) et les garde dans le stockage local.
+  const mettreAJourUtilisateur = (modifications) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const suivant = { ...prev, ...modifications };
+      localStorage.setItem('user', JSON.stringify(suivant));
+      return suivant;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, mettreAJourUtilisateur }}>
       {children}
     </AuthContext.Provider>
   );

@@ -146,40 +146,31 @@ router.get('/stats', verifierToken, async (req, res) => {
   }
 });
 
-// GET - Stats globales pour SuperAdmin
+// GET - Stats globales pour SuperAdmin : boutiques, utilisateurs et licences.
+// Volontairement AUCUNE donnée de vente ni de chiffre d'affaires : le super
+// admin gère les boutiques, leurs licences et leurs comptes, pas leur activité.
 router.get('/stats-globales', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
     const Boutique = require('../models/Boutique');
     const User = require('../models/User');
 
-    const aujourdhui = new Date();
-    aujourdhui.setHours(0, 0, 0, 0);
-    const debutMois = new Date();
-    debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
+    const maintenant = new Date();
+    const dans15Jours = new Date(maintenant.getTime() + 15 * 24 * 3600 * 1000);
 
     const [
       totalBoutiques,
       boutiquesActives,
       totalUsers,
       usersActifs,
-      totalVentes,
-      caTotal,
-      ventesMois,
-      caMois,
-      alertesStock,
+      abonnementsPayants,
+      abonnementsExpirant,
     ] = await Promise.all([
       Boutique.countDocuments(),
       Boutique.countDocuments({ actif: true }),
       User.countDocuments({ role: { $ne: 'superadmin' } }),
       User.countDocuments({ actif: true, role: { $ne: 'superadmin' } }),
-      Vente.countDocuments(),
-      Vente.aggregate([{ $group: { _id: null, total: { $sum: '$montantTotal' } } }]),
-      Vente.countDocuments({ dateVente: { $gte: debutMois } }),
-      Vente.aggregate([
-        { $match: { dateVente: { $gte: debutMois } } },
-        { $group: { _id: null, total: { $sum: '$montantTotal' } } }
-      ]),
-      Produit.countDocuments({ $expr: { $lte: ['$quantite', '$seuilAlerte'] } }),
+      Boutique.countDocuments({ abonnement: { $ne: 'gratuit' } }),
+      Boutique.countDocuments({ abonnement: { $ne: 'gratuit' }, abonnementExpireLe: { $ne: null, $gt: maintenant, $lte: dans15Jours } }),
     ]);
 
     res.json({
@@ -187,11 +178,8 @@ router.get('/stats-globales', verifierToken, autoriser('superadmin'), async (req
       boutiquesActives,
       totalUsers,
       usersActifs,
-      totalVentes,
-      caTotal: caTotal[0]?.total || 0,
-      ventesMois,
-      caMois: caMois[0]?.total || 0,
-      alertesStock,
+      abonnementsPayants,
+      abonnementsExpirant,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

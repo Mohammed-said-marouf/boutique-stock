@@ -9,6 +9,7 @@ import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMulti
 import QRCode from 'qrcode';
 import Tresorerie, { useVersementsEnAttente } from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
+import LicenceBoutique, { BandeauLicence } from '../components/Licence';
 
 import { API_URL } from '../config';
 
@@ -210,6 +211,7 @@ export default function AdminLayout() {
         )}
 
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '14px' : '24px' }}>
+          <BandeauLicence boutiqueId={user?.boutique?._id} versParametres="/admin/parametres" />
           <Routes>
             <Route path="" element={<AdminDashboard />} />
             <Route path="produits" element={<AdminProduits />} />
@@ -3227,7 +3229,7 @@ function AdminParametres({ user }) {
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Abonnement</label>
-            <div style={{ padding: '10px 16px', background: '#f1f5f9', borderRadius: '8px', fontSize: '14px', color: '#666', textTransform: 'capitalize' }}>{user?.boutique?.abonnement || 'Standard'}</div>
+            <LicenceBoutique boutiqueId={user?.boutique?._id} />
           </div>
 
           {messageBoutique && <div style={{ fontSize: '12.5px', color: messageBoutique.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: '10px' }}>{messageBoutique}</div>}

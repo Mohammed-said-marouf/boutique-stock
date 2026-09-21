@@ -13,7 +13,10 @@ const userSchema = new mongoose.Schema({
   // Boutique) — décidée par l'admin, le vendeur ne choisit pas. Non
   // pertinent pour les rôles admin/superadmin.
   caisseId: { type: String, ref: 'Caisse', default: null },
-  actif: { type: Boolean, default: true }
+  actif: { type: Boolean, default: true },
+  // Vrai après une réinitialisation par le super admin : l'utilisateur doit
+  // remplacer le mot de passe temporaire par le sien dès sa connexion.
+  doitChangerMotDePasse: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Format d'un hash bcrypt : $2a$10$... / $2b$10$... / $2y$10$..., toujours

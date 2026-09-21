@@ -33,6 +33,7 @@ app.use('/api/depenses', require('./routes/depenses'));
 app.use('/api/versements', require('./routes/versements'));
 app.use('/api/tresorerie', require('./routes/tresorerie'));
 app.use('/api/sauvegarde', require('./routes/sauvegarde'));
+app.use('/api/licences', require('./routes/licences'));
 app.use('/api/magasins', require('./routes/magasins'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/fournisseurs', require('./routes/fournisseurs'));
@@ -64,6 +65,7 @@ mongoose.connect(process.env.MONGO_URI)
       console.log('⚠️ Allègement des icônes ignoré :', err.message);
     }
     demarrerVerificationStock();
+    require('./services/abonnements').demarrerVerificationAbonnements();
     app.listen(process.env.PORT || 5000, () => {
       console.log('✅ Serveur démarré sur le port', process.env.PORT || 5000);
     });

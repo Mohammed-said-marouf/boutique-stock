@@ -10,6 +10,10 @@ const boutiqueSchema = new mongoose.Schema({
   email: String,
   logo: { type: String, default: null },
   abonnement: { type: String, enum: ['gratuit', 'standard', 'premium'], default: 'gratuit' },
+  // Fin de la licence en cours (voir models/Licence.js). null = sans échéance
+  // (plan gratuit, ou abonnement attribué à la main avant les licences).
+  // À l'échéance, la boutique repasse au plan gratuit (services/abonnements.js).
+  abonnementExpireLe: { type: Date, default: null },
   actif: { type: Boolean, default: true }
 }, { timestamps: true });
 
