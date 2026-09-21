@@ -1,0 +1,52 @@
+name: Build APK Android
+
+# Compile l'application Android (APK) des vendeurs.
+# Lancement : onglet "Actions" du dépôt GitHub -> "Build APK Android" -> "Run workflow"
+# (ou en poussant un tag "apk-*"). L'APK est ensuite téléchargeable dans les
+# "Artifacts" de l'exécution (rester connecté à GitHub pour y accéder).
+on:
+  workflow_dispatch:
+  push:
+    tags: ['apk-*']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Capacitor 7 exige Java 21
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Compiler le frontend React
+        working-directory: frontend
+        env:
+          CI: 'false' # ne pas transformer les avertissements ESLint en erreurs
+        run: |
+          npm ci
+          npm run build
+
+      - name: Synchroniser Capacitor
+        working-directory: mobile
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Compiler l'APK (release, signé)
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boutique-stock-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
