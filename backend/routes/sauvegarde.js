@@ -134,6 +134,9 @@ router.post('/restaurer', verifierToken, autoriser('admin'), async (req, res) =>
       for (const brut of docs) {
         if (!brut || typeof brut._id !== 'string' || (etape.verifier && !etape.verifier(brut))) { b.ignores++; continue; }
         try {
+          // Sauvegardes antérieures à l'approbation des versements : ils
+          // étaient déjà comptés dans les soldes, donc validés.
+          if (etape.cle === 'versements' && !brut.statut) brut.statut = 'valide';
           // Passe par le schéma Mongoose : validation + conversion des dates
           // ISO du fichier JSON, et écarte les champs inconnus.
           const doc = new etape.Modele({ ...brut, ...(etape.forcer || {}) });

@@ -54,6 +54,9 @@ mongoose.connect(process.env.MONGO_URI)
     console.log('✅ Connecté à MongoDB');
     const { migrerVersCaissesEtMagasins } = require('./migration/versCaissesEtMagasins');
     await migrerVersCaissesEtMagasins();
+    // À faire AVANT d'accepter des requêtes : sinon les anciens versements
+    // sortiraient des soldes de caisse.
+    await require('./migration/versementsValides').migrerVersementsValides();
     // Ne doit jamais empêcher le serveur de démarrer (ex: sharp indisponible).
     try {
       await require('./migration/optimiserIcones').optimiserIcones();

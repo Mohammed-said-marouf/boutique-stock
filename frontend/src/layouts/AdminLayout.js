@@ -7,7 +7,7 @@ import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
-import Tresorerie from '../components/Tresorerie';
+import Tresorerie, { useVersementsEnAttente } from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
 
 import { API_URL } from '../config';
@@ -50,6 +50,8 @@ export default function AdminLayout() {
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(isMobile);
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  // Pastille de notification : versements des vendeurs à approuver
+  const nbVersementsAttente = useVersementsEnAttente(user?.role === 'admin');
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const fermerMenuMobile = () => { if (isMobile) setCollapsed(true); };
@@ -111,6 +113,13 @@ export default function AdminLayout() {
                 <Icone nom={item.iconKey} size={19} />
               </div>
               {!collapsed && <span>{item.label}</span>}
+              {item.path === '/admin/tresorerie' && nbVersementsAttente > 0 && (
+                <span title={`${nbVersementsAttente} versement(s) à approuver`} style={{
+                  marginLeft: collapsed ? '-8px' : 'auto', marginTop: collapsed ? '-14px' : 0,
+                  background: '#dc2626', color: 'white', borderRadius: '10px', padding: '1px 7px',
+                  fontSize: '11px', fontWeight: '700', minWidth: '18px', textAlign: 'center'
+                }}>{nbVersementsAttente}</span>
+              )}
             </NavLink>
           ))}
         </nav>

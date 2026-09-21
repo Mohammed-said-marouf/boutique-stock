@@ -8,7 +8,7 @@ const Versement = require('../models/Versement');
 const { verifierToken } = require('../middleware/auth');
 
 // GET /soldes - Solde d'espèces de chaque caisse visible par l'utilisateur :
-//   solde = ventes en espèces - dépenses - versements
+//   solde = ventes en espèces - dépenses - versements APPROUVÉS par l'admin
 // (vendeur : sa caisse ; admin : les caisses de son Compte ; superadmin : toutes).
 // Les ventes "en_ligne" ne passent pas par la caisse et sont exclues.
 router.get('/soldes', verifierToken, async (req, res) => {
@@ -31,10 +31,12 @@ router.get('/soldes', verifierToken, async (req, res) => {
       { $group: { _id: '$caisseId', total: { $sum: champ } } },
     ]).then(lignes => new Map(lignes.map(l => [l._id, l.total])));
 
-    const [ventes, depenses, versements] = await Promise.all([
+    const [ventes, depenses, versements, versementsEnAttente] = await Promise.all([
       totalParCaisse(Vente, '$montantTotal', { typeVente: { $ne: 'en_ligne' } }),
       totalParCaisse(Depense, '$montant'),
-      totalParCaisse(Versement, '$montant'),
+      // Seuls les versements APPROUVÉS par l'admin réduisent le solde
+      totalParCaisse(Versement, '$montant', { statut: 'valide' }),
+      totalParCaisse(Versement, '$montant', { statut: 'en_attente' }),
     ]);
 
     res.json(caisses.map(c => {
@@ -49,6 +51,7 @@ router.get('/soldes', verifierToken, async (req, res) => {
         ventes: v,
         depenses: d,
         versements: ver,
+        versementsEnAttente: versementsEnAttente.get(c._id) || 0,
         solde: v - d - ver,
       };
     }));

@@ -68,4 +68,36 @@ const envoyerEmailTest = async (utilisateur) => {
   await transporter.sendMail(mailOptions);
 };
 
-module.exports = { envoyerAlerteStock, envoyerEmailTest };
+// Prévient les admins d'un compte qu'un vendeur vient de déclarer un versement
+// à approuver. Ne lève jamais d'erreur : une panne d'envoi ne doit pas faire
+// échouer l'enregistrement du versement.
+const envoyerNotificationVersement = async (destinataires, { montant, nomAuteur, nomCaisse }) => {
+  if (!destinataires || destinataires.length === 0) return;
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  nomAuteur = esc(nomAuteur);
+  nomCaisse = esc(nomCaisse);
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: destinataires.join(','),
+      subject: `💰 Versement à approuver — ${Number(montant).toLocaleString('fr-FR')} FCFA`,
+      html: `
+        <div style="font-family: Arial; padding: 20px; background: #f0f2f5;">
+          <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; margin: auto;">
+            <h2 style="color: #2563eb;">💰 Nouveau versement à approuver</h2>
+            <p><strong>${nomAuteur || 'Un vendeur'}</strong> déclare vous avoir versé
+              <strong>${Number(montant).toLocaleString('fr-FR')} FCFA</strong>
+              (caisse « ${nomCaisse || '—'} »).</p>
+            <p>Il ne sera pris en compte dans le solde de la caisse qu'une fois approuvé.</p>
+            <p style="color: #888;">Connectez-vous sur <a href="https://boutique-stock.vercel.app">Boutique Stock</a> →
+              Dépenses &amp; versements pour l'approuver ou le refuser.</p>
+          </div>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.log('❌ Erreur envoi email versement :', err.message);
+  }
+};
+
+module.exports = { envoyerAlerteStock, envoyerEmailTest, envoyerNotificationVersement };
