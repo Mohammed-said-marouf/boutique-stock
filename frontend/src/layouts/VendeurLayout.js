@@ -395,15 +395,17 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
   const [erreur, setErreur] = useState('');
 
   // ----- Caisse de vente -----
-  // Le stock affecté par une vente est celui d'une CAISSE précise (le stock
-  // Magasin n'est qu'une réserve, jamais vendu directement — voir
-  // backend/routes/ventes.js). La caisse est assignée fixement par l'admin
-  // (voir Utilisateurs → Vendeurs) — le vendeur ne la choisit pas.
+  // Le stock affecté par une vente est celui de la BOUTIQUE de la caisse
+  // (partagé par toutes ses caisses ; le stock Magasin n'est qu'une réserve,
+  // jamais vendu directement — voir backend/routes/ventes.js). La caisse est
+  // assignée fixement par l'admin (voir Utilisateurs → Vendeurs) — le vendeur
+  // ne la choisit pas.
+  const comptoirId = caisseInfo?.comptoirId?._id || caisseInfo?.comptoirId || null;
 
-  // Stock vendable d'un produit À LA CAISSE assignée (pas p.quantite, qui
-  // est le stock Magasin, non vendable directement).
-  const stockCaisseDe = (produit) => {
-    const entree = (produit.stockCaisses || []).find(sc => (sc.caisse?._id || sc.caisse) === caisseId);
+  // Stock vendable d'un produit DANS LA BOUTIQUE de la caisse assignée (pas
+  // p.quantite, qui est le stock Magasin, non vendable directement).
+  const stockBoutiqueDe = (produit) => {
+    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
     return entree ? entree.quantite : 0;
   };
 
@@ -446,9 +448,9 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
           setScanMessage({ type: 'erreur', texte: `Produit introuvable ou plus disponible : ${donnees.nom || ''}` });
           return;
         }
-        if (stockCaisseDe(produit) <= 0) {
+        if (stockBoutiqueDe(produit) <= 0) {
           bipErreur();
-          setScanMessage({ type: 'erreur', texte: `Rupture de stock à cette caisse : ${produit.nom}` });
+          setScanMessage({ type: 'erreur', texte: `Rupture de stock dans cette boutique : ${produit.nom}` });
           return;
         }
 
@@ -483,14 +485,14 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
   }, []);
 
   const produitsFiltres = produits
-    .filter(p => stockCaisseDe(p) > 0)
+    .filter(p => stockBoutiqueDe(p) > 0)
     .filter(p =>
       p.nom.toLowerCase().includes(recherche.toLowerCase()) ||
       (p.categorie && p.categorie.toLowerCase().includes(recherche.toLowerCase()))
     );
 
   const ajouterAuPanier = (produit) => {
-    const stockDispo = stockCaisseDe(produit);
+    const stockDispo = stockBoutiqueDe(produit);
     setPanier(prev => {
       const existant = prev.find(p => p._id === produit._id);
       if (existant) {
@@ -506,7 +508,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       if (p._id !== id) return p;
       const newQte = p.qte + delta;
       if (newQte <= 0) return null;
-      if (newQte > stockCaisseDe(p)) return p;
+      if (newQte > stockBoutiqueDe(p)) return p;
       return { ...p, qte: newQte };
     }).filter(Boolean));
   };
@@ -562,6 +564,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
         // sécurité pour qu'un vendeur ne puisse pas vendre "au nom" d'une
         // autre caisse. On l'envoie quand même pour la clarté des logs.
         caisseId,
+        comptoirId,
       };
 
       const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
@@ -581,8 +584,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
         if (!vendu) return p;
         return {
           ...p,
-          stockCaisses: (p.stockCaisses || []).map(sc =>
-            (sc.caisse?._id || sc.caisse) === caisseId
+          stockComptoirs: (p.stockComptoirs || []).map(sc =>
+            (sc.comptoir?._id || sc.comptoir) === comptoirId
               ? { ...sc, quantite: sc.quantite - vendu.qte }
               : sc
           ),
@@ -789,8 +792,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#059669', marginBottom: '4px' }}>
                   {(p.prix || 0).toLocaleString()} FCFA
                 </div>
-                <div style={{ fontSize: '11px', color: stockCaisseDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
-                  Stock caisse : {stockCaisseDe(p)}
+                <div style={{ fontSize: '11px', color: stockBoutiqueDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
+                  Stock boutique : {stockBoutiqueDe(p)}
                 </div>
               </div>
             ))}
@@ -1025,7 +1028,7 @@ function ProduitsVendeur() {
                   background: p.quantite === 0 ? '#fee2e2' : p.quantite <= p.seuilAlerte ? '#fef9c3' : '#dcfce7',
                   color: p.quantite === 0 ? '#dc2626' : p.quantite <= p.seuilAlerte ? '#ca8a04' : '#16a34a',
                   padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600'
-                }} title="Stock au Magasin (réserve) — le stock réellement vendable dépend du comptoir, voir Nouvelle vente">Stock magasin : {p.quantite}</span>
+                }} title="Stock au Magasin (réserve) — le stock réellement vendable est celui de la boutique, voir Nouvelle vente">Stock magasin : {p.quantite}</span>
               </div>
             </div>
           ))}

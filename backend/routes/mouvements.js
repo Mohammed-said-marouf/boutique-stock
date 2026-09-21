@@ -14,6 +14,7 @@ router.get('/', verifierToken, async (req, res) => {
     const mouvements = await MouvementStock.find(filtre)
       .populate('produit', 'nom image')
       .populate('magasinId', 'nom')
+      .populate('comptoirDestination', 'nom')
       .populate({ path: 'caisseDestination', select: 'nom comptoirId', populate: { path: 'comptoirId', select: 'nom' } })
       .sort({ createdAt: -1 })
       .limit(100);
@@ -26,7 +27,7 @@ router.get('/', verifierToken, async (req, res) => {
 // POST - Enregistrer un mouvement (entrée/"approvisionnement", ou sortie) sur
 // le stock d'UN MAGASIN précis (un Compte peut en avoir plusieurs), et
 // recalculer produit.quantite (total tous magasins confondus). Pour déplacer
-// du stock d'un magasin vers une caisse, voir POST /api/produits/:id/transferer
+// du stock d'un magasin vers une boutique, voir POST /api/produits/:id/transferer
 // (crée un mouvement type "transfert").
 router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {

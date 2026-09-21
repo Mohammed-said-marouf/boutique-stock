@@ -8,11 +8,15 @@ const mouvementStockSchema = new mongoose.Schema({
   type: { type: String, enum: ['entree', 'sortie', 'transfert'], required: true },
   // Le magasin concerné par ce mouvement. Pour 'entree'/'sortie' : le
   // magasin dont le stock change. Pour 'transfert' : le magasin SOURCE
-  // (la destination est caisseDestination ci-dessous).
+  // (la destination est comptoirDestination ci-dessous).
   magasinId: { type: String, ref: 'Magasin', default: null },
   quantite: { type: Number, required: true },
   stockRestant: { type: Number, required: true }, // stock de CE magasin après ce mouvement
-  // Rempli uniquement pour type='transfert' : la caisse qui a reçu le stock.
+  // Rempli uniquement pour type='transfert' : la boutique (Comptoir) qui a
+  // reçu le stock.
+  comptoirDestination: { type: String, ref: 'Comptoir', default: null },
+  // Ancien système (stock par caisse) : uniquement renseigné sur l'historique
+  // antérieur, conservé pour que ces anciens transferts restent lisibles.
   caisseDestination: { type: String, ref: 'Caisse', default: null },
   note: { type: String, default: '' },
 }, { timestamps: true });

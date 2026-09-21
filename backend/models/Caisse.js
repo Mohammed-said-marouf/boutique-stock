@@ -2,10 +2,10 @@ const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
 // Une Caisse = un point de vente concret au sein d'une Boutique (ex: "Caisse 1",
-// "Caisse rapide"). Une Boutique peut en avoir plusieurs. Le stock vendable de
-// chaque produit à CETTE caisse est stocké sur le produit lui-même, dans
-// Produit.stockCaisses (voir models/Produit.js) — ce modèle ne décrit que la
-// caisse en tant que telle.
+// "Caisse rapide"). Une Boutique peut en avoir plusieurs. Une caisse ne porte
+// PAS de stock : le stock vendable est au niveau de la Boutique et partagé par
+// toutes ses caisses (Produit.stockComptoirs, voir models/Produit.js). La
+// caisse sert à assigner un vendeur et à tracer d'où vient chaque vente.
 const caisseSchema = new mongoose.Schema({
   _id: { type: String, default: uuidv4 },
   nom: { type: String, required: true },

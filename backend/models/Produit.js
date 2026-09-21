@@ -15,17 +15,18 @@ const produitSchema = new mongoose.Schema({
   quantite: { type: Number, required: true, default: 0 },
   // Stock par MAGASIN (réserve). Un même produit peut être réparti sur
   // plusieurs magasins d'un même Compte. Pour rendre du stock vendable, il
-  // faut le transférer d'un magasin vers une caisse via
+  // faut le transférer d'un magasin vers une boutique via
   // POST /api/produits/:id/transferer.
   stockMagasins: [{
     magasin: { type: String, ref: 'Magasin' },
     quantite: { type: Number, default: 0 },
   }],
-  // Stock par CAISSE (point de vente concret, au sein d'une Boutique). C'est
-  // CE stock qui est décompté à la vente (caisse classique ou scan QR) —
-  // jamais le stock Magasin directement, voir routes/ventes.js.
-  stockCaisses: [{
-    caisse: { type: String, ref: 'Caisse' },
+  // Stock par BOUTIQUE (point de vente, modèle Mongoose "Comptoir"). Il est
+  // partagé par toutes les caisses de la boutique : c'est CE stock qui est
+  // décompté à la vente (caisse classique ou scan QR), jamais le stock
+  // Magasin directement — voir routes/ventes.js.
+  stockComptoirs: [{
+    comptoir: { type: String, ref: 'Comptoir' },
     quantite: { type: Number, default: 0 },
   }],
   categorie: { type: String, required: true },

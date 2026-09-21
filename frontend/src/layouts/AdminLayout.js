@@ -465,7 +465,7 @@ function AdminProduits() {
 
   const [envoiActionGroupee, setEnvoiActionGroupee] = useState(false);
   const [demandeQuantiteQRGroupee, setDemandeQuantiteQRGroupee] = useState(null); // { valeur }
-  const [transfertGroupe, setTransfertGroupe] = useState(null); // { magasinId, boutiqueId, caisseId }
+  const [transfertGroupe, setTransfertGroupe] = useState(null); // { magasinId, comptoirId }
   const [erreurTransfertGroupe, setErreurTransfertGroupe] = useState('');
 
   const genererQRSelection = () => {
@@ -500,13 +500,13 @@ function AdminProduits() {
 
   const ouvrirTransfertSelection = () => {
     setErreurTransfertGroupe('');
-    setTransfertGroupe({ magasinId: magasins[0]?._id || '', boutiqueId: boutiques[0]?._id || '', caisseId: '' });
+    setTransfertGroupe({ magasinId: magasins[0]?._id || '', comptoirId: boutiques[0]?._id || '' });
   };
 
   const confirmerTransfertSelection = async () => {
-    const { magasinId, caisseId } = transfertGroupe;
+    const { magasinId, comptoirId } = transfertGroupe;
     if (!magasinId) { setErreurTransfertGroupe('Choisissez un magasin source.'); return; }
-    if (!caisseId) { setErreurTransfertGroupe('Choisissez une caisse de destination.'); return; }
+    if (!comptoirId) { setErreurTransfertGroupe('Choisissez une boutique de destination.'); return; }
     const produitsSelectionnes = produits.filter(p => selection.has(p._id) && stockDansMagasinGroupe(p, magasinId) > 0);
     if (produitsSelectionnes.length === 0) { setErreurTransfertGroupe("Aucun produit sélectionné n'a de stock dans ce magasin."); return; }
 
@@ -517,7 +517,7 @@ function AdminProduits() {
         fetch(`${API_URL}/api/produits/${p._id}/transferer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ magasinId, caisseId, quantite: stockDansMagasinGroupe(p, magasinId) }),
+          body: JSON.stringify({ magasinId, comptoirId, quantite: stockDansMagasinGroupe(p, magasinId) }),
         })
       ));
       const echecs = resultats.filter(r => !r.ok).length;
@@ -558,14 +558,8 @@ function AdminProduits() {
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setBoutiques(d.filter(b => b.actif)); });
   };
 
-  const [caisses, setCaisses] = useState([]);
-  const chargerCaisses = () => {
-    fetch(`${API_URL}/api/caisses`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setCaisses(d.filter(c => c.actif)); });
-  };
-
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); chargerMagasins(); chargerBoutiques(); chargerCaisses(); }, []);
+  useEffect(() => { charger(); chargerMagasins(); chargerBoutiques(); }, []);
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -775,7 +769,7 @@ function AdminProduits() {
           }}>
             <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e40af' }}>{selection.size} sélectionné(s)</span>
             <button onClick={genererQRSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#16a34a', fontWeight: '600' }}>🔳 Générer QR</button>
-            <button onClick={ouvrirTransfertSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>🏪 Transférer tout vers un comptoir</button>
+            <button onClick={ouvrirTransfertSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>🏪 Transférer tout vers une boutique</button>
             <button onClick={exporterSelectionExcel} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#475569', fontWeight: '600' }}>📊 Exporter Excel</button>
             <button onClick={supprimerSelection} disabled={envoiActionGroupee} style={{ padding: '6px 12px', background: 'white', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626', fontWeight: '600' }}>🗑️ Supprimer</button>
             <button onClick={viderSelection} style={{ marginLeft: 'auto', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#94a3b8' }}>Annuler</button>
@@ -885,9 +879,9 @@ function AdminProduits() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
-            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une caisse</h3>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une boutique</h3>
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
-              Transfère <strong>tout le stock disponible dans le magasin choisi</strong> de chaque produit sélectionné vers la caisse choisie.
+              Transfère <strong>tout le stock disponible dans le magasin choisi</strong> de chaque produit sélectionné vers la boutique choisie.
             </p>
             {magasins.length === 0 ? (
               <div style={{ fontSize: '13px', color: '#dc2626' }}>Aucun magasin actif — créez-en un dans Stocks → Magasins.</div>
@@ -900,18 +894,10 @@ function AdminProduits() {
                 </select>
 
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Boutique de destination</label>
-                <select value={transfertGroupe.boutiqueId} onChange={e => setTransfertGroupe({ ...transfertGroupe, boutiqueId: e.target.value, caisseId: '' })}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
-                  {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
-                </select>
-
-                <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Caisse de destination</label>
-                <select value={transfertGroupe.caisseId} onChange={e => setTransfertGroupe({ ...transfertGroupe, caisseId: e.target.value })}
+                <select value={transfertGroupe.comptoirId} onChange={e => setTransfertGroupe({ ...transfertGroupe, comptoirId: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
-                  <option value="">-- Choisir une caisse --</option>
-                  {caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === transfertGroupe.boutiqueId).map(c => (
-                    <option key={c._id} value={c._id}>{c.nom}</option>
-                  ))}
+                  <option value="">-- Choisir une boutique --</option>
+                  {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
                 </select>
               </>
             )}
@@ -1196,7 +1182,6 @@ function AdminStocks() {
   const [envoiBoutique, setEnvoiBoutique] = useState(false);
 
   const [caisses, setCaisses] = useState([]); // TOUTES les caisses du Compte (filtrées côté client par boutique)
-  const [caisseSelectionnee, setCaisseSelectionnee] = useState('');
   const [nouvelleCaisseNom, setNouvelleCaisseNom] = useState('');
   const [envoiCaisse, setEnvoiCaisse] = useState(false);
 
@@ -1312,8 +1297,8 @@ function AdminStocks() {
 
   const caissesDeLaBoutique = caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === boutiqueSelectionnee);
 
-  // ---------- Transfert Magasin -> Caisse ----------
-  const [transfertProduit, setTransfertProduit] = useState(null); // { produit, magasinId, boutiqueId, caisseId, quantite }
+  // ---------- Transfert Magasin -> Boutique ----------
+  const [transfertProduit, setTransfertProduit] = useState(null); // { produit, magasinId, comptoirId, quantite }
   const [envoiTransfert, setEnvoiTransfert] = useState(false);
   const [erreurTransfert, setErreurTransfert] = useState('');
 
@@ -1322,18 +1307,17 @@ function AdminStocks() {
     setTransfertProduit({
       produit,
       magasinId: magasinIdPreselectionne || magasins[0]?._id || '',
-      boutiqueId: boutiques[0]?._id || '',
-      caisseId: '',
+      comptoirId: boutiques.find(b => b.actif)?._id || '',
       quantite: '',
     });
   };
 
   const confirmerTransfert = async () => {
     if (!transfertProduit) return;
-    const { produit, magasinId, caisseId, quantite } = transfertProduit;
+    const { produit, magasinId, comptoirId, quantite } = transfertProduit;
     const qte = parseInt(quantite, 10);
     if (!magasinId) { setErreurTransfert('Choisissez un magasin source.'); return; }
-    if (!caisseId) { setErreurTransfert('Choisissez une caisse de destination.'); return; }
+    if (!comptoirId) { setErreurTransfert('Choisissez une boutique de destination.'); return; }
     if (!qte || qte <= 0) { setErreurTransfert('Quantité invalide.'); return; }
     const dispo = stockDansMagasin(produit, magasinId);
     if (qte > dispo) { setErreurTransfert(`Stock insuffisant dans ce magasin (disponible : ${dispo}).`); return; }
@@ -1344,7 +1328,7 @@ function AdminStocks() {
       const res = await fetch(`${API_URL}/api/produits/${produit._id}/transferer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ magasinId, caisseId, quantite: qte }),
+        body: JSON.stringify({ magasinId, comptoirId, quantite: qte }),
       });
       const data = await res.json();
       if (!res.ok) { setErreurTransfert(data.message || 'Erreur'); return; }
@@ -1363,8 +1347,8 @@ function AdminStocks() {
     return entree ? entree.quantite : 0;
   };
 
-  const stockDansCaisse = (produit, caisseId) => {
-    const entree = (produit.stockCaisses || []).find(sc => (sc.caisse?._id || sc.caisse) === caisseId);
+  const stockDansBoutique = (produit, comptoirId) => {
+    const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir?._id || sc.comptoir) === comptoirId);
     return entree ? entree.quantite : 0;
   };
 
@@ -1416,9 +1400,8 @@ function AdminStocks() {
   const origineDestination = (m) => {
     if (m.type === 'transfert') {
       const magasinNom = m.magasinId?.nom || '—';
-      const caisseNom = m.caisseDestination?.nom || '—';
-      const boutiqueNom = m.caisseDestination?.comptoirId?.nom;
-      return `${magasinNom} → ${caisseNom}${boutiqueNom ? ' (' + boutiqueNom + ')' : ''}`;
+      const boutiqueNom = m.comptoirDestination?.nom || m.caisseDestination?.comptoirId?.nom || '—';
+      return `${magasinNom} → ${boutiqueNom}`;
     }
     if (m.magasinId?.nom) return `Magasin : ${m.magasinId.nom}`;
     return '—';
@@ -1434,14 +1417,13 @@ function AdminStocks() {
   const origineDestinationBadges = (m) => {
     if (m.type === 'transfert') {
       const magasinNom = m.magasinId?.nom;
-      const caisseNom = m.caisseDestination?.nom;
-      const boutiqueNom = m.caisseDestination?.comptoirId?.nom;
-      if (!magasinNom && !caisseNom) return <span style={{ color: '#ccc', fontSize: '13px' }}>—</span>;
+      const boutiqueNom = m.comptoirDestination?.nom || m.caisseDestination?.comptoirId?.nom;
+      if (!magasinNom && !boutiqueNom) return <span style={{ color: '#ccc', fontSize: '13px' }}>—</span>;
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           {badgePill(magasinNom || '—', '#dcfce7', '#16a34a', '🏬')}
           <span style={{ color: '#ccc', fontSize: '12px' }}>→</span>
-          {badgePill(caisseNom ? `${caisseNom}${boutiqueNom ? ' · ' + boutiqueNom : ''}` : '—', '#ffedd5', '#ea580c', '🏪')}
+          {badgePill(boutiqueNom || '—', '#ffedd5', '#ea580c', '🏪')}
         </div>
       );
     }
@@ -1785,7 +1767,7 @@ function AdminStocks() {
                 Stock — {magasins.find(m => m._id === magasinSelectionne)?.nom}
               </h3>
               <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#666' }}>
-                Ce stock n'est pas vendable tel quel — transférez-le vers une caisse pour qu'il devienne disponible à la vente.
+                Ce stock n'est pas vendable tel quel — transférez-le vers une boutique pour qu'il devienne disponible à la vente.
               </p>
               {produits.filter(p => stockDansMagasin(p, magasinSelectionne) > 0).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>Aucun stock dans ce magasin pour l'instant.</div>
@@ -1882,11 +1864,10 @@ function AdminStocks() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {caissesDeLaBoutique.map(c => (
-                      <div key={c._id} onClick={() => setCaisseSelectionnee(c._id)} style={{
+                      <div key={c._id} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-                        background: caisseSelectionnee === c._id ? '#f0fdf4' : '#f8fafc',
-                        border: '1px solid ' + (caisseSelectionnee === c._id ? '#bbf7d0' : '#e2e8f0'),
+                        padding: '10px 12px', borderRadius: '8px',
+                        background: '#f8fafc', border: '1px solid #e2e8f0',
                       }}>
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: '600', color: c.actif ? '#333' : '#aaa' }}>{c.nom}</div>
@@ -1906,10 +1887,10 @@ function AdminStocks() {
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: '15px' }}>
-              Stock {caisses.find(c => c._id === caisseSelectionnee)?.nom ? `— ${caisses.find(c => c._id === caisseSelectionnee).nom}` : ''}
+              Stock {boutiques.find(b => b._id === boutiqueSelectionnee)?.nom ? `— ${boutiques.find(b => b._id === boutiqueSelectionnee).nom}` : ''}
             </h3>
-            {!caisseSelectionnee ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Sélectionnez une caisse pour voir son stock.</div>
+            {!boutiqueSelectionnee ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Sélectionnez une boutique pour voir son stock.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '300px' }}>
@@ -1921,16 +1902,16 @@ function AdminStocks() {
                     </tr>
                   </thead>
                   <tbody>
-                    {produits.filter(p => stockDansCaisse(p, caisseSelectionnee) > 0).map(p => (
+                    {produits.filter(p => stockDansBoutique(p, boutiqueSelectionnee) > 0).map(p => (
                       <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                         <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
                         <td style={{ padding: '10px 8px', color: '#2563eb' }}>{p.ref || '—'}</td>
-                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockDansCaisse(p, caisseSelectionnee)}</td>
+                        <td style={{ padding: '10px 8px', color: '#333', fontWeight: '700' }}>{stockDansBoutique(p, boutiqueSelectionnee)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {produits.every(p => stockDansCaisse(p, caisseSelectionnee) === 0) && (
+                {produits.every(p => stockDansBoutique(p, boutiqueSelectionnee) === 0) && (
                   <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>
                     Aucun stock ici — transférez des produits depuis l'onglet "🏬 Magasins".
                   </div>
@@ -1947,7 +1928,7 @@ function AdminStocks() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
-            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une caisse</h3>
+            <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '16px' }}>Transférer vers une boutique</h3>
             <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
               <strong>{transfertProduit.produit.nom}</strong>
             </p>
@@ -1962,18 +1943,10 @@ function AdminStocks() {
             </div>
 
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Boutique de destination</label>
-            <select value={transfertProduit.boutiqueId} onChange={e => setTransfertProduit({ ...transfertProduit, boutiqueId: e.target.value, caisseId: '' })}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
-              {boutiques.map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
-            </select>
-
-            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Caisse de destination</label>
-            <select value={transfertProduit.caisseId} onChange={e => setTransfertProduit({ ...transfertProduit, caisseId: e.target.value })}
+            <select value={transfertProduit.comptoirId} onChange={e => setTransfertProduit({ ...transfertProduit, comptoirId: e.target.value })}
               style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' }}>
               <option value="">-- Choisir --</option>
-              {caisses.filter(c => (c.comptoirId?._id || c.comptoirId) === transfertProduit.boutiqueId).map(c => (
-                <option key={c._id} value={c._id}>{c.nom}</option>
-              ))}
+              {boutiques.filter(b => b.actif).map(b => <option key={b._id} value={b._id}>{b.nom}</option>)}
             </select>
 
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Quantité à transférer</label>

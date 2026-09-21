@@ -31,6 +31,9 @@ router.post('/', verifierToken, async (req, res) => {
     // lue depuis son propre token — jamais depuis une valeur envoyée par le
     // client, pour qu'un vendeur ne puisse pas vendre "au nom" d'une autre
     // caisse). Un admin/superadmin, non fixé à une caisse, doit la préciser.
+    // Le stock décompté est celui de la BOUTIQUE de cette caisse (partagé par
+    // toutes ses caisses) ; la caisse est conservée sur la vente pour la
+    // traçabilité.
     const caisseId = req.user.role === 'vendeur' ? req.user.caisseId : (req.body.caisseId || req.user.caisseId);
     if (!caisseId) {
       return res.status(400).json({
@@ -43,24 +46,29 @@ router.post('/', verifierToken, async (req, res) => {
       return res.status(400).json({ message: 'Le panier est vide.' });
     }
 
+    const Caisse = require('../models/Caisse');
+    const caisse = await Caisse.findById(caisseId);
+    if (!caisse) return res.status(400).json({ message: 'Caisse introuvable.' });
+    const comptoirId = caisse.comptoirId;
+
     // Validation préalable : on vérifie que CHAQUE produit a bien assez de
-    // stock à cette caisse avant de committer quoi que ce soit — pour ne
+    // stock dans cette boutique avant de committer quoi que ce soit — pour ne
     // jamais laisser une vente à moitié appliquée.
     const produitsCharges = await Promise.all(lignes.map(item => Produit.findById(item.produit)));
     for (let i = 0; i < lignes.length; i++) {
       const produit = produitsCharges[i];
       if (!produit) return res.status(404).json({ message: `Produit introuvable (id: ${lignes[i].produit}).` });
-      const entree = (produit.stockCaisses || []).find(sc => sc.caisse === caisseId);
+      const entree = (produit.stockComptoirs || []).find(sc => sc.comptoir === comptoirId);
       const dispo = entree ? entree.quantite : 0;
       if (dispo < lignes[i].quantite) {
-        return res.status(400).json({ message: `Stock insuffisant à cette caisse pour "${produit.nom}" (disponible : ${dispo}).` });
+        return res.status(400).json({ message: `Stock insuffisant dans cette boutique pour "${produit.nom}" (disponible : ${dispo}).` });
       }
     }
 
     for (const item of lignes) {
       await Produit.updateOne(
-        { _id: item.produit, 'stockCaisses.caisse': caisseId },
-        { $inc: { 'stockCaisses.$.quantite': -item.quantite } }
+        { _id: item.produit, 'stockComptoirs.comptoir': comptoirId },
+        { $inc: { 'stockComptoirs.$.quantite': -item.quantite } }
       );
     }
     const numFacture = 'FAC-' + Date.now().toString().slice(-6);
@@ -68,13 +76,10 @@ router.post('/', verifierToken, async (req, res) => {
 
     // comptoirId (la Boutique) dénormalisé depuis la caisse, pour pouvoir
     // filtrer les ventes par Boutique sans jointure supplémentaire.
-    const Caisse = require('../models/Caisse');
-    const caisse = await Caisse.findById(caisseId);
-
     const vente = new Vente({
       ...req.body,
       caisseId,
-      comptoirId: caisse ? caisse.comptoirId : null,
+      comptoirId,
       numFacture,
       boutiqueId
     });

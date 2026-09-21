@@ -13,7 +13,7 @@ router.get('/', verifierToken, async (req, res) => {
     }
     const produits = await Produit.find(filtre).populate('fournisseur')
       .populate('stockMagasins.magasin', 'nom actif')
-      .populate('stockCaisses.caisse', 'nom actif comptoirId');
+      .populate('stockComptoirs.comptoir', 'nom actif');
     res.json(produits);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -130,15 +130,15 @@ router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (re
   }
 });
 
-// POST - Transférer du stock d'un Magasin vers une Caisse (admin/superadmin
+// POST - Transférer du stock d'un Magasin vers une Boutique (admin/superadmin
 // uniquement — seul l'admin décide de ce qui part en vente). Crée aussi un
 // mouvement de stock de type "transfert" pour garder l'historique.
 router.post('/:id/transferer', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
-    const { magasinId, caisseId, quantite } = req.body;
+    const { magasinId, comptoirId, quantite } = req.body;
     const qte = Number(quantite);
-    if (!magasinId || !caisseId || !qte || qte <= 0) {
-      return res.status(400).json({ message: 'magasinId, caisseId et quantite (> 0) sont requis.' });
+    if (!magasinId || !comptoirId || !qte || qte <= 0) {
+      return res.status(400).json({ message: 'magasinId, comptoirId et quantite (> 0) sont requis.' });
     }
 
     const produit = await Produit.findById(req.params.id);
@@ -146,6 +146,12 @@ router.post('/:id/transferer', verifierToken, autoriser('superadmin', 'admin'), 
 
     if (req.user.role === 'admin' && produit.boutiqueId !== req.user.boutiqueId) {
       return res.status(403).json({ message: 'Accès refusé.' });
+    }
+
+    const Comptoir = require('../models/Comptoir');
+    const comptoir = await Comptoir.findById(comptoirId);
+    if (!comptoir || comptoir.boutiqueId !== produit.boutiqueId) {
+      return res.status(404).json({ message: 'Boutique de destination introuvable.' });
     }
 
     const ligneMagasin = produit.stockMagasins.find(sm => sm.magasin === magasinId);
@@ -157,11 +163,11 @@ router.post('/:id/transferer', verifierToken, autoriser('superadmin', 'admin'), 
     ligneMagasin.quantite -= qte;
     produit.quantite = produit.stockMagasins.reduce((s, sm) => s + sm.quantite, 0); // total Magasin recalculé
 
-    const ligneCaisse = produit.stockCaisses.find(sc => sc.caisse === caisseId);
-    if (ligneCaisse) {
-      ligneCaisse.quantite += qte;
+    const ligneComptoir = produit.stockComptoirs.find(sc => sc.comptoir === comptoirId);
+    if (ligneComptoir) {
+      ligneComptoir.quantite += qte;
     } else {
-      produit.stockCaisses.push({ caisse: caisseId, quantite: qte });
+      produit.stockComptoirs.push({ comptoir: comptoirId, quantite: qte });
     }
     await produit.save();
 
@@ -173,12 +179,12 @@ router.post('/:id/transferer', verifierToken, autoriser('superadmin', 'admin'), 
       magasinId,
       quantite: qte,
       stockRestant: ligneMagasin.quantite,
-      caisseDestination: caisseId,
+      comptoirDestination: comptoirId,
       note: req.body.note || '',
     }).save();
 
     await produit.populate('stockMagasins.magasin', 'nom actif');
-    await produit.populate('stockCaisses.caisse', 'nom actif comptoirId');
+    await produit.populate('stockComptoirs.comptoir', 'nom actif');
     res.json(produit);
   } catch (err) {
     res.status(400).json({ message: err.message });

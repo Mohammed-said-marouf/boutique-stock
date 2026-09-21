@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Caisse = require('../models/Caisse');
 const Comptoir = require('../models/Comptoir');
-const Produit = require('../models/Produit');
 const { verifierToken, autoriser } = require('../middleware/auth');
 
 // Vérifie que le comptoir (Boutique) appartient bien à la boutique (Compte)
@@ -65,22 +64,13 @@ router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), async (req, 
   }
 });
 
-// DELETE - Supprimer une caisse — refusé s'il reste du stock dessus
+// DELETE - Supprimer une caisse (elle ne porte aucun stock : il est au niveau boutique)
 router.delete('/:id', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
     const caisse = await Caisse.findById(req.params.id);
     if (!caisse) return res.status(404).json({ message: 'Caisse introuvable.' });
     if (!(await comptoirAccessible(caisse.comptoirId, req.user))) {
       return res.status(403).json({ message: 'Accès refusé.' });
-    }
-
-    const produitAvecStock = await Produit.findOne({
-      stockCaisses: { $elemMatch: { caisse: req.params.id, quantite: { $gt: 0 } } }
-    });
-    if (produitAvecStock) {
-      return res.status(400).json({
-        message: `Impossible de supprimer : il reste du stock sur cette caisse (ex: "${produitAvecStock.nom}"). Transférez-le d'abord ailleurs.`
-      });
     }
 
     await Caisse.findByIdAndDelete(req.params.id);
