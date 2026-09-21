@@ -54,6 +54,12 @@ mongoose.connect(process.env.MONGO_URI)
     console.log('✅ Connecté à MongoDB');
     const { migrerVersCaissesEtMagasins } = require('./migration/versCaissesEtMagasins');
     await migrerVersCaissesEtMagasins();
+    // Ne doit jamais empêcher le serveur de démarrer (ex: sharp indisponible).
+    try {
+      await require('./migration/optimiserIcones').optimiserIcones();
+    } catch (err) {
+      console.log('⚠️ Allègement des icônes ignoré :', err.message);
+    }
     demarrerVerificationStock();
     app.listen(process.env.PORT || 5000, () => {
       console.log('✅ Serveur démarré sur le port', process.env.PORT || 5000);

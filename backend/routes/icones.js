@@ -1,12 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const Icone = require('../models/Icone');
+const { optimiserIcone } = require('../utils/optimiserIcone');
 const { verifierToken, autoriser } = require('../middleware/auth');
 
 // GET - Récupérer tous les icônes
 router.get('/', async (req, res) => {
   try {
     const icones = await Icone.find().sort({ categorie: 1, cle: 1 });
+    // Ces données changent rarement mais sont demandées à chaque ouverture de
+    // l'appli : le navigateur/l'APK peut les garder 5 min, puis les réutiliser
+    // (le temps de les rafraîchir) jusqu'à 24 h si le réseau est mauvais.
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
     res.json(icones);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -20,7 +25,7 @@ router.put('/:cle', verifierToken, autoriser('superadmin'), async (req, res) => 
   try {
     const icone = await Icone.findOneAndUpdate(
       { cle: req.params.cle },
-      { valeur: req.body.valeur, $setOnInsert: { categorie: 'menu' } },
+      { valeur: await optimiserIcone(req.body.valeur), $setOnInsert: { categorie: 'menu' } },
       { new: true, upsert: true }
     );
     res.json(icone);

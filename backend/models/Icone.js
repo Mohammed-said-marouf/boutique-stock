@@ -6,7 +6,10 @@ const iconeSchema = new mongoose.Schema({
   cle: { type: String, required: true, unique: true }, // Ex: "dashboard", "produits", "ventes"
   valeur: { type: String, required: true }, // L'emoji ou icône : "📊", "📦", "💰"
   categorie: { type: String, required: true }, // "menu", "actions", "statuts"
-  description: String
+  description: String,
+  // Image d'origine avant allègement (voir migration/optimiserIcones.js).
+  // select:false => jamais renvoyée par l'API, sinon elle annulerait le gain.
+  valeurOriginale: { type: String, select: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Icone', iconeSchema);
