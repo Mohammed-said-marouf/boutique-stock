@@ -29,6 +29,9 @@ app.get('/', (req, res) => {
 app.use('/api/produits', require('./routes/produits'));
 app.use('/api/comptoirs', require('./routes/comptoirs'));
 app.use('/api/caisses', require('./routes/caisses'));
+app.use('/api/depenses', require('./routes/depenses'));
+app.use('/api/versements', require('./routes/versements'));
+app.use('/api/tresorerie', require('./routes/tresorerie'));
 app.use('/api/magasins', require('./routes/magasins'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/fournisseurs', require('./routes/fournisseurs'));

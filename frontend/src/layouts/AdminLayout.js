@@ -7,6 +7,7 @@ import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
+import Tresorerie from '../components/Tresorerie';
 
 import { API_URL } from '../config';
 
@@ -32,6 +33,7 @@ const menuItems = [
   { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
   { path: '/admin/stocks', iconKey: 'stock', label: 'Stocks' },
   { path: '/admin/ventes', iconKey: 'ventes', label: 'Ventes' },
+  { path: '/admin/tresorerie', iconKey: 'caisse', label: 'Dépenses & versements' },
   { path: '/admin/clients', iconKey: 'clients', label: 'Clients' },
   { path: '/admin/fournisseurs', iconKey: 'produits', label: 'Fournisseurs' },
   { path: '/admin/vendeurs', iconKey: 'utilisateurs', label: 'Utilisateurs (Vendeurs)' },
@@ -202,6 +204,7 @@ export default function AdminLayout() {
             <Route path="produits" element={<AdminProduits />} />
             <Route path="stocks" element={<AdminStocks />} />
             <Route path="ventes" element={<AdminVentes />} />
+            <Route path="tresorerie" element={<Tresorerie role="admin" />} />
             <Route path="clients" element={<AdminClients />} />
             <Route path="fournisseurs" element={<AdminFournisseurs />} />
             <Route path="vendeurs" element={<AdminVendeurs />} />

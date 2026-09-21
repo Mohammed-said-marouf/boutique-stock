@@ -7,6 +7,7 @@ import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 import { Html5Qrcode } from 'html5-qrcode';
 import { bipSucces, bipErreur } from '../utils/bip';
+import Tresorerie from '../components/Tresorerie';
 
 import { API_URL } from '../config';
 
@@ -38,6 +39,7 @@ const menuItems = [
   { path: '/vendeur/produits', iconKey: 'produits', label: 'Produits' },
   { path: '/vendeur/nouvelle-vente', iconKey: 'caisse', label: 'Nouvelle vente' },
   { path: '/vendeur/factures', iconKey: 'ventes', label: 'Mes factures' },
+  { path: '/vendeur/tresorerie', iconKey: 'caisse', label: 'Dépenses & versements' },
   { path: '/vendeur/clients', iconKey: 'clients', label: 'Clients' },
   { path: '/vendeur/profil', iconKey: 'utilisateurs', label: 'Mon profil' },
 ];
@@ -193,6 +195,7 @@ export default function VendeurLayout() {
             <Route path="nouvelle-vente" element={<CaisseVendeur nomVendeur={user?.nom} vendeurId={user?.id} boutique={user?.boutique} caisseId={user?.caisseId} caisseInfo={user?.caisse} />} />
             <Route path="produits" element={<ProduitsVendeur />} />
             <Route path="factures" element={<FacturesVendeur />} />
+            <Route path="tresorerie" element={<Tresorerie role="vendeur" caisseId={user?.caisseId} />} />
             <Route path="clients" element={<ClientsVendeur />} />
             <Route path="profil" element={<ProfilVendeur user={user} />} />
             <Route path="*" element={<div><h2>Page en construction</h2></div>} />
