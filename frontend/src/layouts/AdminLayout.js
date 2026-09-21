@@ -1280,6 +1280,25 @@ function AdminStocks() {
     } catch (e) { /* silencieux */ }
   };
 
+  const renommerCaisse = async (caisse) => {
+    const saisie = window.prompt('Nouveau nom de la caisse :', caisse.nom);
+    if (saisie === null) return; // annulé
+    const nom = saisie.trim();
+    if (!nom || nom === caisse.nom) return;
+    try {
+      const res = await fetch(`${API_URL}/api/caisses/${caisse._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom }),
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      chargerCaisses();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  };
+
   const supprimerCaisse = async (caisse) => {
     if (!window.confirm(`Supprimer la caisse "${caisse.nom}" ?`)) return;
     try {
@@ -1874,6 +1893,7 @@ function AdminStocks() {
                           {!c.actif && <div style={{ fontSize: '11px', color: '#dc2626' }}>Désactivée</div>}
                         </div>
                         <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => renommerCaisse(c)} title="Renommer" style={{ padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
                           <button onClick={() => basculerActifCaisse(c)} title={c.actif ? 'Désactiver' : 'Activer'} style={{ padding: '4px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{c.actif ? '⏸️' : '▶️'}</button>
                           <button onClick={() => supprimerCaisse(c)} title="Supprimer" style={{ padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>🗑️</button>
                         </div>
