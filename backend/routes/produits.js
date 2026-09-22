@@ -3,6 +3,7 @@ const router = express.Router();
 const Produit = require('../models/Produit');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const { genererReference } = require('../utils/reference');
+const { verifierLimiteProduits, limiteProduits } = require('../utils/limitesAbonnement');
 
 // GET - Lister tous les produits (accessible à tous les rôles connectés)
 router.get('/', verifierToken, async (req, res) => {
@@ -62,6 +63,9 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), upload.single(
     }
     delete data.magasinId; // champ de commodité, pas un vrai champ du modèle Produit
 
+    const verifLimite = await verifierLimiteProduits(data.boutiqueId);
+    if (!verifLimite.ok) return res.status(403).json({ message: verifLimite.message });
+
     // La référence est TOUJOURS générée par le serveur, à partir des
     // initiales du nom (jamais laissée au choix du client) — voir
     // utils/reference.js.
@@ -91,11 +95,23 @@ router.post('/import', verifierToken, autoriser('superadmin', 'admin'), async (r
     const Magasin = require('../models/Magasin');
     const premierMagasin = await Magasin.findOne({ boutiqueId, actif: true }).sort({ dateCreation: 1 });
 
+    // Limite du plan : vérifiée une fois au début (compte de départ), puis
+    // suivie en mémoire au fil des insertions — pas besoin de recompter en
+    // base à chaque ligne, et ça reste correct même si l'import dépasse la
+    // limite en cours de route (les lignes en trop sont listées en échec).
+    const Boutique = require('../models/Boutique');
+    const boutique = boutiqueId ? await Boutique.findById(boutiqueId, 'abonnement') : null;
+    const limite = boutique ? limiteProduits(boutique.abonnement) : Infinity;
+    let nbActuel = limite === Infinity ? 0 : await Produit.countDocuments({ boutiqueId });
+
     const succes = [];
     const echecs = [];
 
     for (let i = 0; i < lignes.length; i++) {
       try {
+        if (nbActuel >= limite) {
+          throw new Error(`Plan ${boutique.abonnement} limité à ${limite} produits (limite atteinte) — activez une licence pour continuer l'import.`);
+        }
         const data = { ...lignes[i], boutiqueId };
         data.ref = await genererReference(data.nom, boutiqueId);
         if (premierMagasin && Number(data.quantite) > 0) {
@@ -103,6 +119,7 @@ router.post('/import', verifierToken, autoriser('superadmin', 'admin'), async (r
         }
         const produit = new Produit(data);
         const enregistre = await produit.save();
+        nbActuel++;
         succes.push({ ligne: i + 1, nom: enregistre.nom });
       } catch (err) {
         echecs.push({ ligne: i + 1, nom: lignes[i]?.nom || '(sans nom)', erreur: err.message });

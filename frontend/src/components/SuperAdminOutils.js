@@ -16,7 +16,7 @@ const champ = { width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0',
 const couleursPlan = { premium: ['#ede9fe', '#7c3aed'], standard: ['#dbeafe', '#2563eb'], gratuit: ['#dcfce7', '#16a34a'] };
 
 const PLANS = [
-  { nom: 'Gratuit', prix: '0 FCFA', features: ['1 vendeur', '50 produits', 'Support email'], couleur: '#16a34a', fond: '#dcfce7' },
+  { nom: 'Gratuit', prix: '0 FCFA', features: ['1 vendeur', '5 produits', 'Support email'], couleur: '#16a34a', fond: '#dcfce7' },
   { nom: 'Standard', prix: '75 000 FCFA/an', features: ['5 vendeurs', '500 produits', 'Support prioritaire', 'Rapports avancés'], couleur: '#2563eb', fond: '#dbeafe' },
   { nom: 'Premium', prix: '150 000 FCFA/an', features: ['Vendeurs illimités', 'Produits illimités', 'Support 24/7', 'Toutes les fonctions'], couleur: '#7c3aed', fond: '#ede9fe' },
 ];

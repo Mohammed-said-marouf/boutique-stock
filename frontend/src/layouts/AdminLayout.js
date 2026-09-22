@@ -400,6 +400,7 @@ function AdminProduits() {
   const [envoi, setEnvoi] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '', magasinId: '' });
+  const [erreurForm, setErreurForm] = useState('');
 
   // --- Import Excel en masse ---
   const [apercuImport, setApercuImport] = useState(null); // tableau de lignes { numeroLigne, valide, erreurs, produit }
@@ -606,6 +607,7 @@ function AdminProduits() {
   const ajouter = async () => {
     if (!form.nom || !form.prix) return;
     setEnvoi(true);
+    setErreurForm('');
     const formData = new FormData();
     Object.keys(form).forEach(k => formData.append(k, form[k]));
     if (imageFile) formData.append('image', imageFile);
@@ -615,12 +617,26 @@ function AdminProduits() {
       : `${API_URL}/api/produits`;
     const method = editId ? 'PUT' : 'POST';
 
-    const reponse = await fetch(url, {
-      method,
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData
-    });
+    let reponse;
+    try {
+      reponse = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+    } catch (err) {
+      setErreurForm('Erreur réseau : ' + err.message);
+      setEnvoi(false);
+      return;
+    }
     const nouveauProduit = await reponse.json().catch(() => null);
+    if (!reponse.ok) {
+      // Le formulaire reste ouvert avec ce qui a été saisi (ex: plan gratuit
+      // limité à 5 produits — voir backend/utils/limitesAbonnement.js).
+      setErreurForm(nouveauProduit?.message || `Erreur (${reponse.status})`);
+      setEnvoi(false);
+      return;
+    }
     setForm({ nom: '', categorie: '', ref: '', prix: '', quantite: '', seuilAlerte: 5, description: '', magasinId: '' });
     setImageFile(null); setImagePreview(null); setShowForm(false); setEnvoi(false); setEditId(null);
     charger();
@@ -771,11 +787,16 @@ function AdminProduits() {
             </div>
           </div>
 
+          {erreurForm && (
+            <div style={{ marginTop: '14px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '13px', color: '#dc2626' }}>
+              ⚠️ {erreurForm}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
             <button onClick={ajouter} disabled={envoi} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1 }}>
               {envoi ? 'Enregistrement...' : editId ? '✏️ Enregistrer les modifications' : '✅ Enregistrer le produit'}
             </button>
-            <button onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); setEditId(null); }}
+            <button onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); setEditId(null); setErreurForm(''); }}
               style={{ padding: '10px 24px', background: '#f1f5f9', color: '#666', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annuler</button>
           </div>
         </div>
