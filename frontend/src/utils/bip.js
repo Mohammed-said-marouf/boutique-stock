@@ -40,3 +40,15 @@ export function bipErreur() {
   jouerTon(300, 150);
   setTimeout(() => jouerTon(220, 200), 160);
 }
+
+// À appeler UNE FOIS, directement dans le gestionnaire d'un clic réel
+// (ex: le bouton "Scanner un QR"), avant de démarrer le scan. Sur mobile, un
+// AudioContext créé/débloqué en dehors d'un geste utilisateur direct reste
+// "suspendu" pour de bon : ses bips restent alors inaudibles, sans erreur
+// (jouerTon avale les échecs en silence) — car le premier bip arrivait
+// jusqu'ici depuis le callback asynchrone de la caméra, plus lié au clic.
+// Le ton est réellement joué (pas juste resume()) : certains navigateurs
+// n'y débloquent l'audio qu'à ce prix.
+export function debloquerAudio() {
+  jouerTon(200, 20, 0.001);
+}

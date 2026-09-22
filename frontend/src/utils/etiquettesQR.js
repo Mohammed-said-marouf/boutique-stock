@@ -54,6 +54,23 @@ export async function genererDataUrlQR(produit) {
  * par page A4, pour une feuille d'étiquettes autocollantes pré-découpées. Ne télécharge rien —
  * c'est à l'appelant de décider (après validation de l'aperçu).
  */
+// Espace des milliers avec un espace ASCII normal — jamais `.toLocaleString()`
+// sans locale explicite : son séparateur (espace insécable fine, U+202F en
+// fr-FR) n'existe pas dans la police de base "helvetica" de jsPDF (non
+// Unicode) et s'affichait comme un caractère erroné ("50 /000 FCFA" au lieu
+// de "50 000 FCFA"). Même formateur que la facture PDF (voir formatMontant
+// dans AdminLayout.js) — à garder synchronisés.
+function formaterPrixPdf(prix) {
+  return Math.round(Number(prix) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+// Hauteur d'une ligne de texte en mm pour une taille de police donnée (en
+// points) — jsPDF calcule ses propres sauts de ligne avec ~1.15x la taille
+// de police convertie en mm (1 pt = 0.3528 mm).
+function hauteurLigneMm(taillePt) {
+  return taillePt * 0.3528 * 1.15;
+}
+
 function dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUrlQR, produit) {
   const tailleQR = Math.min(hauteurEtiquette - 4, largeurEtiquette * 0.42);
   const padding = 1.5;
@@ -62,19 +79,47 @@ function dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUr
 
   const xTexte = x + padding + tailleQR + 2;
   const largeurTexte = (x + largeurEtiquette) - xTexte - padding;
-  const centreY = y + hauteurEtiquette / 2;
+
+  const TAILLE_NOM = 7, TAILLE_REF = 6, TAILLE_PRIX = 7;
+  const ligneNomH = hauteurLigneMm(TAILLE_NOM);
+  const ligneRefH = hauteurLigneMm(TAILLE_REF);
+  const lignePrixH = hauteurLigneMm(TAILLE_PRIX);
+
+  // Le nom peut ne pas tenir sur une ligne (étiquette étroite) : au plus 2
+  // lignes, tronqué avec "…" au-delà — jamais de 3e ligne qui irait chevaucher
+  // la référence/le prix comme avant (positions autrefois fixes, calculées
+  // pour un nom tenant toujours sur une seule ligne).
+  let lignesNom = doc.splitTextToSize(produit.nom || '', largeurTexte);
+  if (lignesNom.length > 2) {
+    lignesNom = [lignesNom[0], lignesNom[1].replace(/.{0,3}$/, '') + '…'];
+  }
+
+  const texteRef = produit.ref ? `Ref: ${produit.ref}` : '';
+  const textePrix = `${formaterPrixPdf(produit.prix)} FCFA`;
+
+  // Empile nom (1-2 lignes) + référence + prix, centré verticalement dans
+  // l'étiquette. text() positionne sur la ligne de base : ligneNomH * 0.75
+  // approxime la distance entre le haut du bloc et cette ligne de base.
+  const hauteurBloc = lignesNom.length * ligneNomH + (texteRef ? ligneRefH : 0) + lignePrixH;
+  let curY = y + (hauteurEtiquette - hauteurBloc) / 2 + ligneNomH * 0.75;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text(doc.splitTextToSize(produit.nom, largeurTexte), xTexte, centreY - 4);
+  doc.setFontSize(TAILLE_NOM);
+  for (const ligne of lignesNom) {
+    doc.text(ligne, xTexte, curY);
+    curY += ligneNomH;
+  }
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  if (produit.ref) doc.text(`Ref: ${produit.ref}`, xTexte, centreY);
+  if (texteRef) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(TAILLE_REF);
+    doc.text(texteRef, xTexte, curY);
+    curY += ligneRefH;
+  }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text(`${Number(produit.prix || 0).toLocaleString()} FCFA`, xTexte, centreY + 5);
+  doc.setFontSize(TAILLE_PRIX);
+  doc.text(textePrix, xTexte, curY);
 }
 
 export function construirePdfEtiquettes(produit, nombre, dataUrlQR) {

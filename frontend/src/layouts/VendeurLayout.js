@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 import { Html5Qrcode } from 'html5-qrcode';
-import { bipSucces, bipErreur } from '../utils/bip';
+import { bipSucces, bipErreur, debloquerAudio } from '../utils/bip';
 import { estTelephone } from '../utils/appareil';
 import Tresorerie from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
@@ -552,6 +552,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       setErreur("Aucune caisse ne vous est assignée — demandez à l'admin de vous en attribuer une (Utilisateurs → Vendeurs).");
       return;
     }
+    debloquerAudio(); // un vendeur qui n'a jamais scanné n'a pas encore débloqué l'audio
     setEncaissement(true);
     setErreur('');
 
@@ -738,7 +739,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, color: '#064e3b', fontSize: '16px' }}>📦 Produits disponibles</h3>
           {estTelephone() ? (
-            <button onClick={() => { setScanMessage(null); setScanActif(v => !v); }} style={{
+            <button onClick={() => { debloquerAudio(); setScanMessage(null); setScanActif(v => !v); }} style={{
               padding: '8px 16px', background: scanActif ? '#dc2626' : '#059669', color: 'white',
               border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
               display: 'flex', alignItems: 'center', gap: '6px'
