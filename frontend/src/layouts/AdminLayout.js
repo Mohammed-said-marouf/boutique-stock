@@ -237,6 +237,9 @@ function AdminDashboard() {
   const [statsVentes, setStatsVentes] = useState({ caJour: 0, ventesJour: 0, caMois: 0, ventesMois: 0 });
   const [statsProduits, setStatsProduits] = useState({ total: 0, rupture: 0, faible: 0, alertes: [] });
   const [ventesRecentes, setVentesRecentes] = useState([]);
+  // Solde de TOUTES les caisses du compte (ventes en espèces - dépenses -
+  // versements validés), additionnées — voir backend/routes/tresorerie.js.
+  const [soldes, setSoldes] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -250,7 +253,13 @@ function AdminDashboard() {
 
     fetch(`${API_URL}/api/ventes`, { headers: h })
       .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 4)); });
+
+    fetch(`${API_URL}/api/tresorerie/soldes`, { headers: h })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setSoldes(d); });
   }, []);
+
+  const soldeTotal = soldes.reduce((s, c) => s + (c.solde || 0), 0);
+  const versementsEnAttenteTotal = soldes.reduce((s, c) => s + (c.versementsEnAttente || 0), 0);
 
   const cartes = [
     { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'caisse', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
@@ -258,6 +267,11 @@ function AdminDashboard() {
     { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', bg: 'linear-gradient(135deg, #7c3aed, #6d28d9)' },
     { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', bg: 'linear-gradient(135deg, #d97706, #b45309)' },
     { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'ventes', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
+    {
+      label: 'Solde des caisses', value: `${soldeTotal.toLocaleString()} FCFA`,
+      sub: soldes.length === 0 ? 'Aucune caisse' : `${soldes.length} caisse(s)${versementsEnAttenteTotal > 0 ? ` · ${versementsEnAttenteTotal.toLocaleString()} FCFA en attente` : ''}`,
+      iconKey: 'caisse', bg: soldeTotal < 0 ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)',
+    },
   ];
 
   const quickActions = [
@@ -275,7 +289,7 @@ function AdminDashboard() {
       overflow: isMobile ? 'visible' : 'hidden'
     }}>
       {/* Cartes stats — couleurs distinctes, une seule ligne */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(130px, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap: '10px', flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 130 : 150}px, 1fr))`, gap: '10px', flexShrink: 0 }}>
         {cartes.map((s, i) => (
           <div key={i} style={{
             background: s.bg, borderRadius: '12px', padding: '14px 16px',

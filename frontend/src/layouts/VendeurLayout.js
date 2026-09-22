@@ -210,10 +210,20 @@ function VendeurDashboard({ user }) {
   const [stats, setStats] = useState({ ventesJour: 0, caJour: 0, totalVentes: 0, chiffreAffaires: 0 });
   const [produits, setProduits] = useState([]);
   const [slideIndex, setSlideIndex] = useState(0);
+  // Solde de SA caisse (ventes en espèces - dépenses - versements validés) —
+  // voir backend/routes/tresorerie.js. null tant que non chargé, pour ne pas
+  // afficher "0" par erreur avant la première réponse.
+  const [soldeCaisse, setSoldeCaisse] = useState(null);
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/ventes/stats`, authHeaders())
       .then(res => setStats(res.data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/tresorerie/soldes`, authHeaders())
+      .then(res => { if (Array.isArray(res.data)) setSoldeCaisse(res.data[0] || null); })
       .catch(() => {});
   }, []);
 
@@ -242,6 +252,9 @@ function VendeurDashboard({ user }) {
     { label: 'Nombre de ventes', value: String(stats.ventesJour || 0), sub: "Aujourd'hui", icon: '📊', bg: '#dbeafe', color: '#2563eb' },
     { label: 'Total ventes', value: String(stats.totalVentes || 0), sub: 'Depuis le début', icon: '📦', bg: '#ede9fe', color: '#7c3aed' },
     { label: "Chiffre d'affaires", value: `${(stats.chiffreAffaires || 0).toLocaleString()} FCFA`, sub: 'Total', icon: '💰', bg: '#fef9c3', color: '#ca8a04' },
+    soldeCaisse
+      ? { label: 'Solde de caisse', value: `${(soldeCaisse.solde || 0).toLocaleString()} FCFA`, sub: `− ${(soldeCaisse.depenses || 0).toLocaleString()} dépenses, − ${(soldeCaisse.versements || 0).toLocaleString()} versements`, icon: '🧾', bg: soldeCaisse.solde < 0 ? '#fee2e2' : '#dcfce7', color: soldeCaisse.solde < 0 ? '#dc2626' : '#16a34a' }
+      : { label: 'Solde de caisse', value: '—', sub: "Aucune caisse assignée", icon: '🧾', bg: '#f1f5f9', color: '#94a3b8' },
   ];
 
   const raccourcis = [
