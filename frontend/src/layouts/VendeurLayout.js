@@ -7,6 +7,7 @@ import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 import { Html5Qrcode } from 'html5-qrcode';
 import { bipSucces, bipErreur } from '../utils/bip';
+import { estTelephone } from '../utils/appareil';
 import Tresorerie from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
 import Avatar from '../components/Avatar';
@@ -420,6 +421,14 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
 
   useEffect(() => {
     if (!scanActif) return;
+    // Sécurité : la vente au scan QR n'est permise que depuis un téléphone
+    // (voir le bouton plus bas, qui ne l'active que dans ce cas) — jamais
+    // depuis un ordinateur, même si scanActif était activé autrement.
+    if (!estTelephone()) {
+      setScanMessage({ type: 'erreur', texte: 'Le scan QR est réservé au téléphone.' });
+      setScanActif(false);
+      return;
+    }
 
     const scanner = new Html5Qrcode('lecteur-qr-vendeur');
     scannerRef.current = scanner;
@@ -725,13 +734,22 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <h3 style={{ margin: 0, color: '#064e3b', fontSize: '16px' }}>📦 Produits disponibles</h3>
-          <button onClick={() => { setScanMessage(null); setScanActif(v => !v); }} style={{
-            padding: '8px 16px', background: scanActif ? '#dc2626' : '#059669', color: 'white',
-            border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
-            display: 'flex', alignItems: 'center', gap: '6px'
-          }}>
-            {scanActif ? '✖ Fermer le scanner' : '📷 Scanner un QR'}
-          </button>
+          {estTelephone() ? (
+            <button onClick={() => { setScanMessage(null); setScanActif(v => !v); }} style={{
+              padding: '8px 16px', background: scanActif ? '#dc2626' : '#059669', color: 'white',
+              border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}>
+              {scanActif ? '✖ Fermer le scanner' : '📷 Scanner un QR'}
+            </button>
+          ) : (
+            <span title="Le scan de code QR n'est disponible que depuis un téléphone." style={{
+              padding: '8px 16px', background: '#f1f5f9', color: '#94a3b8', borderRadius: '8px',
+              fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px'
+            }}>
+              📷 Scan QR — téléphone uniquement
+            </span>
+          )}
         </div>
 
         {scanActif && (
