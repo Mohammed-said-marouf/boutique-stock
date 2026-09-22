@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema({
   motDePasse: { type: String, required: true },
   role: { type: String, enum: ['superadmin', 'admin', 'vendeur'], default: 'vendeur' },
   boutiqueId: { type: String, ref: 'Boutique', default: null },
+  // Photo de profil (URL Cloudinary). null = pas de photo, l'appli affiche
+  // alors l'initiale du nom — voir routes/users.js pour la modifier.
+  photo: { type: String, default: null },
   // Assignation fixe d'un vendeur à une Caisse précise (au sein d'une
   // Boutique) — décidée par l'admin, le vendeur ne choisit pas. Non
   // pertinent pour les rôles admin/superadmin.

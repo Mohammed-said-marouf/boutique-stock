@@ -10,6 +10,8 @@ import QRCode from 'qrcode';
 import Tresorerie, { useVersementsEnAttente } from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
 import LicenceBoutique, { BandeauLicence } from '../components/Licence';
+import Avatar from '../components/Avatar';
+import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
 import { API_URL } from '../config';
 
@@ -186,11 +188,7 @@ export default function AdminLayout() {
             )}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: '700', flexShrink: 0
-              }}>{user?.nom?.charAt(0) || 'A'}</div>
+              <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#2563eb" />
               {!isMobile && (
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{user?.nom}</div>
@@ -3129,6 +3127,10 @@ function AdminParametres({ user }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#0f172a', fontSize: '16px' }}>👤 Mon compte</h3>
+
+          <div style={{ marginBottom: '20px' }}>
+            <EditeurPhotoProfil fond="#2563eb" taille={64} />
+          </div>
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Nom</label>

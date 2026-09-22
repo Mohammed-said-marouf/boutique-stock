@@ -9,6 +9,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { bipSucces, bipErreur } from '../utils/bip';
 import Tresorerie from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
+import Avatar from '../components/Avatar';
+import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
 import { API_URL } from '../config';
 
@@ -111,11 +113,7 @@ export default function VendeurLayout() {
         </nav>
 
         <div style={{ padding: '12px', borderTop: '1px solid #065f46', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '36px', height: '36px', borderRadius: '50%', background: '#059669',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontWeight: '700', fontSize: '14px', flexShrink: 0
-          }}>{user?.nom?.charAt(0) || 'V'}</div>
+          <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#059669" />
           {(!collapsed || isMobile) && (
             <>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -167,11 +165,7 @@ export default function VendeurLayout() {
             )}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '50%', background: '#059669',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: '700', flexShrink: 0
-              }}>{user?.nom?.charAt(0) || 'V'}</div>
+              <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#059669" />
               {!isMobile && (
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#064e3b' }}>{user?.nom}</div>
@@ -1201,11 +1195,7 @@ function ProfilVendeur({ user }) {
       <h2 style={{ margin: '0 0 20px', color: '#064e3b' }}>👤 Mon profil</h2>
       <div style={{ background: 'white', borderRadius: '12px', padding: '32px', maxWidth: '500px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px' }}>
-          <div style={{
-            width: '80px', height: '80px', borderRadius: '50%', background: '#059669',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontSize: '32px', fontWeight: '700'
-          }}>{user?.nom?.charAt(0) || 'V'}</div>
+          <EditeurPhotoProfil fond="#059669" taille={80} />
           <div>
             <div style={{ fontSize: '22px', fontWeight: '700', color: '#064e3b' }}>{user?.nom}</div>
             <div style={{ fontSize: '14px', color: '#666' }}>{user?.email}</div>

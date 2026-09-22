@@ -4,6 +4,7 @@ const router = express.Router();
 const User = require('../models/User');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const enregistrerLog = require('../utils/logger');
+const upload = require('../middleware/upload');
 
 // Liste tous les utilisateurs (superadmin) ou vendeurs de sa boutique (admin)
 router.get('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
@@ -59,6 +60,23 @@ router.put('/me', verifierToken, async (req, res) => {
       .select('-motDePasse').populate('boutiqueId');
     res.json(user);
   } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+// Changer ma propre photo de profil (n'importe quel rôle connecté). Passe par
+// upload.single(...) appelé à la main (plutôt qu'en middleware de route) pour
+// renvoyer une erreur JSON propre (format/taille) au lieu de la page HTML
+// d'erreur par défaut d'Express.
+router.put('/me/photo', verifierToken, (req, res) => {
+  upload.single('photo')(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: 'Aucune image reçue.' });
+    try {
+      const user = await User.findByIdAndUpdate(req.user.id, { photo: req.file.path }, { new: true }).select('-motDePasse');
+      res.json(user);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  });
 });
 
 // Changer mon propre mot de passe

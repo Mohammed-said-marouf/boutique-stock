@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Icone, useIcones } from '../context/IconesContext';
 import axios from 'axios';
 import { LicencesAdmin, ModaleMotDePasseTemporaire } from '../components/SuperAdminOutils';
+import Avatar from '../components/Avatar';
+import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
 import { API_URL } from '../config';
 
@@ -43,7 +45,7 @@ export default function SuperAdminLayout() {
             borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '18px', flexShrink: 0, overflow: 'hidden'
           }}>
-            <img src="/logo512.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            
           </div>
           {!collapsed && (
             <div>
@@ -93,11 +95,7 @@ export default function SuperAdminLayout() {
         </nav>
 
         <div style={{ padding: '12px', borderTop: '1px solid #312e81', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '36px', height: '36px', borderRadius: '50%', background: '#4f46e5',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontWeight: '700', fontSize: '14px', flexShrink: 0
-          }}>{user?.nom?.charAt(0) || 'S'}</div>
+          <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#4f46e5" />
           {!collapsed && (
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: 'white', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.nom}</div>
@@ -140,11 +138,7 @@ export default function SuperAdminLayout() {
               }}>8</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '50%', background: '#4f46e5',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontWeight: '700'
-              }}>{user?.nom?.charAt(0) || 'S'}</div>
+              <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#4f46e5" />
               <div>
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e1b4b' }}>Super Admin</div>
                 <div style={{ fontSize: '11px', color: '#666' }}>Administrateur principal</div>
@@ -693,9 +687,7 @@ function ParametresSuperAdmin({ user }) {
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔒 Mon compte Super Admin</h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: '#f8fafc', borderRadius: '10px' }}>
-            <div style={{ width: '56px', height: '56px', background: '#4f46e5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: '700' }}>
-              {user?.nom?.charAt(0) || 'S'}
-            </div>
+            <EditeurPhotoProfil fond="#4f46e5" taille={56} />
             <div>
               <div style={{ fontWeight: '700', color: '#1e1b4b', fontSize: '16px' }}>{user?.nom}</div>
               <div style={{ color: '#666', fontSize: '14px' }}>{user?.email}</div>
