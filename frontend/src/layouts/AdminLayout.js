@@ -734,7 +734,10 @@ function AdminProduits() {
               {[
                 { key: 'nom', label: 'Nom du produit', ph: 'Ex: Ballerine' },
                 { key: 'categorie', label: 'Catégorie', ph: 'Ex: Chaussures' },
-                { key: 'ref', label: 'Référence', ph: 'Ex: BAL001' },
+                // La référence est générée automatiquement à la création (initiales
+                // du nom + numéro, voir backend/utils/reference.js) — seule une
+                // référence déjà existante reste modifiable ici.
+                ...(editId ? [{ key: 'ref', label: 'Référence', ph: 'Ex: BAL-001' }] : []),
                 { key: 'prix', label: 'Prix (FCFA)', ph: '0', type: 'number' },
                 { key: 'quantite', label: 'Stock initial', ph: '0', type: 'number' },
                 { key: 'seuilAlerte', label: "Seuil d'alerte", ph: '5', type: 'number' },
@@ -760,6 +763,11 @@ function AdminProduits() {
                 <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Description du produit..."
                   style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', resize: 'vertical', height: '60px' }} />
               </div>
+              {!editId && (
+                <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#94a3b8' }}>
+                  ℹ️ La référence sera générée automatiquement à partir des initiales du nom (ex: "Riz Basmati" → RB-001).
+                </div>
+              )}
             </div>
           </div>
 
@@ -949,7 +957,7 @@ function AdminProduits() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
                   <tr>
-                    {['Ligne', 'Nom', 'Catégorie', 'Réf', 'Prix', 'Qté', 'Statut'].map(h => (
+                    {['Ligne', 'Nom', 'Catégorie', 'Prix', 'Qté', 'Statut'].map(h => (
                       <th key={h} style={{ padding: '8px', textAlign: 'left', color: '#666', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
                     ))}
                   </tr>
@@ -960,7 +968,6 @@ function AdminProduits() {
                       <td style={{ padding: '8px', color: '#999' }}>{l.numeroLigne}</td>
                       <td style={{ padding: '8px', fontWeight: '600' }}>{l.produit.nom || '—'}</td>
                       <td style={{ padding: '8px' }}>{l.produit.categorie || '—'}</td>
-                      <td style={{ padding: '8px' }}>{l.produit.ref || '—'}</td>
                       <td style={{ padding: '8px' }}>{l.produit.prix || '—'}</td>
                       <td style={{ padding: '8px' }}>{l.produit.quantite}</td>
                       <td style={{ padding: '8px' }}>
@@ -2775,10 +2782,11 @@ async function telechargerXLSX(nomFichier, titreFeuille, entetes, lignes) {
 // Import de produits en masse depuis Excel
 // ============================================================================
 
+// Pas de colonne "Reference" : elle est générée automatiquement à
+// l'import, comme à la création manuelle (voir backend/utils/reference.js).
 const COLONNES_IMPORT_PRODUITS = [
   { entete: 'Nom*', champ: 'nom' },
   { entete: 'Categorie*', champ: 'categorie' },
-  { entete: 'Reference', champ: 'ref' },
   { entete: 'Prix*', champ: 'prix' },
   { entete: 'Quantite (stock magasin)', champ: 'quantite' },
   { entete: 'Seuil alerte', champ: 'seuilAlerte' },
@@ -2802,7 +2810,7 @@ async function telechargerModeleImportProduits() {
     cell.alignment = { vertical: 'middle' };
   });
 
-  sheet.addRow(['Ordinateur portable HP', 'Electronique', 'ORD-001', 350000, 10, 5, 'Ligne exemple - a remplacer ou supprimer']);
+  sheet.addRow(['Ordinateur portable HP', 'Electronique', 350000, 10, 5, 'Ligne exemple - a remplacer ou supprimer']);
 
   entetes.forEach((h, i) => { sheet.getColumn(i + 1).width = Math.max(String(h).length + 4, 18); });
 
@@ -2852,7 +2860,6 @@ async function lireFichierImportProduits(fichier) {
       produit: {
         nom: String(produit.nom || '').trim(),
         categorie: String(produit.categorie || '').trim(),
-        ref: String(produit.ref || '').trim(),
         prix: prixNum,
         quantite: Number(produit.quantite) || 0,
         seuilAlerte: produit.seuilAlerte !== '' && !isNaN(Number(produit.seuilAlerte)) ? Number(produit.seuilAlerte) : 5,

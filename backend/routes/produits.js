@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Produit = require('../models/Produit');
 const { verifierToken, autoriser } = require('../middleware/auth');
+const { genererReference } = require('../utils/reference');
 
 // GET - Lister tous les produits (accessible à tous les rôles connectés)
 router.get('/', verifierToken, async (req, res) => {
@@ -61,6 +62,11 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), upload.single(
     }
     delete data.magasinId; // champ de commodité, pas un vrai champ du modèle Produit
 
+    // La référence est TOUJOURS générée par le serveur, à partir des
+    // initiales du nom (jamais laissée au choix du client) — voir
+    // utils/reference.js.
+    data.ref = await genererReference(data.nom, data.boutiqueId);
+
     const produit = new Produit(data);
     const newProduit = await produit.save();
     res.status(201).json(newProduit);
@@ -91,6 +97,7 @@ router.post('/import', verifierToken, autoriser('superadmin', 'admin'), async (r
     for (let i = 0; i < lignes.length; i++) {
       try {
         const data = { ...lignes[i], boutiqueId };
+        data.ref = await genererReference(data.nom, boutiqueId);
         if (premierMagasin && Number(data.quantite) > 0) {
           data.stockMagasins = [{ magasin: premierMagasin._id, quantite: Number(data.quantite) }];
         }

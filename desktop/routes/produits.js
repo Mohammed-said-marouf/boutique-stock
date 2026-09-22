@@ -17,6 +17,7 @@ const path = require('path');
 const multer = require('multer');
 const { app: electronApp } = require('electron');
 const db = require('../local-db/db');
+const { genererReference } = require('../local-db/reference');
 
 const maintenant = () => new Date().toISOString();
 
@@ -45,12 +46,26 @@ function ajouterAOutbox(operation, recordId, payload) {
 // identique à ce que renvoyait l'API MongoDB.
 function versFormatApi(ligne) {
   if (!ligne) return null;
+  const stockComptoirs = db.prepare(`
+    SELECT sc.comptoir_id, sc.quantite, c.nom AS comptoir_nom, c.actif AS comptoir_actif
+    FROM stock_comptoirs sc
+    JOIN comptoirs c ON c.id = sc.comptoir_id
+    WHERE sc.produit_id = ?
+  `).all(ligne.id);
+
   return {
     _id: ligne.id,
     nom: ligne.nom,
     description: ligne.description,
     prix: ligne.prix,
     quantite: ligne.quantite,
+    // Stock par comptoir, au même format que renvoyé par le backend en
+    // ligne (comptoir populé avec juste _id/nom) — voir stockComptoirDe()
+    // côté frontend (VendeurLayout.js) qui lit cette structure.
+    stockComptoirs: stockComptoirs.map(sc => ({
+      comptoir: { _id: sc.comptoir_id, nom: sc.comptoir_nom, actif: !!sc.comptoir_actif },
+      quantite: sc.quantite,
+    })),
     categorie: ligne.categorie,
     fournisseur: ligne.fournisseur,
     boutiqueId: ligne.boutique_id,
@@ -100,7 +115,7 @@ router.get('/:id', (req, res) => {
 // POST - Créer un produit (multipart/form-data, champ fichier "image" optionnel)
 router.post('/', upload.single('image'), (req, res) => {
   try {
-    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte, ref } = req.body;
+    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte } = req.body;
 
     if (!nom || prix === undefined || prix === '' || !categorie) {
       return res.status(400).json({ message: 'nom, prix et categorie sont requis.' });
@@ -109,6 +124,9 @@ router.post('/', upload.single('image'), (req, res) => {
     const id = crypto.randomUUID();
     const maintenantIso = maintenant();
     const cheminImage = req.file ? `/uploads/produits/${req.file.filename}` : null;
+    // La référence est TOUJOURS générée localement, jamais laissée au choix
+    // du client — voir local-db/reference.js.
+    const ref = genererReference(db, nom, boutiqueId || null);
 
     db.prepare(`
       INSERT INTO produits (id, nom, description, prix, quantite, categorie, fournisseur, boutique_id, seuil_alerte, ref, image, date_ajout, created_at, updated_at, is_dirty, is_deleted)
@@ -138,6 +156,112 @@ router.post('/', upload.single('image'), (req, res) => {
     res.status(201).json(produitCree);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+// POST - Transférer du stock du Magasin vers un Comptoir. Crée aussi un
+// mouvement de stock de type "transfert" pour garder l'historique.
+router.post('/:id/transferer', (req, res) => {
+  const transaction = db.transaction(({ produitId, comptoirId, quantite, note }) => {
+    const produit = db.prepare('SELECT * FROM produits WHERE id = ? AND is_deleted = 0').get(produitId);
+    if (!produit) throw Object.assign(new Error('Produit introuvable.'), { statut: 404 });
+
+    const comptoir = db.prepare('SELECT * FROM comptoirs WHERE id = ? AND is_deleted = 0').get(comptoirId);
+    if (!comptoir) throw Object.assign(new Error('Comptoir introuvable.'), { statut: 404 });
+
+    if (produit.quantite < quantite) {
+      throw Object.assign(new Error(`Stock Magasin insuffisant (disponible : ${produit.quantite}).`), { statut: 400 });
+    }
+
+    const maintenantIso = maintenant();
+
+    db.prepare('UPDATE produits SET quantite = quantite - ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
+      .run(quantite, maintenantIso, produitId);
+
+    const ligneExistante = db.prepare('SELECT * FROM stock_comptoirs WHERE produit_id = ? AND comptoir_id = ?').get(produitId, comptoirId);
+    if (ligneExistante) {
+      db.prepare('UPDATE stock_comptoirs SET quantite = quantite + ?, updated_at = ? WHERE produit_id = ? AND comptoir_id = ?')
+        .run(quantite, maintenantIso, produitId, comptoirId);
+    } else {
+      db.prepare('INSERT INTO stock_comptoirs (produit_id, comptoir_id, quantite, updated_at) VALUES (?, ?, ?, ?)')
+        .run(produitId, comptoirId, quantite, maintenantIso);
+    }
+
+    const produitMisAJour = db.prepare('SELECT * FROM produits WHERE id = ?').get(produitId);
+
+    db.prepare(`
+      INSERT INTO mouvements_stock (id, produit, boutique_id, type, quantite, stock_restant, comptoir_destination, note, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (?, ?, ?, 'transfert', ?, ?, ?, ?, ?, ?, 1, 0)
+    `).run(crypto.randomUUID(), produitId, produitMisAJour.boutique_id, quantite, produitMisAJour.quantite, comptoirId, note || '', maintenantIso, maintenantIso);
+
+    ajouterAOutbox('update', produitId, versFormatApi(produitMisAJour));
+
+    return versFormatApi(produitMisAJour);
+  });
+
+  try {
+    const { comptoirId, quantite } = req.body;
+    const qte = Number(quantite);
+    if (!comptoirId || !qte || qte <= 0) {
+      return res.status(400).json({ message: 'comptoirId et quantite (> 0) sont requis.' });
+    }
+    const resultat = transaction({ produitId: req.params.id, comptoirId, quantite: qte, note: req.body.note });
+    res.json(resultat);
+  } catch (err) {
+    res.status(err.statut || 400).json({ message: err.message });
+  }
+});
+
+// POST - Import en masse (reçoit un tableau JSON déjà analysé côté
+// frontend, pas le fichier lui-même — même contrat que le backend en
+// ligne). Chaque ligne est tentée indépendamment.
+router.post('/import', (req, res) => {
+  try {
+    const lignes = Array.isArray(req.body.produits) ? req.body.produits : [];
+    if (lignes.length === 0) return res.status(400).json({ message: 'Aucune ligne à importer.' });
+
+    const boutiqueId = (req.user && req.user.role === 'admin') ? req.user.boutiqueId : (req.body.boutiqueId || (req.user && req.user.boutiqueId));
+
+    const succes = [];
+    const echecs = [];
+    const maintenantIso = maintenant();
+
+    for (let i = 0; i < lignes.length; i++) {
+      const l = lignes[i];
+      try {
+        if (!l.nom || !l.categorie || l.prix === undefined || l.prix === '' || isNaN(Number(l.prix))) {
+          throw new Error('nom, categorie et prix sont requis.');
+        }
+        const id = crypto.randomUUID();
+        const ref = genererReference(db, l.nom, boutiqueId);
+        db.prepare(`
+          INSERT INTO produits (id, nom, description, prix, quantite, categorie, boutique_id, seuil_alerte, ref, date_ajout, created_at, updated_at, is_dirty, is_deleted)
+          VALUES (@id, @nom, @description, @prix, @quantite, @categorie, @boutiqueId, @seuilAlerte, @ref, @dateAjout, @createdAt, @updatedAt, 1, 0)
+        `).run({
+          id,
+          nom: l.nom,
+          description: l.description || null,
+          prix: Number(l.prix),
+          quantite: Number(l.quantite) || 0,
+          categorie: l.categorie,
+          boutiqueId,
+          seuilAlerte: l.seuilAlerte !== undefined && l.seuilAlerte !== '' ? Number(l.seuilAlerte) : 5,
+          ref,
+          dateAjout: maintenantIso,
+          createdAt: maintenantIso,
+          updatedAt: maintenantIso,
+        });
+        const ligneCreee = db.prepare('SELECT * FROM produits WHERE id = ?').get(id);
+        ajouterAOutbox('create', id, versFormatApi(ligneCreee));
+        succes.push({ ligne: i + 1, nom: l.nom });
+      } catch (err) {
+        echecs.push({ ligne: i + 1, nom: l?.nom || '(sans nom)', erreur: err.message });
+      }
+    }
+
+    res.status(200).json({ nbSucces: succes.length, nbEchecs: echecs.length, succes, echecs });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
