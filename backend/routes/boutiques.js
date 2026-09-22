@@ -5,6 +5,7 @@ const User = require('../models/User');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const enregistrerLog = require('../utils/logger');
+const { supprimerCompteEtDonnees } = require('../utils/supprimerCompte');
 
 // Liste toutes les boutiques (superadmin)
 router.get('/', verifierToken, autoriser('superadmin'), async (req, res) => {
@@ -69,11 +70,25 @@ router.put('/:id', verifierToken, autoriser('superadmin', 'admin'), upload.singl
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-// Supprimer une boutique
+// Supprimer une boutique (Compte) et TOUTES ses données : utilisateurs,
+// boutiques/caisses, magasins, produits, clients, ventes, mouvements,
+// dépenses, versements, licences. Irréversible — voir utils/supprimerCompte.js.
 router.delete('/:id', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
-    await Boutique.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Boutique supprimée' });
+    const boutique = await Boutique.findById(req.params.id);
+    if (!boutique) return res.status(404).json({ message: 'Boutique introuvable.' });
+
+    const bilan = await supprimerCompteEtDonnees(req.params.id);
+
+    await enregistrerLog({
+      type: 'boutique_supprimee',
+      message: `${boutique.nom} : ${bilan.utilisateurs} utilisateur(s), ${bilan.produits} produit(s), ${bilan.ventes} vente(s) supprimé(s)`,
+      utilisateur: req.user.id,
+      nomUtilisateur: req.user.nom || 'Super Admin',
+      niveau: 'error',
+    });
+
+    res.json({ message: '✅ Boutique et toutes ses données supprimées', bilan });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

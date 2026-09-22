@@ -305,12 +305,29 @@ function BoutiquesAdmin() {
     chargerBoutiques();
   };
 
-  const supprimer = async (id) => {
-    if (!window.confirm('Supprimer cette boutique ?')) return;
-    await fetch(`${API_URL}/api/boutiques/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  const supprimer = async (b) => {
+    if (!window.confirm(
+      `Supprimer définitivement « ${b.nom} » ?\n\n` +
+      `Cela supprime AUSSI, pour ce compte : ses utilisateurs (admin et vendeurs), ` +
+      `ses boutiques et caisses, ses magasins, ses produits, ses clients, ses ventes, ` +
+      `ses dépenses et versements, et ses licences.\n\nCette action est irréversible.`
+    )) return;
+    try {
+      const res = await fetch(`${API_URL}/api/boutiques/${b._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      const bi = data.bilan || {};
+      window.alert(
+        `✅ « ${b.nom} » supprimée.\n\n` +
+        `${bi.utilisateurs || 0} utilisateur(s), ${bi.produits || 0} produit(s), ${bi.ventes || 0} vente(s), ` +
+        `${bi.comptoirs || 0} boutique(s), ${bi.caisses || 0} caisse(s), ${bi.magasins || 0} magasin(s) supprimé(s).`
+      );
+    } catch (err) {
+      window.alert(err.message);
+    }
     chargerBoutiques();
   };
 
@@ -410,7 +427,7 @@ function BoutiquesAdmin() {
                   border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
                   color: b.actif ? '#dc2626' : '#16a34a', fontWeight: '600'
                 }}>{b.actif ? '🔒 Désactiver' : '✅ Activer'}</button>
-                <button onClick={() => supprimer(b._id)} style={{ padding: '8px 12px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
+                <button onClick={() => supprimer(b)} style={{ padding: '8px 12px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
                   <Icone nom="supprimer" size={14} />
                 </button>
               </div>
