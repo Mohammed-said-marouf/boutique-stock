@@ -398,6 +398,8 @@ async function validerVente() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Erreur lors de la vente.');
 
+    bipSucces(); // confirme l'encaissement, comme chaque scan réussi
+
     derniereFacture = { ...data, items };
     document.getElementById('txt-num-facture').textContent = 'Facture ' + data.numFacture;
     afficherEcran('ecran-confirmation');
@@ -408,6 +410,7 @@ async function validerVente() {
     document.getElementById('msg-scan').classList.add('masque');
     chargerProduits(); // remet à jour les stocks affichés
   } catch (err) {
+    bipErreur();
     alert(err.message);
   }
 }

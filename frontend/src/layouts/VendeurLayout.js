@@ -579,6 +579,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
+      bipSucces(); // confirme l'encaissement, comme chaque scan réussi
+
       setVenteAConfirmer({
         numFacture,
         date: new Date().toLocaleDateString('fr-FR'),
@@ -604,6 +606,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       setPanier([]);
       setClientNom('');
     } catch (err) {
+      bipErreur();
       setErreur("Erreur lors de l'enregistrement : " + (err.response?.data?.message || err.message));
     } finally {
       setEncaissement(false);
