@@ -36,6 +36,7 @@ const menuItems = [
   { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
   { path: '/admin/stocks', iconKey: 'stock', label: 'Stocks' },
+  { path: '/admin/inventaires', iconKey: 'stock', label: 'Inventaires' },
   { path: '/admin/ventes', iconKey: 'ventes', label: 'Ventes' },
   { path: '/admin/tresorerie', iconKey: 'caisse', label: 'Dépenses & versements' },
   { path: '/admin/clients', iconKey: 'clients', label: 'Clients' },
@@ -214,6 +215,7 @@ export default function AdminLayout() {
             <Route path="" element={<AdminDashboard />} />
             <Route path="produits" element={<AdminProduits />} />
             <Route path="stocks" element={<AdminStocks />} />
+            <Route path="inventaires" element={<AdminInventaires />} />
             <Route path="ventes" element={<AdminVentes />} />
             <Route path="tresorerie" element={<Tresorerie role="admin" />} />
             <Route path="sauvegarde" element={<Sauvegarde role="admin" />} />
@@ -2044,6 +2046,329 @@ function AdminStocks() {
                 flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
                 borderRadius: '8px', cursor: envoiTransfert ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiTransfert ? 0.7 : 1
               }}>{envoiTransfert ? '...' : 'Transférer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================== INVENTAIRES =====================
+// Une session compare le stock théorique (enregistré) au stock réellement
+// compté d'un Magasin ou d'une Boutique, puis corrige le stock à la
+// validation — voir backend/routes/inventaires.js pour le détail des règles
+// (produits non comptés jamais touchés, écrasement volontaire par le
+// compte réel, pas un delta).
+function AdminInventaires() {
+  const token = localStorage.getItem('token');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const [sessions, setSessions] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [magasins, setMagasins] = useState([]);
+  const [boutiques, setBoutiques] = useState([]);
+  const [sessionOuverte, setSessionOuverte] = useState(null); // détail complet (avec lignes) en cours de consultation/comptage
+
+  const charger = () => {
+    setChargement(true);
+    fetch(`${API_URL}/api/inventaires`, authHeaders)
+      .then(r => r.json()).then(d => { setSessions(Array.isArray(d) ? d : []); setChargement(false); })
+      .catch(() => setChargement(false));
+  };
+  const chargerCibles = () => {
+    fetch(`${API_URL}/api/magasins`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setMagasins(d.filter(m => m.actif)); });
+    fetch(`${API_URL}/api/comptoirs`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setBoutiques(d.filter(b => b.actif)); });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { charger(); chargerCibles(); }, []);
+
+  const ouvrirDetail = async (id) => {
+    const res = await fetch(`${API_URL}/api/inventaires/${id}`, authHeaders);
+    const data = await res.json();
+    if (res.ok) setSessionOuverte(data);
+    else window.alert(data.message || 'Erreur');
+  };
+
+  // ---------- Nouvelle session ----------
+  const [nouvelleSession, setNouvelleSession] = useState(null); // { cibleType, cibleId }
+  const [envoiOuverture, setEnvoiOuverture] = useState(false);
+  const [erreurOuverture, setErreurOuverture] = useState('');
+
+  const ouvrirFormNouvelle = () => {
+    setErreurOuverture('');
+    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '' });
+  };
+
+  const confirmerNouvelleSession = async () => {
+    if (!nouvelleSession.cibleId) { setErreurOuverture('Choisissez une cible.'); return; }
+    setEnvoiOuverture(true);
+    setErreurOuverture('');
+    try {
+      const res = await fetch(`${API_URL}/api/inventaires`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(nouvelleSession),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreurOuverture(data.message || 'Erreur'); return; }
+      setNouvelleSession(null);
+      charger();
+      setSessionOuverte(data);
+    } catch (e) {
+      setErreurOuverture(e.message);
+    } finally {
+      setEnvoiOuverture(false);
+    }
+  };
+
+  // ---------- Comptage ----------
+  const [enregistrement, setEnregistrement] = useState({}); // { [produitId]: 'ok' | 'erreur' | undefined }
+
+  const enregistrerCompte = async (produitId, valeur) => {
+    if (valeur === '' || valeur === null) return;
+    const qte = Number(valeur);
+    if (isNaN(qte) || qte < 0) return;
+
+    setEnregistrement(p => ({ ...p, [produitId]: undefined }));
+    try {
+      const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/compter`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ produitId, quantiteReelle: qte }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEnregistrement(p => ({ ...p, [produitId]: 'erreur' })); window.alert(data.message || 'Erreur'); return; }
+      setSessionOuverte(prev => ({
+        ...prev,
+        lignes: prev.lignes.map(l => l.produit === produitId ? { ...l, quantiteReelle: qte, compteLe: data.compteLe } : l),
+      }));
+      setEnregistrement(p => ({ ...p, [produitId]: 'ok' }));
+      setTimeout(() => setEnregistrement(p => (p[produitId] === 'ok' ? { ...p, [produitId]: undefined } : p)), 1500);
+    } catch (e) {
+      setEnregistrement(p => ({ ...p, [produitId]: 'erreur' }));
+    }
+  };
+
+  const [envoiCloture, setEnvoiCloture] = useState(false);
+
+  const validerSession = async () => {
+    const compte = sessionOuverte.lignes.filter(l => l.quantiteReelle !== null).length;
+    const total = sessionOuverte.lignes.length;
+    const texte = compte < total
+      ? `${compte} produit(s) compté(s) sur ${total}. Les ${total - compte} non comptés garderont leur stock actuel. Valider quand même ?`
+      : `Valider cet inventaire ? Le stock de chaque produit compté sera corrigé pour correspondre exactement à la quantité saisie.`;
+    if (!window.confirm(texte)) return;
+    setEnvoiCloture(true);
+    try {
+      const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/valider`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      window.alert(`✅ Inventaire validé : ${data.nbAjustes} produit(s) ajusté(s)${data.nbNonComptes > 0 ? `, ${data.nbNonComptes} non compté(s)` : ''}.`);
+      setSessionOuverte(null);
+      charger();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEnvoiCloture(false);
+    }
+  };
+
+  const annulerSession = async () => {
+    if (!window.confirm('Annuler cette session ? Le comptage saisi sera perdu, le stock ne sera pas touché.')) return;
+    const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/annuler`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+    setSessionOuverte(null);
+    charger();
+  };
+
+  const STATUTS = {
+    en_cours: ['⏳ En cours', '#fef9c3', '#a16207'],
+    valide: ['✅ Validé', '#dcfce7', '#166534'],
+    annule: ['🚫 Annulé', '#f1f5f9', '#64748b'],
+  };
+  const dateFr = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
+  // ---------- Vue "comptage" d'une session (ouverte ou consultée) ----------
+  if (sessionOuverte) {
+    const enCours = sessionOuverte.statut === 'en_cours';
+    const nbComptes = sessionOuverte.lignes.filter(l => l.quantiteReelle !== null).length;
+    return (
+      <div>
+        <button onClick={() => setSessionOuverte(null)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginBottom: '12px', padding: 0 }}>
+          ← Retour aux inventaires
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '4px' }}>
+          <h2 style={{ margin: 0, color: '#0f172a' }}>{sessionOuverte.cibleType === 'magasin' ? '🏬' : '🏪'} {sessionOuverte.cibleNom}</h2>
+          {(() => { const [libelle, fond, couleur] = STATUTS[sessionOuverte.statut]; return <span style={{ background: fond, color: couleur, padding: '3px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{libelle}</span>; })()}
+        </div>
+        <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#666' }}>
+          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
+          {sessionOuverte.statut === 'valide' && ` · Validé le ${dateFr(sessionOuverte.valideLe)} par ${sessionOuverte.nomValidePar || '—'}`}
+        </p>
+
+        {enCours && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1e40af', marginBottom: '16px' }}>
+            ℹ️ Saisissez la quantité réellement comptée pour chaque produit — chaque saisie est enregistrée immédiatement. Les produits non comptés garderont leur stock actuel à la validation.
+          </div>
+        )}
+
+        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                  {['Produit', 'Réf', 'Théorique', 'Compté', 'Écart', ''].map(h => (
+                    <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sessionOuverte.lignes.map(l => {
+                  const ecart = l.quantiteReelle !== null ? l.quantiteReelle - l.quantiteTheorique : null;
+                  return (
+                    <tr key={l.produit} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{l.nom}</td>
+                      <td style={{ padding: '10px 8px', color: '#2563eb', fontSize: '13px' }}>{l.ref || '—'}</td>
+                      <td style={{ padding: '10px 8px', color: '#666' }}>{l.quantiteTheorique}</td>
+                      <td style={{ padding: '10px 8px' }}>
+                        {enCours ? (
+                          <input type="number" min="0" defaultValue={l.quantiteReelle ?? ''} placeholder="—"
+                            onBlur={e => enregistrerCompte(l.produit, e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+                            style={{
+                              width: '80px', padding: '6px 8px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box',
+                              border: '1px solid ' + (enregistrement[l.produit] === 'erreur' ? '#fecaca' : '#e2e8f0'),
+                            }} />
+                        ) : (l.quantiteReelle ?? '—')}
+                        {enregistrement[l.produit] === 'ok' && <span style={{ marginLeft: '6px', color: '#16a34a', fontSize: '12px' }}>✓</span>}
+                      </td>
+                      <td style={{ padding: '10px 8px', fontWeight: '700', color: ecart === null ? '#94a3b8' : ecart === 0 ? '#16a34a' : ecart > 0 ? '#2563eb' : '#dc2626' }}>
+                        {ecart === null ? '—' : ecart > 0 ? `+${ecart}` : ecart}
+                      </td>
+                      <td style={{ padding: '10px 8px', fontSize: '12px', color: '#94a3b8' }}>{l.compteLe ? dateFr(l.compteLe) : ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {enCours && (
+          <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+            <button onClick={annulerSession} style={{ padding: '10px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#dc2626', fontWeight: '600' }}>
+              Annuler la session
+            </button>
+            <button onClick={validerSession} disabled={envoiCloture} style={{
+              padding: '10px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px',
+              cursor: envoiCloture ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiCloture ? 0.7 : 1
+            }}>{envoiCloture ? 'Validation...' : '✅ Valider l\'inventaire'}</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- Vue "liste des sessions" ----------
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '10px' }}>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="stock" size={28} /> Inventaires
+        </h2>
+        <button onClick={ouvrirFormNouvelle} disabled={magasins.length === 0 && boutiques.length === 0} style={{
+          padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
+          cursor: 'pointer', fontSize: '13px', fontWeight: '700'
+        }}>+ Nouvel inventaire</button>
+      </div>
+      <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#666' }}>
+        Comptez le stock réel d'un magasin ou d'une boutique et comparez-le au stock enregistré ; à la validation, le stock est corrigé pour correspondre au compte réel.
+      </p>
+
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        {chargement ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Chargement...</div>
+        ) : sessions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '13px' }}>Aucun inventaire pour l'instant.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                  {['Cible', 'Ouvert le', 'Par', 'Statut', ''].map(h => (
+                    <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map(s => {
+                  const [libelle, fond, couleur] = STATUTS[s.statut];
+                  return (
+                    <tr key={s._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</td>
+                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{dateFr(s.createdAt)}</td>
+                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.nomCreePar || '—'}</td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <span style={{ background: fond, color: couleur, padding: '2px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{libelle}</span>
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <button onClick={() => ouvrirDetail(s._id)} style={{ padding: '5px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>
+                          {s.statut === 'en_cours' ? 'Continuer le comptage' : 'Voir le détail'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {nouvelleSession && (
+        <div onClick={() => setNouvelleSession(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '16px' }}>Nouvel inventaire</h3>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Que voulez-vous compter ?</label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+              {[['magasin', '🏬 Un magasin'], ['comptoir', '🏪 Une boutique']].map(([val, libelle]) => (
+                <button key={val} onClick={() => setNouvelleSession({ cibleType: val, cibleId: (val === 'magasin' ? magasins[0]?._id : boutiques[0]?._id) || '' })} style={{
+                  flex: 1, padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+                  background: nouvelleSession.cibleType === val ? '#2563eb' : '#f1f5f9', color: nouvelleSession.cibleType === val ? 'white' : '#475569'
+                }}>{libelle}</button>
+              ))}
+            </div>
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>
+              {nouvelleSession.cibleType === 'magasin' ? 'Magasin' : 'Boutique'}
+            </label>
+            {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#dc2626' }}>
+                Aucun{nouvelleSession.cibleType === 'magasin' ? ' magasin actif' : 'e boutique active'} — créez-en un(e) dans Stocks.
+              </div>
+            ) : (
+              <select value={nouvelleSession.cibleId} onChange={e => setNouvelleSession({ ...nouvelleSession, cibleId: e.target.value })}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
+              </select>
+            )}
+
+            {erreurOuverture && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurOuverture}</div>}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button onClick={() => setNouvelleSession(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Annuler</button>
+              <button onClick={confirmerNouvelleSession} disabled={envoiOuverture} style={{
+                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: envoiOuverture ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiOuverture ? 0.7 : 1
+              }}>{envoiOuverture ? '...' : 'Ouvrir la session'}</button>
             </div>
           </div>
         </div>

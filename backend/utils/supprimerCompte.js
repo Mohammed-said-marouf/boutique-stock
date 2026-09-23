@@ -9,13 +9,15 @@ const MouvementStock = require('../models/MouvementStock');
 const Depense = require('../models/Depense');
 const Versement = require('../models/Versement');
 const Licence = require('../models/Licence');
+const Inventaire = require('../models/Inventaire');
 const User = require('../models/User');
 
 /**
  * Supprime DÉFINITIVEMENT un Compte (Boutique) et TOUTES les données qui lui
  * appartiennent : utilisateurs, boutiques (Comptoirs) et leurs caisses,
  * magasins, produits, clients, ventes, mouvements de stock, dépenses,
- * versements et licences. Appelée par DELETE /api/boutiques/:id — irréversible.
+ * versements, licences et inventaires. Appelée par DELETE /api/boutiques/:id
+ * — irréversible.
  *
  * Les Fournisseurs ne sont pas rattachés à un Compte (partagés entre
  * comptes) : jamais supprimés ici.
@@ -29,7 +31,7 @@ async function supprimerCompteEtDonnees(boutiqueId) {
 
   const [
     utilisateurs, produits, clients, ventes, mouvements,
-    depenses, versements, licences, caisses, magasins,
+    depenses, versements, licences, inventaires, caisses, magasins,
   ] = await Promise.all([
     User.deleteMany({ boutiqueId }),
     Produit.deleteMany({ boutiqueId }),
@@ -39,6 +41,7 @@ async function supprimerCompteEtDonnees(boutiqueId) {
     Depense.deleteMany({ boutiqueId }),
     Versement.deleteMany({ boutiqueId }),
     Licence.deleteMany({ boutiqueId }),
+    Inventaire.deleteMany({ boutiqueId }),
     Caisse.deleteMany({ comptoirId: { $in: idsComptoirs } }),
     Magasin.deleteMany({ boutiqueId }),
   ]);
@@ -54,6 +57,7 @@ async function supprimerCompteEtDonnees(boutiqueId) {
     depenses: depenses.deletedCount,
     versements: versements.deletedCount,
     licences: licences.deletedCount,
+    inventaires: inventaires.deletedCount,
     caisses: caisses.deletedCount,
     magasins: magasins.deletedCount,
     comptoirs: comptoirsSupprimes.deletedCount,

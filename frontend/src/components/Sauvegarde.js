@@ -10,7 +10,7 @@ import { API_URL } from '../config';
 const LIBELLES = {
   comptoirs: 'Boutiques', caisses: 'Caisses', magasins: 'Magasins', fournisseurs: 'Fournisseurs',
   produits: 'Produits', clients: 'Clients', ventes: 'Ventes', mouvements: 'Mouvements de stock',
-  depenses: 'Dépenses', versements: 'Versements',
+  depenses: 'Dépenses', versements: 'Versements', inventaires: 'Inventaires',
 };
 
 const carte = { background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: '16px' };

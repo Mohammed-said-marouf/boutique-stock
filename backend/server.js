@@ -32,6 +32,7 @@ app.use('/api/caisses', require('./routes/caisses'));
 app.use('/api/depenses', require('./routes/depenses'));
 app.use('/api/versements', require('./routes/versements'));
 app.use('/api/tresorerie', require('./routes/tresorerie'));
+app.use('/api/inventaires', require('./routes/inventaires'));
 app.use('/api/sauvegarde', require('./routes/sauvegarde'));
 app.use('/api/licences', require('./routes/licences'));
 app.use('/api/magasins', require('./routes/magasins'));

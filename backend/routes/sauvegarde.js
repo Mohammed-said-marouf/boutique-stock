@@ -11,6 +11,7 @@ const Vente = require('../models/Vente');
 const MouvementStock = require('../models/MouvementStock');
 const Depense = require('../models/Depense');
 const Versement = require('../models/Versement');
+const Inventaire = require('../models/Inventaire');
 const { verifierToken, autoriser } = require('../middleware/auth');
 
 // Sauvegarde / restauration des données d'un Compte ("Boutique" côté Mongoose,
@@ -55,6 +56,7 @@ router.get('/export', verifierToken, autoriser('admin', 'vendeur'), async (req, 
         mouvements: await MouvementStock.find({ boutiqueId }).lean(),
         depenses: await Depense.find({ boutiqueId }).lean(),
         versements: await Versement.find({ boutiqueId }).lean(),
+        inventaires: await Inventaire.find({ boutiqueId }).lean(),
       };
     }
 
@@ -98,6 +100,7 @@ function planRestauration(boutiqueId, idsComptoirs) {
     { cle: 'mouvements', Modele: MouvementStock, ...parCompte },
     { cle: 'depenses', Modele: Depense, ...parCompte },
     { cle: 'versements', Modele: Versement, ...parCompte },
+    { cle: 'inventaires', Modele: Inventaire, ...parCompte },
   ];
 }
 
