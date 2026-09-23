@@ -42,11 +42,11 @@ const menuItems = [
   { path: '/vendeur', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/vendeur/produits', iconKey: 'produits', label: 'Produits' },
   { path: '/vendeur/nouvelle-vente', iconKey: 'caisse', label: 'Nouvelle vente' },
-  { path: '/vendeur/factures', iconKey: 'ventes', label: 'Mes factures' },
-  { path: '/vendeur/tresorerie', iconKey: 'caisse', label: 'Dépenses & versements' },
+  { path: '/vendeur/factures', iconKey: 'factures', label: 'Mes factures' },
+  { path: '/vendeur/tresorerie', iconKey: 'tresorerie', label: 'Dépenses & versements' },
   { path: '/vendeur/clients', iconKey: 'clients', label: 'Clients' },
-  { path: '/vendeur/sauvegarde', iconKey: 'parametres', label: 'Sauvegarde' },
-  { path: '/vendeur/profil', iconKey: 'utilisateurs', label: 'Mon profil' },
+  { path: '/vendeur/sauvegarde', iconKey: 'sauvegarde', label: 'Sauvegarde' },
+  { path: '/vendeur/profil', iconKey: 'monprofil', label: 'Mon profil' },
 ];
 
 export default function VendeurLayout() {
@@ -258,9 +258,9 @@ function VendeurDashboard({ user }) {
   ];
 
   const raccourcis = [
-    { icon: '🛒', label: 'Nouvelle vente' },
+    { icon: '💵', label: 'Nouvelle vente' },
     { icon: '🔍', label: 'Rechercher produit' },
-    { icon: '🧾', label: 'Mes factures' },
+    { icon: '📄', label: 'Mes factures' },
     { icon: '👥', label: 'Clients' },
   ];
 

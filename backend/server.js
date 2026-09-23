@@ -65,6 +65,7 @@ mongoose.connect(process.env.MONGO_URI)
     } catch (err) {
       console.log('⚠️ Allègement des icônes ignoré :', err.message);
     }
+    await require('./migration/ajouterIconesManquantes').ajouterIconesManquantes();
     demarrerVerificationStock();
     require('./services/abonnements').demarrerVerificationAbonnements();
     app.listen(process.env.PORT || 5000, () => {

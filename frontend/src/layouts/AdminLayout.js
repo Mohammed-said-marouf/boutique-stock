@@ -36,15 +36,15 @@ const menuItems = [
   { path: '/admin', iconKey: 'dashboard', label: 'Tableau de bord' },
   { path: '/admin/produits', iconKey: 'produits', label: 'Produits' },
   { path: '/admin/stocks', iconKey: 'stock', label: 'Stocks' },
-  { path: '/admin/inventaires', iconKey: 'stock', label: 'Inventaires' },
+  { path: '/admin/inventaires', iconKey: 'inventaires', label: 'Inventaires' },
   { path: '/admin/ventes', iconKey: 'ventes', label: 'Ventes' },
-  { path: '/admin/tresorerie', iconKey: 'caisse', label: 'Dépenses & versements' },
+  { path: '/admin/tresorerie', iconKey: 'tresorerie', label: 'Dépenses & versements' },
   { path: '/admin/clients', iconKey: 'clients', label: 'Clients' },
-  { path: '/admin/fournisseurs', iconKey: 'produits', label: 'Fournisseurs' },
+  { path: '/admin/fournisseurs', iconKey: 'fournisseurs', label: 'Fournisseurs' },
   { path: '/admin/vendeurs', iconKey: 'utilisateurs', label: 'Utilisateurs (Vendeurs)' },
-  { path: '/admin/factures', iconKey: 'ventes', label: 'Factures' },
-  { path: '/admin/rapports', iconKey: 'dashboard', label: 'Rapports' },
-  { path: '/admin/sauvegarde', iconKey: 'parametres', label: 'Sauvegarde' },
+  { path: '/admin/factures', iconKey: 'factures', label: 'Factures' },
+  { path: '/admin/rapports', iconKey: 'rapports', label: 'Rapports' },
+  { path: '/admin/sauvegarde', iconKey: 'sauvegarde', label: 'Sauvegarde' },
   { path: '/admin/parametres', iconKey: 'parametres', label: 'Paramètres' },
 ];
 
@@ -264,15 +264,15 @@ function AdminDashboard() {
   const versementsEnAttenteTotal = soldes.reduce((s, c) => s + (c.versementsEnAttente || 0), 0);
 
   const cartes = [
-    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'caisse', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
-    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'dashboard', bg: 'linear-gradient(135deg, #16a34a, #15803d)' },
+    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'ventes', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
+    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'calendrier', bg: 'linear-gradient(135deg, #16a34a, #15803d)' },
     { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', bg: 'linear-gradient(135deg, #7c3aed, #6d28d9)' },
     { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', bg: 'linear-gradient(135deg, #d97706, #b45309)' },
-    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'ventes', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
+    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'chiffreaffaires', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
     {
       label: 'Solde des caisses', value: `${soldeTotal.toLocaleString()} FCFA`,
       sub: soldes.length === 0 ? 'Aucune caisse' : `${soldes.length} caisse(s)${versementsEnAttenteTotal > 0 ? ` · ${versementsEnAttenteTotal.toLocaleString()} FCFA en attente` : ''}`,
-      iconKey: 'caisse', bg: soldeTotal < 0 ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)',
+      iconKey: 'solde', bg: soldeTotal < 0 ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)',
     },
   ];
 
@@ -281,7 +281,7 @@ function AdminDashboard() {
     { iconKey: 'ajouter', label: 'Entrée de stock', path: '/admin/stocks', openForm: true },
     { iconKey: 'caisse', label: 'Nouvelle vente', path: '/admin/ventes' },
     { iconKey: 'utilisateurs', label: 'Ajouter un vendeur', path: '/admin/vendeurs', openForm: true },
-    { iconKey: 'ventes', label: 'Nouvelle facture', path: '/admin/factures' },
+    { iconKey: 'factures', label: 'Nouvelle facture', path: '/admin/factures' },
   ];
 
   return (
@@ -2284,7 +2284,7 @@ function AdminInventaires() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="stock" size={28} /> Inventaires
+          <Icone nom="inventaires" size={28} /> Inventaires
         </h2>
         <button onClick={ouvrirFormNouvelle} disabled={magasins.length === 0 && boutiques.length === 0} style={{
           padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
@@ -3351,7 +3351,7 @@ function AdminRapports() {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Icone nom="dashboard" size={28} /> Rapports
+        <Icone nom="rapports" size={28} /> Rapports
       </h2>
       <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
         Cliquez sur une carte pour afficher le rapport à jour dans l'application, avec la possibilité de le télécharger en Excel (.xlsx).

@@ -5,12 +5,15 @@ import { API_URL } from '../config';
 const IconesContext = createContext();
 
 // Icônes de secours : affichées tant que celles du serveur ne sont pas là (ou
-// si le réseau est coupé), au lieu d'un "❓". Mêmes clés que backend/init-icones.js.
+// si le réseau est coupé), au lieu d'un "❓". Mêmes clés que
+// backend/routes/icones.js (/initialiser) et backend/migration/ajouterIconesManquantes.js.
 const ICONES_PAR_DEFAUT = {
   dashboard: '📊', boutiques: '🏪', utilisateurs: '👥', parametres: '⚙️', deconnexion: '🚪',
   produits: '📦', ventes: '💰', clients: '👤', stock: '📊', caisse: '🛒',
   ajouter: '➕', modifier: '✏️', supprimer: '🗑️', rechercher: '🔍', exporter: '📥', imprimer: '🖨️',
   actif: '✅', inactif: '❌', en_attente: '⏳', valide: '✓',
+  inventaires: '📋', fournisseurs: '🚚', rapports: '📈', factures: '📄', sauvegarde: '💾',
+  tresorerie: '💸', solde: '🏦', calendrier: '🗓️', chiffreaffaires: '💹', monprofil: '🪪',
 };
 
 // Dernières icônes reçues, gardées sur l'appareil : au lancement (ou avec une
