@@ -2908,9 +2908,13 @@ async function lireFichierImportProduits(fichier) {
 
 function AdminRapports() {
   const [export_, setExport_] = useState('');
+  // Rapport chargé, affiché dans l'appli avant tout téléchargement :
+  // { titre, nomFichier, entetes, lignes }
+  const [apercuRapport, setApercuRapport] = useState(null);
+  const [envoiTelechargement, setEnvoiTelechargement] = useState(false);
   const token = localStorage.getItem('token');
 
-  const exporterVentes = async () => {
+  const chargerVentes = async () => {
     setExport_('ventes');
     try {
       const res = await fetch(`${API_URL}/api/ventes`, { headers: { Authorization: `Bearer ${token}` } });
@@ -2920,15 +2924,15 @@ function AdminRapports() {
         v.numFacture || '', v.clientNom || '', v.nomVendeur || '', v.montantTotal || 0,
         v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''
       ]);
-      await telechargerXLSX(`rapport-ventes-${Date.now()}.xlsx`, 'Rapport des ventes', entetes, lignes);
+      setApercuRapport({ titre: 'Rapport des ventes', nomFichier: `rapport-ventes-${Date.now()}.xlsx`, entetes, lignes });
     } catch (err) {
-      alert('Erreur export : ' + err.message);
+      alert('Erreur : ' + err.message);
     } finally {
       setExport_('');
     }
   };
 
-  const exporterStocks = async () => {
+  const chargerStocks = async () => {
     setExport_('stocks');
     try {
       const res = await fetch(`${API_URL}/api/produits`, { headers: { Authorization: `Bearer ${token}` } });
@@ -2937,15 +2941,15 @@ function AdminRapports() {
       const lignes = (Array.isArray(produits) ? produits : []).map(p => [
         p.nom || '', p.ref || '', p.categorie || '', p.prix || 0, p.quantite || 0, p.seuilAlerte || 0
       ]);
-      await telechargerXLSX(`etat-stocks-${Date.now()}.xlsx`, 'État des stocks', entetes, lignes);
+      setApercuRapport({ titre: 'État des stocks', nomFichier: `etat-stocks-${Date.now()}.xlsx`, entetes, lignes });
     } catch (err) {
-      alert('Erreur export : ' + err.message);
+      alert('Erreur : ' + err.message);
     } finally {
       setExport_('');
     }
   };
 
-  const exporterFournisseurs = async () => {
+  const chargerFournisseurs = async () => {
     setExport_('fournisseurs');
     try {
       const res = await fetch(`${API_URL}/api/fournisseurs`, { headers: { Authorization: `Bearer ${token}` } });
@@ -2954,18 +2958,30 @@ function AdminRapports() {
       const lignes = (Array.isArray(fournisseurs) ? fournisseurs : []).map(f => [
         f.nom || '', f.telephone || '', f.email || '', f.adresse || ''
       ]);
-      await telechargerXLSX(`rapport-fournisseurs-${Date.now()}.xlsx`, 'Rapport fournisseurs', entetes, lignes);
+      setApercuRapport({ titre: 'Rapport fournisseurs', nomFichier: `rapport-fournisseurs-${Date.now()}.xlsx`, entetes, lignes });
     } catch (err) {
-      alert('Erreur export : ' + err.message);
+      alert('Erreur : ' + err.message);
     } finally {
       setExport_('');
     }
   };
 
+  const telechargerApercu = async () => {
+    if (!apercuRapport) return;
+    setEnvoiTelechargement(true);
+    try {
+      await telechargerXLSX(apercuRapport.nomFichier, apercuRapport.titre, apercuRapport.entetes, apercuRapport.lignes);
+    } catch (err) {
+      alert('Erreur export : ' + err.message);
+    } finally {
+      setEnvoiTelechargement(false);
+    }
+  };
+
   const rapports = [
-    { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe', action: exporterVentes, key: 'ventes' },
-    { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7', action: exporterStocks, key: 'stocks' },
-    { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Liste des fournisseurs', color: '#ede9fe', action: exporterFournisseurs, key: 'fournisseurs' },
+    { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe', action: chargerVentes, key: 'ventes' },
+    { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7', action: chargerStocks, key: 'stocks' },
+    { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Liste des fournisseurs', color: '#ede9fe', action: chargerFournisseurs, key: 'fournisseurs' },
   ];
 
   return (
@@ -2974,7 +2990,7 @@ function AdminRapports() {
         <Icone nom="dashboard" size={28} /> Rapports
       </h2>
       <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
-        Cliquez sur une carte pour télécharger un export Excel (.xlsx) à jour de vos données.
+        Cliquez sur une carte pour afficher le rapport à jour dans l'application, avec la possibilité de le télécharger en Excel (.xlsx).
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {rapports.map((r, i) => (
@@ -2987,10 +3003,66 @@ function AdminRapports() {
               <Icone nom={r.iconKey} size={28} />
             </div>
             <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{r.label}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Génération...' : r.desc}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Chargement...' : r.desc}</div>
           </button>
         ))}
       </div>
+
+      {apercuRapport && (
+        <div onClick={() => setApercuRapport(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'white', borderRadius: '14px', padding: '24px',
+            width: '100%', maxWidth: '820px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h3 style={{ margin: 0, color: '#0f172a' }}>{apercuRapport.titre}</h3>
+              <button onClick={() => setApercuRapport(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#94a3b8', lineHeight: 1 }}>✖</button>
+            </div>
+            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666' }}>
+              {apercuRapport.lignes.length} ligne(s).
+            </p>
+
+            <div style={{ flex: 1, overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              {apercuRapport.lignes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '13px' }}>Aucune donnée pour ce rapport.</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
+                    <tr>
+                      {apercuRapport.entetes.map(h => (
+                        <th key={h} style={{ padding: '8px', textAlign: 'left', color: '#666', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apercuRapport.lignes.map((ligne, i) => (
+                      <tr key={i} style={{ background: i % 2 === 1 ? '#f8fafc' : 'white' }}>
+                        {ligne.map((val, j) => (
+                          <td key={j} style={{ padding: '8px', color: '#333', whiteSpace: 'nowrap' }}>{val === '' || val === null || val === undefined ? '—' : String(val)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button onClick={() => setApercuRapport(null)} style={{
+                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
+              }}>Fermer</button>
+              <button onClick={telechargerApercu} disabled={envoiTelechargement} style={{
+                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
+                borderRadius: '8px', cursor: envoiTelechargement ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiTelechargement ? 0.7 : 1
+              }}>{envoiTelechargement ? 'Préparation...' : '📥 Télécharger (.xlsx)'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
