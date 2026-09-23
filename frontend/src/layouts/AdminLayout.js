@@ -2091,13 +2091,13 @@ function AdminInventaires() {
   };
 
   // ---------- Nouvelle session ----------
-  const [nouvelleSession, setNouvelleSession] = useState(null); // { cibleType, cibleId }
+  const [nouvelleSession, setNouvelleSession] = useState(null); // { cibleType, cibleId, referenceType }
   const [envoiOuverture, setEnvoiOuverture] = useState(false);
   const [erreurOuverture, setErreurOuverture] = useState('');
 
   const ouvrirFormNouvelle = () => {
     setErreurOuverture('');
-    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '' });
+    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '', referenceType: 'stock_initial' });
   };
 
   const confirmerNouvelleSession = async () => {
@@ -2204,7 +2204,7 @@ function AdminInventaires() {
           {(() => { const [libelle, fond, couleur] = STATUTS[sessionOuverte.statut]; return <span style={{ background: fond, color: couleur, padding: '3px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{libelle}</span>; })()}
         </div>
         <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#666' }}>
-          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
+          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · Référence : {sessionOuverte.referenceType === 'dernier_approvisionnement' ? 'dernier approvisionnement' : 'stock initial'} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
           {sessionOuverte.statut === 'valide' && ` · Validé le ${dateFr(sessionOuverte.valideLe)} par ${sessionOuverte.nomValidePar || '—'}`}
         </p>
 
@@ -2231,7 +2231,10 @@ function AdminInventaires() {
                     <tr key={l.produit} style={{ borderBottom: '1px solid #f8fafc' }}>
                       <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{l.nom}</td>
                       <td style={{ padding: '10px 8px', color: '#2563eb', fontSize: '13px' }}>{l.ref || '—'}</td>
-                      <td style={{ padding: '10px 8px', color: '#666' }}>{l.quantiteTheorique}</td>
+                      <td style={{ padding: '10px 8px', color: '#666' }}>
+                        {l.quantiteTheorique}
+                        {l.referenceDate && <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(l.referenceDate).toLocaleDateString('fr-FR')}</div>}
+                      </td>
                       <td style={{ padding: '10px 8px' }}>
                         {enCours ? (
                           <input type="number" min="0" defaultValue={l.quantiteReelle ?? ''} placeholder="—"
@@ -2297,7 +2300,7 @@ function AdminInventaires() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                  {['Cible', 'Ouvert le', 'Par', 'Statut', ''].map(h => (
+                  {['Cible', 'Référence', 'Ouvert le', 'Par', 'Statut', ''].map(h => (
                     <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
                   ))}
                 </tr>
@@ -2308,6 +2311,7 @@ function AdminInventaires() {
                   return (
                     <tr key={s._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                       <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</td>
+                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.referenceType === 'dernier_approvisionnement' ? 'Dernier appro.' : 'Stock initial'}</td>
                       <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{dateFr(s.createdAt)}</td>
                       <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.nomCreePar || '—'}</td>
                       <td style={{ padding: '10px 8px' }}>
@@ -2338,7 +2342,12 @@ function AdminInventaires() {
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Que voulez-vous compter ?</label>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
               {[['magasin', '🏬 Un magasin'], ['comptoir', '🏪 Une boutique']].map(([val, libelle]) => (
-                <button key={val} onClick={() => setNouvelleSession({ cibleType: val, cibleId: (val === 'magasin' ? magasins[0]?._id : boutiques[0]?._id) || '' })} style={{
+                <button key={val} onClick={() => setNouvelleSession({
+                  cibleType: val, cibleId: (val === 'magasin' ? magasins[0]?._id : boutiques[0]?._id) || '',
+                  // Une boutique ne reçoit que des transferts, jamais d'entrée directe :
+                  // "dernier approvisionnement" n'a pas de sens ici, on repasse sur "stock initial".
+                  referenceType: val === 'comptoir' && nouvelleSession.referenceType === 'dernier_approvisionnement' ? 'stock_initial' : nouvelleSession.referenceType,
+                })} style={{
                   flex: 1, padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
                   background: nouvelleSession.cibleType === val ? '#2563eb' : '#f1f5f9', color: nouvelleSession.cibleType === val ? 'white' : '#475569'
                 }}>{libelle}</button>
@@ -2349,15 +2358,39 @@ function AdminInventaires() {
               {nouvelleSession.cibleType === 'magasin' ? 'Magasin' : 'Boutique'}
             </label>
             {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#dc2626' }}>
+              <div style={{ fontSize: '13px', color: '#dc2626', marginBottom: '14px' }}>
                 Aucun{nouvelleSession.cibleType === 'magasin' ? ' magasin actif' : 'e boutique active'} — créez-en un(e) dans Stocks.
               </div>
             ) : (
               <select value={nouvelleSession.cibleId} onChange={e => setNouvelleSession({ ...nouvelleSession, cibleId: e.target.value })}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}>
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '14px' }}>
                 {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
               </select>
             )}
+
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Comparer le compte réel à...</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {[
+                ['stock_initial', 'Stock initial', 'Ce qui avait été corrigé au dernier inventaire de cette cible (ou le stock actuel s\'il n\'y en a jamais eu).'],
+                ['dernier_approvisionnement', 'Dernier approvisionnement', 'Le stock juste après le dernier réapprovisionnement de chaque produit.'],
+              ].map(([val, libelle, desc]) => {
+                const indisponible = val === 'dernier_approvisionnement' && nouvelleSession.cibleType === 'comptoir';
+                return (
+                  <label key={val} style={{
+                    display: 'flex', gap: '8px', padding: '9px 10px', borderRadius: '8px', cursor: indisponible ? 'not-allowed' : 'pointer',
+                    border: '1px solid ' + (nouvelleSession.referenceType === val ? '#93c5fd' : '#e2e8f0'),
+                    background: nouvelleSession.referenceType === val ? '#eff6ff' : 'white', opacity: indisponible ? 0.5 : 1,
+                  }}>
+                    <input type="radio" name="referenceType" checked={nouvelleSession.referenceType === val} disabled={indisponible}
+                      onChange={() => setNouvelleSession({ ...nouvelleSession, referenceType: val })} style={{ marginTop: '3px' }} />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{libelle}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>{indisponible ? "Indisponible pour une boutique : elle ne reçoit que des transferts, jamais d'entrée directe." : desc}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
 
             {erreurOuverture && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurOuverture}</div>}
             <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>

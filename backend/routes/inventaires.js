@@ -4,8 +4,35 @@ const Inventaire = require('../models/Inventaire');
 const Produit = require('../models/Produit');
 const Magasin = require('../models/Magasin');
 const Comptoir = require('../models/Comptoir');
+const MouvementStock = require('../models/MouvementStock');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const enregistrerLog = require('../utils/logger');
+const REFERENCES = ['stock_initial', 'dernier_approvisionnement'];
+
+// Calcule, pour chaque produit, le théorique de référence choisi par l'admin
+// à l'ouverture — voir models/Inventaire.js pour la définition de chaque
+// type. Retourne une Map produitId -> { quantite, date }, ou null si le type
+// choisi n'a pas de notion d'historique ici (aucun produit n'aura de
+// référence : tous retomberont sur le stock actuel, voir POST /).
+async function calculerReferences(referenceType, cibleType, cibleId) {
+  if (referenceType === 'stock_initial') {
+    const dernier = await Inventaire.findOne({ cibleType, cibleId, statut: 'valide' }).sort({ valideLe: -1 });
+    if (!dernier) return null;
+    return new Map(dernier.lignes.map(l => [
+      l.produit,
+      { quantite: l.quantiteReelle !== null ? l.quantiteReelle : l.quantiteTheorique, date: dernier.valideLe },
+    ]));
+  }
+  // dernier_approvisionnement : stockRestant de la dernière entrée de stock
+  // de chaque produit dans ce magasin — un seul aller-retour base via une
+  // agrégation, plutôt qu'une requête par produit.
+  const dernieresEntrees = await MouvementStock.aggregate([
+    { $match: { magasinId: cibleId, type: 'entree' } },
+    { $sort: { createdAt: -1 } },
+    { $group: { _id: '$produit', stockRestant: { $first: '$stockRestant' }, date: { $first: '$createdAt' } } },
+  ]);
+  return new Map(dernieresEntrees.map(d => [d._id, { quantite: d.stockRestant, date: d.date }]));
+}
 
 // Cycle de vie d'une session : "en_cours" (ouverte, comptage en cours) ->
 // "valide" (clôturée, stock corrigé) ou "annulée" (abandonnée, rien touché).
@@ -45,9 +72,15 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
   try {
     const boutiqueId = req.user.role === 'admin' ? req.user.boutiqueId : req.body.boutiqueId;
     if (!boutiqueId) return res.status(400).json({ message: 'boutiqueId requis.' });
-    const { cibleType, cibleId } = req.body;
+    const { cibleType, cibleId, referenceType } = req.body;
     if (!['magasin', 'comptoir'].includes(cibleType) || !cibleId) {
       return res.status(400).json({ message: 'cibleType ("magasin" ou "comptoir") et cibleId sont requis.' });
+    }
+    if (!REFERENCES.includes(referenceType)) {
+      return res.status(400).json({ message: 'referenceType ("stock_initial" ou "dernier_approvisionnement") est requis.' });
+    }
+    if (referenceType === 'dernier_approvisionnement' && cibleType !== 'magasin') {
+      return res.status(400).json({ message: "Le dernier approvisionnement n'est disponible que pour un magasin : une boutique ne reçoit que des transferts, jamais d'entrée directe." });
     }
 
     const cible = await cibleAccessible(cibleType, cibleId, boutiqueId);
@@ -59,15 +92,25 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     }
 
     const produits = await Produit.find({ boutiqueId }).sort({ nom: 1 });
+    const references = await calculerReferences(referenceType, cibleType, cibleId);
     const lignes = produits.map(p => {
       const stock = cibleType === 'magasin'
         ? (p.stockMagasins || []).find(sm => sm.magasin === cibleId)
         : (p.stockComptoirs || []).find(sc => sc.comptoir === cibleId);
-      return { produit: p._id, nom: p.nom, ref: p.ref || '', quantiteTheorique: stock ? stock.quantite : 0, quantiteReelle: null, compteLe: null };
+      const stockActuel = stock ? stock.quantite : 0;
+      // Produit absent de la référence (jamais approvisionné ici, ou pas
+      // encore présent au dernier inventaire) : repli sur le stock actuel.
+      const reference = references ? references.get(p._id) : null;
+      return {
+        produit: p._id, nom: p.nom, ref: p.ref || '',
+        quantiteTheorique: reference ? reference.quantite : stockActuel,
+        referenceDate: reference ? reference.date : null,
+        quantiteReelle: null, compteLe: null,
+      };
     });
 
     const inventaire = await new Inventaire({
-      boutiqueId, cibleType, cibleId, cibleNom: cible.nom, lignes,
+      boutiqueId, cibleType, cibleId, cibleNom: cible.nom, referenceType, lignes,
       creePar: req.user.id, nomCreePar: req.user.nom || '',
     }).save();
 
