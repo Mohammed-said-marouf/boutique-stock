@@ -129,6 +129,33 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET - Statistiques (total / rupture / stock faible), filtrable par
+// boutiqueId — même contrat que le backend en ligne. Enregistrée AVANT
+// GET /:id : sinon Express matcherait "stats" comme un id de produit.
+router.get('/stats', (req, res) => {
+  try {
+    const boutiqueId = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
+      ? req.user.boutiqueId
+      : req.query.boutiqueId;
+
+    const filtreBoutique = boutiqueId ? 'AND boutique_id = @boutiqueId' : '';
+    const params = { boutiqueId };
+
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM produits WHERE is_deleted = 0 ${filtreBoutique}`).get(params).n;
+    const rupture = db.prepare(`SELECT COUNT(*) AS n FROM produits WHERE is_deleted = 0 AND quantite = 0 ${filtreBoutique}`).get(params).n;
+    const faible = db.prepare(`SELECT COUNT(*) AS n FROM produits WHERE is_deleted = 0 AND quantite > 0 AND quantite <= seuil_alerte ${filtreBoutique}`).get(params).n;
+    const alertes = db.prepare(`
+      SELECT nom, quantite, seuil_alerte AS seuilAlerte FROM produits
+      WHERE is_deleted = 0 AND quantite <= seuil_alerte ${filtreBoutique}
+      LIMIT 5
+    `).all(params);
+
+    res.json({ total, rupture, faible, alertes });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET - Un seul produit par id
 router.get('/:id', (req, res) => {
   try {

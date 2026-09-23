@@ -8,3 +8,10 @@
 // résultant (spécifique à Create React App : toute variable préfixée
 // REACT_APP_ est injectée au moment du build).
 export const API_URL = process.env.REACT_APP_API_URL || 'https://boutique-stock-api.onrender.com';
+
+// Vrai uniquement pour le build desktop (seul build où API_URL est figé sur
+// localhost, voir commentaire ci-dessus) — sert à n'afficher les éléments
+// d'UI propres à la synchro (bouton "synchroniser maintenant"...) que là où
+// ils ont un sens : le web et l'APK parlent directement au serveur en
+// ligne, il n'y a rien à synchroniser de leur côté.
+export const estDesktop = API_URL.includes('localhost');

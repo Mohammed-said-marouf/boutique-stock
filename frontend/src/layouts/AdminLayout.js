@@ -13,7 +13,7 @@ import LicenceBoutique, { BandeauLicence } from '../components/Licence';
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
-import { API_URL } from '../config';
+import { API_URL, estDesktop } from '../config';
 
 const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
@@ -30,6 +30,69 @@ function useIsMobile(breakpoint = 768) {
     return () => window.removeEventListener('resize', onResize);
   }, [breakpoint]);
   return isMobile;
+}
+
+// Bouton "synchroniser maintenant" (desktop uniquement) — déclenche un
+// cycle de synchro immédiat (push puis pull) au lieu d'attendre le prochain
+// cycle automatique (toutes les 5 minutes), puis recharge la page pour que
+// tout ce qui est affiché (dashboard compris) reflète bien l'état tout
+// juste synchronisé — les écrans ne se rafraîchissent pas tout seuls sinon.
+export function BoutonSynchro() {
+  const [etat, setEtat] = useState('repos'); // repos | encours | succes | reconnexion | erreur
+  const [message, setMessage] = useState('');
+
+  const lancerSynchro = async () => {
+    setEtat('encours');
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/sync/auto-declencher`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resultat = await res.json();
+      if (resultat.necessiteReconnexion) {
+        setEtat('reconnexion');
+        setMessage('Reconnexion nécessaire : déconnectez-vous puis reconnectez-vous.');
+        return;
+      }
+      setEtat('succes');
+      setMessage(resultat.message || '✅ Synchronisation terminée.');
+      setTimeout(() => window.location.reload(), 900);
+    } catch {
+      setEtat('erreur');
+      setMessage('Impossible de synchroniser (hors-ligne ?).');
+    }
+  };
+
+  const enErreur = etat === 'erreur' || etat === 'reconnexion';
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={lancerSynchro}
+        disabled={etat === 'encours'}
+        title="Forcer une synchronisation avec le serveur en ligne"
+        style={{
+          background: 'none', border: 'none', cursor: etat === 'encours' ? 'default' : 'pointer',
+          fontSize: '19px', display: 'flex', alignItems: 'center', opacity: etat === 'encours' ? 0.5 : 1,
+        }}
+      >
+        {etat === 'encours' ? '⏳' : '🔄'}
+      </button>
+      {message && (
+        <div style={{
+          position: 'absolute', top: '32px', right: 0, minWidth: '220px',
+          background: enErreur ? '#fef2f2' : '#f0fdf4', color: enErreur ? '#b91c1c' : '#15803d',
+          border: `1px solid ${enErreur ? '#fecaca' : '#bbf7d0'}`,
+          borderRadius: '8px', padding: '8px 12px', fontSize: '12px', zIndex: 100,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        }}>
+          {message}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const menuItems = [
@@ -187,6 +250,7 @@ export default function AdminLayout() {
             {isMobile && (
               <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
             )}
+            {estDesktop && <BoutonSynchro />}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#2563eb" />

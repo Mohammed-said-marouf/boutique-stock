@@ -13,7 +13,8 @@ import Sauvegarde from '../components/Sauvegarde';
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
-import { API_URL } from '../config';
+import { API_URL, estDesktop } from '../config';
+import { BoutonSynchro } from './AdminLayout';
 
 const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
@@ -164,6 +165,7 @@ export default function VendeurLayout() {
             {isMobile && (
               <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
             )}
+            {estDesktop && <BoutonSynchro />}
             <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#059669" />
