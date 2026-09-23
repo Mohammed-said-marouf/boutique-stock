@@ -35,7 +35,10 @@ const inventaireSchema = new mongoose.Schema({
   //  - dernier_approvisionnement : le stock juste après la dernière entrée de
   //    stock (mouvement 'entree') de chaque produit — magasin uniquement, une
   //    boutique ne reçoit que des transferts, jamais d'entrée directe
-  referenceType: { type: String, enum: ['stock_initial', 'dernier_approvisionnement'], required: true },
+  //  - historique_mouvements : recalculé automatiquement depuis le dernier
+  //    inventaire (ou depuis zéro s'il n'y en a jamais eu) en additionnant
+  //    tous les mouvements survenus depuis — ignore le stock enregistré
+  referenceType: { type: String, enum: ['stock_initial', 'dernier_approvisionnement', 'historique_mouvements'], required: true },
   statut: { type: String, enum: ['en_cours', 'valide', 'annule'], default: 'en_cours' },
   lignes: [ligneInventaireSchema],
   creePar: { type: String, ref: 'User', default: null },

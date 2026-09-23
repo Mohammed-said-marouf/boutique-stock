@@ -5,9 +5,53 @@ const Produit = require('../models/Produit');
 const Magasin = require('../models/Magasin');
 const Comptoir = require('../models/Comptoir');
 const MouvementStock = require('../models/MouvementStock');
+const Vente = require('../models/Vente');
 const { verifierToken, autoriser } = require('../middleware/auth');
 const enregistrerLog = require('../utils/logger');
-const REFERENCES = ['stock_initial', 'dernier_approvisionnement'];
+const REFERENCES = ['stock_initial', 'dernier_approvisionnement', 'historique_mouvements'];
+
+// Le théorique "de départ" (baseline) : ce qui avait été corrigé au dernier
+// inventaire validé sur cette cible, pour chaque produit (quantiteReelle si
+// compté, sinon quantiteTheorique de l'époque) ; date = quand. Réutilisé par
+// "stock_initial" tel quel, et par "historique_mouvements" comme point de
+// départ auquel s'ajoutent les mouvements survenus depuis.
+async function dernierInventaireValide(cibleType, cibleId) {
+  const dernier = await Inventaire.findOne({ cibleType, cibleId, statut: 'valide' }).sort({ valideLe: -1 });
+  if (!dernier) return { baseline: new Map(), depuis: null };
+  const baseline = new Map(dernier.lignes.map(l => [
+    l.produit, l.quantiteReelle !== null ? l.quantiteReelle : l.quantiteTheorique,
+  ]));
+  return { baseline, depuis: dernier.valideLe };
+}
+
+// Somme des mouvements affectant le stock de la cible, produit par produit,
+// depuis une date (ou depuis toujours si `depuis` est null) :
+//  - magasin  : entrées (+) − sorties (−) − transferts sortants vers une boutique (−)
+//  - comptoir : transferts reçus depuis un magasin (+) − ventes (−)
+async function mouvementsDepuis(cibleType, cibleId, depuis) {
+  const filtreDate = depuis ? { createdAt: { $gt: depuis } } : {};
+  if (cibleType === 'magasin') {
+    const agg = await MouvementStock.aggregate([
+      { $match: { magasinId: cibleId, type: { $in: ['entree', 'sortie', 'transfert'] }, ...filtreDate } },
+      { $group: { _id: '$produit', total: { $sum: { $cond: [{ $eq: ['$type', 'entree'] }, '$quantite', { $multiply: ['$quantite', -1] }] } } } },
+    ]);
+    return new Map(agg.map(a => [a._id, a.total]));
+  }
+  const [transferts, ventes] = await Promise.all([
+    MouvementStock.aggregate([
+      { $match: { comptoirDestination: cibleId, type: 'transfert', ...filtreDate } },
+      { $group: { _id: '$produit', total: { $sum: '$quantite' } } },
+    ]),
+    Vente.aggregate([
+      { $match: { comptoirId: cibleId, ...(depuis ? { dateVente: { $gt: depuis } } : {}) } },
+      { $unwind: '$produits' },
+      { $group: { _id: '$produits.produit', total: { $sum: '$produits.quantite' } } },
+    ]),
+  ]);
+  const total = new Map(transferts.map(t => [t._id, t.total]));
+  for (const v of ventes) total.set(v._id, (total.get(v._id) || 0) - v.total);
+  return total;
+}
 
 // Calcule, pour chaque produit, le théorique de référence choisi par l'admin
 // à l'ouverture — voir models/Inventaire.js pour la définition de chaque
@@ -16,22 +60,38 @@ const REFERENCES = ['stock_initial', 'dernier_approvisionnement'];
 // référence : tous retomberont sur le stock actuel, voir POST /).
 async function calculerReferences(referenceType, cibleType, cibleId) {
   if (referenceType === 'stock_initial') {
-    const dernier = await Inventaire.findOne({ cibleType, cibleId, statut: 'valide' }).sort({ valideLe: -1 });
-    if (!dernier) return null;
-    return new Map(dernier.lignes.map(l => [
-      l.produit,
-      { quantite: l.quantiteReelle !== null ? l.quantiteReelle : l.quantiteTheorique, date: dernier.valideLe },
-    ]));
+    const { baseline, depuis } = await dernierInventaireValide(cibleType, cibleId);
+    if (!depuis) return null; // jamais d'inventaire ici -> repli sur le stock actuel
+    return new Map([...baseline].map(([id, quantite]) => [id, { quantite, date: depuis }]));
   }
-  // dernier_approvisionnement : stockRestant de la dernière entrée de stock
-  // de chaque produit dans ce magasin — un seul aller-retour base via une
-  // agrégation, plutôt qu'une requête par produit.
-  const dernieresEntrees = await MouvementStock.aggregate([
-    { $match: { magasinId: cibleId, type: 'entree' } },
-    { $sort: { createdAt: -1 } },
-    { $group: { _id: '$produit', stockRestant: { $first: '$stockRestant' }, date: { $first: '$createdAt' } } },
-  ]);
-  return new Map(dernieresEntrees.map(d => [d._id, { quantite: d.stockRestant, date: d.date }]));
+
+  if (referenceType === 'dernier_approvisionnement') {
+    // stockRestant de la dernière entrée de stock de chaque produit dans ce
+    // magasin — un seul aller-retour base via une agrégation, plutôt qu'une
+    // requête par produit.
+    const dernieresEntrees = await MouvementStock.aggregate([
+      { $match: { magasinId: cibleId, type: 'entree' } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$produit', stockRestant: { $first: '$stockRestant' }, date: { $first: '$createdAt' } } },
+    ]);
+    return new Map(dernieresEntrees.map(d => [d._id, { quantite: d.stockRestant, date: d.date }]));
+  }
+
+  // historique_mouvements : recalcul automatique, en ignorant le stock
+  // actuellement enregistré — repart du dernier inventaire validé (comme
+  // "stock_initial"), puis ajoute tout ce qui s'est passé depuis
+  // (transferts/ventes ou entrées/sorties/transferts sortants). Sans
+  // inventaire précédent, repart de zéro et additionne tout l'historique.
+  const { baseline, depuis } = await dernierInventaireValide(cibleType, cibleId);
+  const mouvements = await mouvementsDepuis(cibleType, cibleId, depuis);
+  const tousLesIds = new Set([...baseline.keys(), ...mouvements.keys()]);
+  const resultat = new Map();
+  for (const id of tousLesIds) {
+    const depart = baseline.has(id) ? baseline.get(id) : 0;
+    const total = Math.max(0, depart + (mouvements.get(id) || 0));
+    resultat.set(id, { quantite: total, date: depuis });
+  }
+  return resultat;
 }
 
 // Cycle de vie d'une session : "en_cours" (ouverte, comptage en cours) ->
@@ -77,7 +137,7 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
       return res.status(400).json({ message: 'cibleType ("magasin" ou "comptoir") et cibleId sont requis.' });
     }
     if (!REFERENCES.includes(referenceType)) {
-      return res.status(400).json({ message: 'referenceType ("stock_initial" ou "dernier_approvisionnement") est requis.' });
+      return res.status(400).json({ message: `referenceType (${REFERENCES.map(r => `"${r}"`).join(', ')}) est requis.` });
     }
     if (referenceType === 'dernier_approvisionnement' && cibleType !== 'magasin') {
       return res.status(400).json({ message: "Le dernier approvisionnement n'est disponible que pour un magasin : une boutique ne reçoit que des transferts, jamais d'entrée directe." });

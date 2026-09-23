@@ -2097,7 +2097,7 @@ function AdminInventaires() {
 
   const ouvrirFormNouvelle = () => {
     setErreurOuverture('');
-    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '', referenceType: 'stock_initial' });
+    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '', referenceType: 'historique_mouvements' });
   };
 
   const confirmerNouvelleSession = async () => {
@@ -2189,6 +2189,11 @@ function AdminInventaires() {
     annule: ['🚫 Annulé', '#f1f5f9', '#64748b'],
   };
   const dateFr = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  const LIBELLES_REFERENCE = {
+    historique_mouvements: '🤖 Calcul automatique',
+    stock_initial: 'Stock initial',
+    dernier_approvisionnement: 'Dernier approvisionnement',
+  };
 
   // ---------- Vue "comptage" d'une session (ouverte ou consultée) ----------
   if (sessionOuverte) {
@@ -2204,7 +2209,7 @@ function AdminInventaires() {
           {(() => { const [libelle, fond, couleur] = STATUTS[sessionOuverte.statut]; return <span style={{ background: fond, color: couleur, padding: '3px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{libelle}</span>; })()}
         </div>
         <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#666' }}>
-          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · Référence : {sessionOuverte.referenceType === 'dernier_approvisionnement' ? 'dernier approvisionnement' : 'stock initial'} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
+          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · Référence : {LIBELLES_REFERENCE[sessionOuverte.referenceType] || sessionOuverte.referenceType} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
           {sessionOuverte.statut === 'valide' && ` · Validé le ${dateFr(sessionOuverte.valideLe)} par ${sessionOuverte.nomValidePar || '—'}`}
         </p>
 
@@ -2311,7 +2316,7 @@ function AdminInventaires() {
                   return (
                     <tr key={s._id} style={{ borderBottom: '1px solid #f8fafc' }}>
                       <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</td>
-                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.referenceType === 'dernier_approvisionnement' ? 'Dernier appro.' : 'Stock initial'}</td>
+                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{LIBELLES_REFERENCE[s.referenceType] || s.referenceType}</td>
                       <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{dateFr(s.createdAt)}</td>
                       <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.nomCreePar || '—'}</td>
                       <td style={{ padding: '10px 8px' }}>
@@ -2371,6 +2376,7 @@ function AdminInventaires() {
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Comparer le compte réel à...</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {[
+                ['historique_mouvements', '🤖 Calcul automatique', "Recalculé depuis les transferts reçus moins les ventes (boutique), ou les entrées moins les sorties et transferts sortants (magasin) — ignore le stock actuellement enregistré."],
                 ['stock_initial', 'Stock initial', 'Ce qui avait été corrigé au dernier inventaire de cette cible (ou le stock actuel s\'il n\'y en a jamais eu).'],
                 ['dernier_approvisionnement', 'Dernier approvisionnement', 'Le stock juste après le dernier réapprovisionnement de chaque produit.'],
               ].map(([val, libelle, desc]) => {
