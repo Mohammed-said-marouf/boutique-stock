@@ -113,8 +113,8 @@ export default function AdminLayout() {
                 background: isActive ? '#2563eb' : 'transparent',
                 transition: 'all 0.2s', fontSize: '12.5px'
               })}>
-              <div style={{ width: '19px', height: '19px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icone nom={item.iconKey} size={19} />
+              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icone nom={item.iconKey} size={22} />
               </div>
               {!collapsed && <span>{item.label}</span>}
               {item.path === '/admin/tresorerie' && nbVersementsAttente > 0 && (
@@ -155,7 +155,7 @@ export default function AdminLayout() {
             {!collapsed && (
               <button onClick={handleLogout}
                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px' }}>
-                <Icone nom="deconnexion" size={18} />
+                <Icone nom="deconnexion" size={20} />
               </button>
             )}
           </div>
@@ -300,7 +300,7 @@ function AdminDashboard() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
               <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icone nom={s.iconKey} size={18} />
+                <Icone nom={s.iconKey} size={20} />
               </div>
               <span style={{ fontSize: '11.5px', opacity: 0.9 }}>{s.label}</span>
             </div>
@@ -396,7 +396,7 @@ function AdminDashboard() {
             borderRadius: '8px', cursor: 'pointer', fontSize: '11.5px', color: '#e2e8f0',
             whiteSpace: 'nowrap', flexShrink: 0
           }}>
-            <Icone nom={a.iconKey} size={16} />
+            <Icone nom={a.iconKey} size={18} />
             {a.label}
           </button>
         ))}
@@ -716,7 +716,7 @@ function AdminProduits() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="produits" size={28} /> Gestion des Produits
+          <Icone nom="produits" size={30} /> Gestion des Produits
         </h2>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={telechargerModeleImportProduits} title="Télécharger un fichier Excel vierge à remplir" style={{ padding: '10px 16px', background: 'white', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>
@@ -864,7 +864,7 @@ function AdminProduits() {
                       onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
                   ) : (
                     <div style={{ width: '44px', height: '44px', borderRadius: '8px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                      <Icone nom="produits" size={24} />
+                      <Icone nom="produits" size={26} />
                     </div>
                   )}
                 </td>
@@ -887,10 +887,10 @@ function AdminProduits() {
                       {genererQrId === p._id ? '⏳' : '🔳 QR'}
                     </button>
                     <button onClick={() => ouvrirModification(p)} style={{ padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb' }}>
-                      <Icone nom="modifier" size={14} />
+                      <Icone nom="modifier" size={16} />
                     </button>
                     <button onClick={() => supprimer(p._id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
-                      <Icone nom="supprimer" size={14} />
+                      <Icone nom="supprimer" size={16} />
                     </button>
                   </div>
                 </td>
@@ -1576,7 +1576,7 @@ function AdminStocks() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="stock" size={28} /> Gestion des Stocks
+          <Icone nom="stock" size={30} /> Gestion des Stocks
         </h2>
         {vueActive === 'mouvements' && (
           <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
@@ -2284,7 +2284,7 @@ function AdminInventaires() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="inventaires" size={28} /> Inventaires
+          <Icone nom="inventaires" size={30} /> Inventaires
         </h2>
         <button onClick={ouvrirFormNouvelle} disabled={magasins.length === 0 && boutiques.length === 0} style={{
           padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
@@ -2434,7 +2434,7 @@ function AdminVentes() {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Icone nom="ventes" size={28} /> Ventes
+        <Icone nom="ventes" size={30} /> Ventes
       </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         {[
@@ -2444,7 +2444,7 @@ function AdminVentes() {
         ].map((s, i) => (
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icone nom={s.iconKey} size={28} />
+              <Icone nom={s.iconKey} size={30} />
             </div>
             <div>
               <div style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>{s.value}</div>
@@ -2536,7 +2536,7 @@ function AdminClients() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="clients" size={28} /> Clients
+          <Icone nom="clients" size={30} /> Clients
         </h2>
         <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>+ Nouveau client</button>
       </div>
@@ -2813,7 +2813,7 @@ function AdminVendeurs() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="utilisateurs" size={28} /> Vendeurs
+          <Icone nom="utilisateurs" size={30} /> Vendeurs
         </h2>
         <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>+ Ajouter un vendeur</button>
       </div>
@@ -2881,7 +2881,7 @@ function AdminVendeurs() {
                       </button>
                       <button style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}
                         onClick={() => supprimerVendeur(v)}>
-                        <Icone nom="supprimer" size={14} />
+                        <Icone nom="supprimer" size={16} />
                       </button>
                     </div>
                   </td>
@@ -3351,7 +3351,7 @@ function AdminRapports() {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Icone nom="rapports" size={28} /> Rapports
+        <Icone nom="rapports" size={30} /> Rapports
       </h2>
       <p style={{ color: '#666', fontSize: '13px', marginBottom: '16px' }}>
         Cliquez sur une carte pour afficher le rapport à jour dans l'application, avec la possibilité de le télécharger en Excel (.xlsx).
@@ -3364,7 +3364,7 @@ function AdminRapports() {
             opacity: export_ === r.key ? 0.6 : 1
           }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: r.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-              <Icone nom={r.iconKey} size={28} />
+              <Icone nom={r.iconKey} size={30} />
             </div>
             <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{r.label}</div>
             <div style={{ fontSize: '13px', color: '#666' }}>{export_ === r.key ? 'Chargement...' : r.desc}</div>
@@ -3600,7 +3600,7 @@ function AdminParametres({ user }) {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Icone nom="parametres" size={28} /> Paramètres
+        <Icone nom="parametres" size={30} /> Paramètres
       </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -3715,7 +3715,7 @@ function AdminParametres({ user }) {
           {messageBoutique && <div style={{ fontSize: '12.5px', color: messageBoutique.startsWith('✅') ? '#16a34a' : '#dc2626', marginBottom: '10px' }}>{messageBoutique}</div>}
 
           <button onClick={enregistrerBoutique} disabled={envoiBoutique} style={{ width: '100%', padding: '12px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '8px', cursor: envoiBoutique ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoiBoutique ? 0.7 : 1 }}>
-            <Icone nom="modifier" size={16} /> {envoiBoutique ? 'Enregistrement...' : 'Modifier les infos'}
+            <Icone nom="modifier" size={18} /> {envoiBoutique ? 'Enregistrement...' : 'Modifier les infos'}
           </button>
         </div>
 

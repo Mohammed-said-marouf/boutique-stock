@@ -105,8 +105,8 @@ export default function VendeurLayout() {
                 textDecoration: 'none', color: isActive ? 'white' : '#6ee7b7',
                 background: isActive ? '#059669' : 'transparent', fontSize: '14px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icone nom={item.iconKey} size={22} />
+              <div style={{ width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icone nom={item.iconKey} size={24} />
               </div>
               {(!collapsed || isMobile) && <span>{item.label}</span>}
             </NavLink>
@@ -126,7 +126,7 @@ export default function VendeurLayout() {
               </div>
               <button onClick={handleLogout}
                 style={{ background: 'none', border: 'none', color: '#6ee7b7', cursor: 'pointer', fontSize: '16px' }}>
-                <Icone nom="deconnexion" size={18} />
+                <Icone nom="deconnexion" size={20} />
               </button>
             </>
           )}

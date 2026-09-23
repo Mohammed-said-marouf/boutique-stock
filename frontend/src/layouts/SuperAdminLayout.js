@@ -68,8 +68,8 @@ export default function SuperAdminLayout() {
                 background: isActive ? '#4f46e5' : 'transparent',
                 transition: 'all 0.2s', fontSize: '14px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '18px' }}>
-                {item.iconKey ? <Icone nom={item.iconKey} size={22} /> : item.icon}
+              <div style={{ width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>
+                {item.iconKey ? <Icone nom={item.iconKey} size={24} /> : item.icon}
               </div>
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
@@ -86,8 +86,8 @@ export default function SuperAdminLayout() {
                 textDecoration: 'none', color: isActive ? 'white' : '#a5b4fc',
                 background: isActive ? '#4f46e5' : 'transparent', fontSize: '14px'
               })}>
-              <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '18px' }}>
-                {item.iconKey ? <Icone nom={item.iconKey} size={22} /> : item.icon}
+              <div style={{ width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>
+                {item.iconKey ? <Icone nom={item.iconKey} size={24} /> : item.icon}
               </div>
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
@@ -105,7 +105,7 @@ export default function SuperAdminLayout() {
           {!collapsed && (
             <button onClick={handleLogout} title="Déconnexion"
               style={{ background: 'none', border: 'none', color: '#a5b4fc', cursor: 'pointer', fontSize: '16px', padding: '4px' }}>
-              <Icone nom="deconnexion" size={18} />
+              <Icone nom="deconnexion" size={20} />
             </button>
           )}
         </div>
@@ -206,7 +206,7 @@ function SuperAdminDashboard() {
           <div key={i} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {s.iconKey ? <Icone nom={s.iconKey} size={22} /> : <span style={{ fontSize: '22px' }}>{s.icon}</span>}
+                {s.iconKey ? <Icone nom={s.iconKey} size={24} /> : <span style={{ fontSize: '22px' }}>{s.icon}</span>}
               </div>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: '500' }}>{s.label}</span>
             </div>
@@ -337,7 +337,7 @@ function BoutiquesAdmin() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="boutiques" size={26} /> Gestion des Boutiques
+          <Icone nom="boutiques" size={28} /> Gestion des Boutiques
         </h2>
         <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
           + Nouvelle boutique
@@ -400,7 +400,7 @@ function BoutiquesAdmin() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '44px', height: '44px', background: '#e0e7ff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icone nom="boutiques" size={22} />
+                    <Icone nom="boutiques" size={24} />
                   </div>
                   <div>
                     <div style={{ fontWeight: '700', color: '#1e1b4b', fontSize: '15px' }}>{b.nom}</div>
@@ -428,7 +428,7 @@ function BoutiquesAdmin() {
                   color: b.actif ? '#dc2626' : '#16a34a', fontWeight: '600'
                 }}>{b.actif ? '🔒 Désactiver' : '✅ Activer'}</button>
                 <button onClick={() => supprimer(b)} style={{ padding: '8px 12px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
-                  <Icone nom="supprimer" size={14} />
+                  <Icone nom="supprimer" size={16} />
                 </button>
               </div>
             </div>
@@ -501,7 +501,7 @@ function UtilisateursAdmin() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="utilisateurs" size={26} /> Gestion des Utilisateurs
+          <Icone nom="utilisateurs" size={28} /> Gestion des Utilisateurs
         </h2>
         <div style={{ display: 'flex', gap: '8px' }}>
           {['Tous', 'Admin', 'Vendeur'].map(f => (
@@ -556,7 +556,7 @@ function UtilisateursAdmin() {
                       </button>
                       <button onClick={() => supprimer(u._id)}
                         style={{ padding: '5px 10px', background: '#fee2e2', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#dc2626' }}>
-                        <Icone nom="supprimer" size={14} />
+                        <Icone nom="supprimer" size={16} />
                       </button>
                     </div>
                   </td>
@@ -683,7 +683,7 @@ function ParametresSuperAdmin({ user }) {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', color: '#1e1b4b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Icone nom="parametres" size={26} /> Paramètres système
+        <Icone nom="parametres" size={28} /> Paramètres système
       </h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
