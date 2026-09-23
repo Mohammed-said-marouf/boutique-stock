@@ -25,6 +25,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const db = require('../local-db/db');
 const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
+const { enregistrerSession } = require('../sync/token-store');
 
 const maintenant = () => new Date().toISOString();
 
@@ -48,6 +49,29 @@ function genererTokenLocal(utilisateur) {
     boutiqueId: utilisateur.boutique_id || null,
     genereLe: maintenant(),
   })).toString('base64');
+}
+
+// Rafraîchit, en arrière-plan (sans jamais retarder ni faire échouer la
+// connexion en cours), le token séparé utilisé par le moteur de synchro
+// (session-sync.json — voir sync/token-store.js). Ce token expire au bout
+// de 24h côté serveur ; sans ce rafraîchissement, une connexion hors-ligne
+// normale (cas 1 ci-dessus) ne le touche jamais, et toute synchro
+// (push/pull) échoue silencieusement pour toujours après le premier jour.
+async function rafraichirSessionSyncEnArrierePlan(email, motDePasse) {
+  try {
+    if (!(await estEnLigne())) return;
+    const reponse = await fetch(`${API_EN_LIGNE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, motDePasse }),
+    });
+    if (!reponse.ok) return;
+    const donnees = await reponse.json();
+    if (donnees?.token) enregistrerSession(donnees);
+  } catch {
+    // Best-effort : en cas d'échec, la prochaine connexion (ou le prochain
+    // cycle de synchro automatique, voir scheduler.js) retentera.
+  }
 }
 
 function formaterUtilisateur(ligne) {
@@ -101,10 +125,12 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
       }
 
-      return res.json({
+      res.json({
         token: genererTokenLocal(utilisateurLocal),
         user: formaterUtilisateur(utilisateurLocal),
       });
+      rafraichirSessionSyncEnArrierePlan(email, motDePasse);
+      return;
     }
 
     // --- Cas 2 : le compte n'existe pas en local — tentative en ligne ---
@@ -182,6 +208,12 @@ router.post('/login', async (req, res) => {
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
     });
+
+    // Cette connexion en ligne réussie nous donne déjà un token frais :
+    // on l'enregistre aussi comme session de synchro (sans lui, la synchro
+    // resterait sans session tant qu'aucune connexion hors-ligne n'a
+    // encore réussi une fois — voir rafraichirSessionSyncEnArrierePlan).
+    enregistrerSession(donneesEnLigne);
 
     // On renvoie directement la réponse de l'API en ligne (déjà au bon format).
     res.json(donneesEnLigne);

@@ -12,7 +12,8 @@
 
 const { pousserOutbox } = require('./push');
 const { tirerTout } = require('./pull');
-const { estEnLigne } = require('./connectivite');
+const { estEnLigne, API_EN_LIGNE } = require('./connectivite');
+const { lireSession, enregistrerSession } = require('./token-store');
 
 const INTERVALLE_MS = 5 * 60 * 1000; // 5 minutes entre deux cycles automatiques
 const DELAI_INITIAL_MS = 8000; // laisse le temps au serveur local de bien démarrer
@@ -37,6 +38,28 @@ function detecterBesoinReconnexion(resultatPush) {
   );
 }
 
+// Renouvelle le token de synchro (session-sync.json) tant qu'il est encore
+// valide, à chaque cycle (toutes les 5 minutes) — ainsi son horloge de 24h
+// ne repart jamais assez tôt pour expirer, tant que l'appli est en ligne au
+// moins une fois par jour. Un token DÉJÀ expiré ne peut pas être renouvelé
+// ainsi (le serveur le refuse) : dans ce cas, seule une vraie reconnexion
+// (email + mot de passe) peut réparer la synchro — voir routes/auth.js.
+async function rafraichirTokenSyncSiBesoin() {
+  const session = lireSession();
+  if (!session?.token) return;
+  try {
+    const reponse = await fetch(`${API_EN_LIGNE}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    if (!reponse.ok) return; // token déjà expiré ou autre souci : on laisse push/pull échouer normalement, détecté plus bas
+    const donnees = await reponse.json();
+    if (donnees?.token) enregistrerSession(donnees);
+  } catch {
+    // Pas de connexion, ou serveur injoignable : pas grave, retenté au prochain cycle.
+  }
+}
+
 async function executerCycleSynchronisation() {
   if (etat.enCours) return; // évite deux cycles qui se chevauchent
   etat.enCours = true;
@@ -47,6 +70,8 @@ async function executerCycleSynchronisation() {
       etat.message = '📡 Hors-ligne — synchronisation automatique ignorée pour ce cycle.';
       return;
     }
+
+    await rafraichirTokenSyncSiBesoin();
 
     const resultatPush = await pousserOutbox();
     etat.dernierResultatPush = resultatPush;

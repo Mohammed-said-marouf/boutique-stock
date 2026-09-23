@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const enregistrerLog = require('../utils/logger');
+const { verifierToken } = require('../middleware/auth');
 const router = express.Router();
 
 // Connexion
@@ -44,6 +45,40 @@ router.post('/login', async (req, res) => {
       nomUtilisateur: user.nom,
       niveau: 'info'
     });
+
+    let caisseInfo = null;
+    if (user.caisseId) {
+      const Caisse = require('../models/Caisse');
+      caisseInfo = await Caisse.findById(user.caisseId);
+    }
+
+    res.json({
+      token,
+      user: { id: user._id, nom: user.nom, email: user.email, role: user.role, boutique: user.boutiqueId, caisseId: user.caisseId || null, caisse: caisseInfo, doitChangerMotDePasse: !!user.doitChangerMotDePasse, photo: user.photo || null }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Renouvelle un token encore valide (avant son expiration à 24h) sans
+// redemander le mot de passe — utilisé par la synchro desktop pour ne
+// jamais laisser son token expirer tant que l'appli est ouverte et en
+// ligne au moins une fois par 24h (voir desktop/sync/scheduler.js).
+// Un token déjà expiré ne peut PAS être renouvelé ici (verifierToken le
+// rejette) : il faut alors une vraie reconnexion avec email/mot de passe.
+router.post('/refresh', verifierToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate('boutiqueId');
+    if (!user || !user.actif) {
+      return res.status(401).json({ message: 'Compte introuvable ou désactivé.' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, nom: user.nom, role: user.role, boutiqueId: user.boutiqueId?._id, caisseId: user.caisseId || null },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     let caisseInfo = null;
     if (user.caisseId) {
