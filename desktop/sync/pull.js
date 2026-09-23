@@ -386,6 +386,64 @@ async function tirerUsers() {
   };
 }
 
+// "boutiques" (Comptes) a besoin d'un traitement dédié : GET /api/boutiques
+// (liste complète) n'est autorisé qu'au superadmin côté backend — un admin
+// ou un vendeur (le cas normal pour le desktop) y recevait une erreur 403 à
+// chaque cycle, jamais remontée comme une vraie panne (juste "ignorée"), si
+// bien que les infos du Compte (logo, téléphone, abonnement...) ne se
+// rafraîchissaient plus jamais après l'inscription initiale.
+// GET /api/boutiques/:id, lui, est accessible à l'admin/au vendeur de LEUR
+// PROPRE boutique — c'est cette route qu'on utilise pour ces rôles.
+async function tirerBoutiques() {
+  const session = lireSession();
+  const config = COLLECTIONS.boutiques;
+
+  let items = [];
+  if (session?.user?.role === 'superadmin') {
+    items = await appelApiGet(`${API_EN_LIGNE}${config.endpoint}`, session.token);
+  } else {
+    const boutiqueId = idRef(session?.user?.boutique);
+    if (boutiqueId) {
+      const item = await appelApiGet(`${API_EN_LIGNE}${config.endpoint}/${boutiqueId}`, session.token);
+      if (item) items = [item];
+    }
+  }
+
+  let creees = 0, misesAJour = 0, ignoreesDirty = 0, echouees = 0;
+  const echantillonsErreurs = [];
+
+  for (const item of items) {
+    const colonnes = config.versColonnes(item);
+    if (!colonnes.id) continue;
+    try {
+      const resultat = upsertLigne(config.table, colonnes);
+      if (resultat === 'creee') creees++;
+      else if (resultat === 'mise_a_jour') misesAJour++;
+      else ignoreesDirty++;
+    } catch (err) {
+      echouees++;
+      if (echantillonsErreurs.length < 3) {
+        echantillonsErreurs.push({ id: colonnes.id, erreur: err.message });
+      }
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO sync_meta (collection, last_synced_at) VALUES (?, ?)
+    ON CONFLICT(collection) DO UPDATE SET last_synced_at = excluded.last_synced_at
+  `).run('boutiques', maintenant());
+
+  return {
+    collection: 'boutiques',
+    total_recus: items.length,
+    creees,
+    mises_a_jour: misesAJour,
+    ignorees_dirty: ignoreesDirty,
+    echouees,
+    echantillons_erreurs: echantillonsErreurs,
+  };
+}
+
 async function tirerCollection(nomCollection) {
   const config = COLLECTIONS[nomCollection];
   if (!config) throw new Error(`Collection "${nomCollection}" non prise en charge par le pull.`);
@@ -445,9 +503,17 @@ async function tirerTout() {
   }
 
   const resultats = [];
-  // L'ordre respecte les dépendances : boutiques avant produits, produits
-  // avant mouvements_stock — utile pour limiter les échecs de clé étrangère.
-  for (const nomCollection of Object.keys(COLLECTIONS)) {
+
+  // "boutiques" en premier (traitement dédié, voir tirerBoutiques) : les
+  // autres collections en dépendent (FK produits.boutique_id -> boutiques.id).
+  try {
+    resultats.push(await tirerBoutiques());
+  } catch (err) {
+    resultats.push({ collection: 'boutiques', erreur: err.message });
+  }
+
+  // Reste des collections simples ("boutiques" déjà traitée ci-dessus).
+  for (const nomCollection of Object.keys(COLLECTIONS).filter(c => c !== 'boutiques')) {
     try {
       resultats.push(await tirerCollection(nomCollection));
     } catch (err) {
@@ -474,4 +540,4 @@ async function tirerTout() {
   return { statut: 'termine', resultats };
 }
 
-module.exports = { tirerTout, tirerCollection, tirerVentes, tirerUsers };
+module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerVentes, tirerUsers };
