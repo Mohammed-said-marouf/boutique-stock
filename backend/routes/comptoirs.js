@@ -30,7 +30,11 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
       return res.status(400).json({ message: 'boutiqueId requis.' });
     }
 
-    const comptoir = new Comptoir({ nom: req.body.nom, boutiqueId });
+    // _id explicite optionnel : permet à un client qui connaît déjà l'id
+    // (ex: la synchro desktop, créé hors-ligne) de garder le MÊME id des
+    // deux côtés — sinon Mongoose en génère un différent et les deux bases
+    // divergent sur cet enregistrement.
+    const comptoir = new Comptoir({ _id: req.body._id || undefined, nom: req.body.nom, boutiqueId });
     const nouveauComptoir = await comptoir.save();
     res.status(201).json(nouveauComptoir);
   } catch (err) {

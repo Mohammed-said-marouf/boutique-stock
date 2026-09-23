@@ -28,7 +28,9 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     if (!boutiqueId) return res.status(400).json({ message: 'boutiqueId requis.' });
     if (!req.body.nom) return res.status(400).json({ message: 'nom requis.' });
 
-    const magasin = new Magasin({ nom: req.body.nom, boutiqueId, adresse: req.body.adresse || '' });
+    // _id explicite optionnel (voir même commentaire dans routes/comptoirs.js)
+    // — nécessaire pour que la synchro desktop garde le même id des deux côtés.
+    const magasin = new Magasin({ _id: req.body._id || undefined, nom: req.body.nom, boutiqueId, adresse: req.body.adresse || '' });
     const nouveauMagasin = await magasin.save();
     res.status(201).json(nouveauMagasin);
   } catch (err) {

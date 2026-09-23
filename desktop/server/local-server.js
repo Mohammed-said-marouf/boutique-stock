@@ -107,6 +107,8 @@ function demarrerServeurLocal() {
   // Routes métier
   app.use('/api/auth', require('../routes/auth'));
   app.use('/api/produits', require('../routes/produits'));
+  app.use('/api/comptoirs', require('../routes/comptoirs'));
+  app.use('/api/magasins', require('../routes/magasins'));
   app.use('/api/ventes', require('../routes/ventes'));
   app.use('/api/boutiques', require('../routes/boutiques'));
   app.use('/api/clients', require('../routes/clients'));

@@ -81,7 +81,46 @@ CREATE TABLE IF NOT EXISTS fournisseur_produits (
   PRIMARY KEY (fournisseur_id, produit_id)
 );
 
+-- ---------- Comptoirs (points de vente au sein d'une boutique) ----------
+-- Le stock de chaque produit à un comptoir donné est dans stock_comptoirs
+-- (voir plus bas), pas ici — cette table ne décrit que le comptoir lui-même.
+CREATE TABLE IF NOT EXISTS comptoirs (
+  id            TEXT PRIMARY KEY,
+  nom           TEXT NOT NULL,
+  boutique_id   TEXT NOT NULL REFERENCES boutiques(id),
+  actif         INTEGER DEFAULT 1,
+  created_at    TEXT,
+  updated_at    TEXT,
+  is_dirty      INTEGER DEFAULT 0,
+  is_deleted    INTEGER DEFAULT 0
+);
+
+-- ---------- Magasins (réserves rattachées au Compte, pas à une boutique) ----------
+-- Un même Magasin peut alimenter n'importe quelle boutique du Compte. Le
+-- stock de chaque produit dans CE magasin est dans stock_magasins (voir
+-- plus bas), pas ici — cette table ne décrit que le magasin lui-même.
+CREATE TABLE IF NOT EXISTS magasins (
+  id            TEXT PRIMARY KEY,
+  nom           TEXT NOT NULL,
+  boutique_id   TEXT NOT NULL REFERENCES boutiques(id),
+  adresse       TEXT DEFAULT '',
+  actif         INTEGER DEFAULT 1,
+  created_at    TEXT,
+  updated_at    TEXT,
+  is_dirty      INTEGER DEFAULT 0,
+  is_deleted    INTEGER DEFAULT 0
+);
+
 -- ---------- Produits ----------
+-- IMPORTANT : "quantite" est le TOTAL du stock Magasin (réserve, pas
+-- vendable tel quel), tenu à jour automatiquement = somme de
+-- stock_magasins.quantite pour ce produit (recalculé à chaque écriture qui
+-- touche stock_magasins — voir routes/produits.js). La répartition réelle
+-- par magasin est dans stock_magasins ci-dessous (un Compte peut avoir
+-- plusieurs magasins). Le stock réellement vendable (décompté à la vente)
+-- est dans stock_comptoirs — un produit doit être transféré d'un Magasin
+-- vers une Boutique avant de pouvoir être vendu (voir routes/produits.js,
+-- endpoint POST /:id/transferer).
 CREATE TABLE IF NOT EXISTS produits (
   id            TEXT PRIMARY KEY,
   nom           TEXT NOT NULL,
@@ -101,6 +140,29 @@ CREATE TABLE IF NOT EXISTS produits (
   is_deleted    INTEGER DEFAULT 0
 );
 
+-- ---------- Stock par magasin ----------
+-- Miroir de Produit.stockMagasins (array côté Mongo) => table de jonction
+-- ici. Une ligne par (produit, magasin) où du stock existe. "quantite" sur
+-- la table produits est toujours la somme de ces lignes pour ce produit.
+CREATE TABLE IF NOT EXISTS stock_magasins (
+  produit_id    TEXT NOT NULL REFERENCES produits(id) ON DELETE CASCADE,
+  magasin_id    TEXT NOT NULL REFERENCES magasins(id) ON DELETE CASCADE,
+  quantite      INTEGER NOT NULL DEFAULT 0,
+  updated_at    TEXT,
+  PRIMARY KEY (produit_id, magasin_id)
+);
+
+-- ---------- Stock par comptoir ----------
+-- Miroir de Produit.stockComptoirs (array côté Mongo) => table de jonction
+-- ici. Une ligne par (produit, comptoir) où du stock a déjà été transféré.
+CREATE TABLE IF NOT EXISTS stock_comptoirs (
+  produit_id    TEXT NOT NULL REFERENCES produits(id) ON DELETE CASCADE,
+  comptoir_id   TEXT NOT NULL REFERENCES comptoirs(id) ON DELETE CASCADE,
+  quantite      INTEGER NOT NULL DEFAULT 0,
+  updated_at    TEXT,
+  PRIMARY KEY (produit_id, comptoir_id)
+);
+
 -- ---------- Ventes ----------
 CREATE TABLE IF NOT EXISTS ventes (
   id             TEXT PRIMARY KEY,
@@ -111,6 +173,7 @@ CREATE TABLE IF NOT EXISTS ventes (
   client_nom     TEXT DEFAULT 'Client anonyme',
   num_facture    TEXT,
   boutique_id    TEXT REFERENCES boutiques(id),
+  comptoir_id    TEXT REFERENCES comptoirs(id),
   date_vente     TEXT,
   notes          TEXT,
   created_at     TEXT,
@@ -129,18 +192,24 @@ CREATE TABLE IF NOT EXISTS vente_produits (
 );
 
 -- ---------- Mouvements de stock ----------
+-- type='transfert' : mouvement Magasin -> Comptoir (magasin_id et
+-- comptoir_destination remplis). type='entree'/'sortie' : mouvement sur le
+-- stock d'UN magasin précis (magasin_id rempli), comptoir_destination
+-- reste NULL.
 CREATE TABLE IF NOT EXISTS mouvements_stock (
-  id             TEXT PRIMARY KEY,
-  produit        TEXT NOT NULL REFERENCES produits(id),
-  boutique_id    TEXT NOT NULL REFERENCES boutiques(id),
-  type           TEXT NOT NULL CHECK (type IN ('entree', 'sortie')),
-  quantite       INTEGER NOT NULL,
-  stock_restant  INTEGER NOT NULL,
-  note           TEXT DEFAULT '',
-  created_at     TEXT,
-  updated_at     TEXT,
-  is_dirty       INTEGER DEFAULT 0,
-  is_deleted     INTEGER DEFAULT 0
+  id                    TEXT PRIMARY KEY,
+  produit               TEXT NOT NULL REFERENCES produits(id),
+  boutique_id           TEXT NOT NULL REFERENCES boutiques(id),
+  type                  TEXT NOT NULL CHECK (type IN ('entree', 'sortie', 'transfert')),
+  quantite              INTEGER NOT NULL,
+  stock_restant         INTEGER NOT NULL,
+  magasin_id            TEXT REFERENCES magasins(id),
+  comptoir_destination  TEXT REFERENCES comptoirs(id),
+  note                  TEXT DEFAULT '',
+  created_at            TEXT,
+  updated_at            TEXT,
+  is_dirty              INTEGER DEFAULT 0,
+  is_deleted            INTEGER DEFAULT 0
 );
 
 -- ---------- Logs d'activité ----------
@@ -196,11 +265,16 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 );
 
 -- Initialisation des collections connues (dates nulles = jamais synchronisé)
+-- 'stock_comptoirs' et 'stock_magasins' n'ont pas leur propre ligne : ce
+-- sont des tableaux embarqués sur "produits" côté Mongo (Produit.stockComptoirs
+-- / Produit.stockMagasins), synchronisés avec le produit, pas séparément.
 INSERT OR IGNORE INTO sync_meta (collection, last_synced_at) VALUES
   ('boutiques', NULL),
   ('users', NULL),
   ('clients', NULL),
   ('fournisseurs', NULL),
+  ('comptoirs', NULL),
+  ('magasins', NULL),
   ('produits', NULL),
   ('ventes', NULL),
   ('mouvements_stock', NULL),

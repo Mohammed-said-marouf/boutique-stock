@@ -42,10 +42,34 @@ function ajouterAOutbox(operation, recordId, payload) {
   `).run('produits', operation, recordId, payload ? JSON.stringify(payload) : null, maintenant());
 }
 
+// Le magasin dans lequel atterrit un stock initial saisi sans magasinId
+// explicite — même repli que le backend en ligne (routes/produits.js).
+function trouverPremierMagasinActif(boutiqueId) {
+  if (!boutiqueId) return null;
+  const ligne = db.prepare(`
+    SELECT id FROM magasins WHERE boutique_id = ? AND actif = 1 AND is_deleted = 0
+    ORDER BY created_at ASC LIMIT 1
+  `).get(boutiqueId);
+  return ligne ? ligne.id : null;
+}
+
+// "quantite" sur produits est toujours la somme de stock_magasins pour ce
+// produit — jamais modifiée directement ailleurs (voir commentaire schema.sql).
+function recalculerQuantiteProduit(produitId) {
+  return db.prepare('SELECT COALESCE(SUM(quantite),0) AS total FROM stock_magasins WHERE produit_id = ?').get(produitId).total;
+}
+
 // Transforme une ligne SQLite (snake_case) vers le format attendu par le frontend (camelCase),
 // identique à ce que renvoyait l'API MongoDB.
 function versFormatApi(ligne) {
   if (!ligne) return null;
+  const stockMagasins = db.prepare(`
+    SELECT sm.magasin_id, sm.quantite, m.nom AS magasin_nom, m.actif AS magasin_actif
+    FROM stock_magasins sm
+    JOIN magasins m ON m.id = sm.magasin_id
+    WHERE sm.produit_id = ?
+  `).all(ligne.id);
+
   const stockComptoirs = db.prepare(`
     SELECT sc.comptoir_id, sc.quantite, c.nom AS comptoir_nom, c.actif AS comptoir_actif
     FROM stock_comptoirs sc
@@ -59,9 +83,13 @@ function versFormatApi(ligne) {
     description: ligne.description,
     prix: ligne.prix,
     quantite: ligne.quantite,
-    // Stock par comptoir, au même format que renvoyé par le backend en
-    // ligne (comptoir populé avec juste _id/nom) — voir stockComptoirDe()
-    // côté frontend (VendeurLayout.js) qui lit cette structure.
+    // Stock par magasin et par comptoir, au même format que renvoyé par le
+    // backend en ligne (populé avec juste _id/nom) — voir AdminLayout.js /
+    // VendeurLayout.js (frontend) qui lisent cette structure.
+    stockMagasins: stockMagasins.map(sm => ({
+      magasin: { _id: sm.magasin_id, nom: sm.magasin_nom, actif: !!sm.magasin_actif },
+      quantite: sm.quantite,
+    })),
     stockComptoirs: stockComptoirs.map(sc => ({
       comptoir: { _id: sc.comptoir_id, nom: sc.comptoir_nom, actif: !!sc.comptoir_actif },
       quantite: sc.quantite,
@@ -114,29 +142,28 @@ router.get('/:id', (req, res) => {
 
 // POST - Créer un produit (multipart/form-data, champ fichier "image" optionnel)
 router.post('/', upload.single('image'), (req, res) => {
-  try {
-    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte } = req.body;
+  const transaction = db.transaction((body, fichier) => {
+    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte, magasinId } = body;
 
     if (!nom || prix === undefined || prix === '' || !categorie) {
-      return res.status(400).json({ message: 'nom, prix et categorie sont requis.' });
+      throw Object.assign(new Error('nom, prix et categorie sont requis.'), { statut: 400 });
     }
 
     const id = crypto.randomUUID();
     const maintenantIso = maintenant();
-    const cheminImage = req.file ? `/uploads/produits/${req.file.filename}` : null;
+    const cheminImage = fichier ? `/uploads/produits/${fichier.filename}` : null;
     // La référence est TOUJOURS générée localement, jamais laissée au choix
     // du client — voir local-db/reference.js.
     const ref = genererReference(db, nom, boutiqueId || null);
 
     db.prepare(`
       INSERT INTO produits (id, nom, description, prix, quantite, categorie, fournisseur, boutique_id, seuil_alerte, ref, image, date_ajout, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @description, @prix, @quantite, @categorie, @fournisseur, @boutiqueId, @seuilAlerte, @ref, @image, @dateAjout, @createdAt, @updatedAt, 1, 0)
+      VALUES (@id, @nom, @description, @prix, 0, @categorie, @fournisseur, @boutiqueId, @seuilAlerte, @ref, @image, @dateAjout, @createdAt, @updatedAt, 1, 0)
     `).run({
       id,
       nom,
       description: description || null,
       prix: Number(prix),
-      quantite: quantite !== undefined && quantite !== '' ? Number(quantite) : 0,
       categorie,
       fournisseur: fournisseur || null,
       boutiqueId: boutiqueId || null,
@@ -148,6 +175,24 @@ router.post('/', upload.single('image'), (req, res) => {
       updatedAt: maintenantIso,
     });
 
+    // Le stock initial saisi doit atterrir dans UN magasin précis (un Compte
+    // peut en avoir plusieurs) — même repli que le backend en ligne : à
+    // défaut de magasinId fourni, le premier magasin actif du Compte.
+    const quantiteInitiale = quantite !== undefined && quantite !== '' ? Number(quantite) : 0;
+    if (quantiteInitiale > 0) {
+      const magasinCible = magasinId || trouverPremierMagasinActif(boutiqueId || null);
+      if (magasinCible) {
+        db.prepare('INSERT INTO stock_magasins (produit_id, magasin_id, quantite, updated_at) VALUES (?, ?, ?, ?)')
+          .run(id, magasinCible, quantiteInitiale, maintenantIso);
+        db.prepare('UPDATE produits SET quantite = ? WHERE id = ?').run(quantiteInitiale, id);
+      }
+    }
+
+    return id;
+  });
+
+  try {
+    const id = transaction(req.body, req.file);
     const ligne = db.prepare('SELECT * FROM produits WHERE id = ?').get(id);
     const produitCree = versFormatApi(ligne);
 
@@ -155,31 +200,38 @@ router.post('/', upload.single('image'), (req, res) => {
 
     res.status(201).json(produitCree);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(err.statut || 400).json({ message: err.message });
   }
 });
 
-// POST - Transférer du stock du Magasin vers un Comptoir. Crée aussi un
-// mouvement de stock de type "transfert" pour garder l'historique.
+// POST - Transférer du stock d'UN magasin précis vers un Comptoir. Crée
+// aussi un mouvement de stock de type "transfert" pour garder l'historique.
+// Même contrat que le backend en ligne (magasinId, comptoirId, quantite).
 router.post('/:id/transferer', (req, res) => {
-  const transaction = db.transaction(({ produitId, comptoirId, quantite, note }) => {
+  const transaction = db.transaction(({ produitId, magasinId, comptoirId, quantite, note }) => {
     const produit = db.prepare('SELECT * FROM produits WHERE id = ? AND is_deleted = 0').get(produitId);
     if (!produit) throw Object.assign(new Error('Produit introuvable.'), { statut: 404 });
+
+    const magasin = db.prepare('SELECT * FROM magasins WHERE id = ? AND is_deleted = 0').get(magasinId);
+    if (!magasin) throw Object.assign(new Error('Magasin introuvable.'), { statut: 404 });
 
     const comptoir = db.prepare('SELECT * FROM comptoirs WHERE id = ? AND is_deleted = 0').get(comptoirId);
     if (!comptoir) throw Object.assign(new Error('Comptoir introuvable.'), { statut: 404 });
 
-    if (produit.quantite < quantite) {
-      throw Object.assign(new Error(`Stock Magasin insuffisant (disponible : ${produit.quantite}).`), { statut: 400 });
+    const ligneMagasin = db.prepare('SELECT quantite FROM stock_magasins WHERE produit_id = ? AND magasin_id = ?').get(produitId, magasinId);
+    const dispoMagasin = ligneMagasin ? ligneMagasin.quantite : 0;
+    if (dispoMagasin < quantite) {
+      throw Object.assign(new Error(`Stock insuffisant dans ce magasin (disponible : ${dispoMagasin}).`), { statut: 400 });
     }
 
     const maintenantIso = maintenant();
+    const nouveauStockMagasin = dispoMagasin - quantite;
 
-    db.prepare('UPDATE produits SET quantite = quantite - ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
-      .run(quantite, maintenantIso, produitId);
+    db.prepare('UPDATE stock_magasins SET quantite = ?, updated_at = ? WHERE produit_id = ? AND magasin_id = ?')
+      .run(nouveauStockMagasin, maintenantIso, produitId, magasinId);
 
-    const ligneExistante = db.prepare('SELECT * FROM stock_comptoirs WHERE produit_id = ? AND comptoir_id = ?').get(produitId, comptoirId);
-    if (ligneExistante) {
+    const ligneComptoir = db.prepare('SELECT * FROM stock_comptoirs WHERE produit_id = ? AND comptoir_id = ?').get(produitId, comptoirId);
+    if (ligneComptoir) {
       db.prepare('UPDATE stock_comptoirs SET quantite = quantite + ?, updated_at = ? WHERE produit_id = ? AND comptoir_id = ?')
         .run(quantite, maintenantIso, produitId, comptoirId);
     } else {
@@ -187,25 +239,37 @@ router.post('/:id/transferer', (req, res) => {
         .run(produitId, comptoirId, quantite, maintenantIso);
     }
 
-    const produitMisAJour = db.prepare('SELECT * FROM produits WHERE id = ?').get(produitId);
+    const totalMagasins = recalculerQuantiteProduit(produitId);
+    db.prepare('UPDATE produits SET quantite = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
+      .run(totalMagasins, maintenantIso, produitId);
 
+    const mouvementId = crypto.randomUUID();
     db.prepare(`
-      INSERT INTO mouvements_stock (id, produit, boutique_id, type, quantite, stock_restant, comptoir_destination, note, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (?, ?, ?, 'transfert', ?, ?, ?, ?, ?, ?, 1, 0)
-    `).run(crypto.randomUUID(), produitId, produitMisAJour.boutique_id, quantite, produitMisAJour.quantite, comptoirId, note || '', maintenantIso, maintenantIso);
+      INSERT INTO mouvements_stock (id, produit, boutique_id, type, quantite, stock_restant, magasin_id, comptoir_destination, note, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (?, ?, ?, 'transfert', ?, ?, ?, ?, ?, ?, ?, 1, 0)
+    `).run(mouvementId, produitId, produit.boutique_id, quantite, nouveauStockMagasin, magasinId, comptoirId, note || '', maintenantIso, maintenantIso);
 
-    ajouterAOutbox('update', produitId, versFormatApi(produitMisAJour));
+    // Poussé via une entrée dédiée ("transferts") plutôt qu'une mise à jour
+    // générique du produit : elle sera rejouée contre la VRAIE route
+    // /api/produits/:id/transferer en ligne (voir sync/push.js), qui
+    // recalcule elle-même stockMagasins/stockComptoirs/quantite côté
+    // serveur — plus sûr qu'un écrasement brut avec les totaux locaux.
+    db.prepare(`
+      INSERT INTO sync_outbox (collection, operation, record_id, payload, created_at)
+      VALUES ('transferts', 'create', ?, ?, ?)
+    `).run(produitId, JSON.stringify({ produitId, magasinId, comptoirId, quantite, note: note || '' }), maintenantIso);
 
+    const produitMisAJour = db.prepare('SELECT * FROM produits WHERE id = ?').get(produitId);
     return versFormatApi(produitMisAJour);
   });
 
   try {
-    const { comptoirId, quantite } = req.body;
+    const { magasinId, comptoirId, quantite } = req.body;
     const qte = Number(quantite);
-    if (!comptoirId || !qte || qte <= 0) {
-      return res.status(400).json({ message: 'comptoirId et quantite (> 0) sont requis.' });
+    if (!magasinId || !comptoirId || !qte || qte <= 0) {
+      return res.status(400).json({ message: 'magasinId, comptoirId et quantite (> 0) sont requis.' });
     }
-    const resultat = transaction({ produitId: req.params.id, comptoirId, quantite: qte, note: req.body.note });
+    const resultat = transaction({ produitId: req.params.id, magasinId, comptoirId, quantite: qte, note: req.body.note });
     res.json(resultat);
   } catch (err) {
     res.status(err.statut || 400).json({ message: err.message });
@@ -221,6 +285,7 @@ router.post('/import', (req, res) => {
     if (lignes.length === 0) return res.status(400).json({ message: 'Aucune ligne à importer.' });
 
     const boutiqueId = (req.user && req.user.role === 'admin') ? req.user.boutiqueId : (req.body.boutiqueId || (req.user && req.user.boutiqueId));
+    const magasinParDefaut = trouverPremierMagasinActif(boutiqueId);
 
     const succes = [];
     const echecs = [];
@@ -234,15 +299,15 @@ router.post('/import', (req, res) => {
         }
         const id = crypto.randomUUID();
         const ref = genererReference(db, l.nom, boutiqueId);
+        const quantiteInitiale = Number(l.quantite) || 0;
         db.prepare(`
           INSERT INTO produits (id, nom, description, prix, quantite, categorie, boutique_id, seuil_alerte, ref, date_ajout, created_at, updated_at, is_dirty, is_deleted)
-          VALUES (@id, @nom, @description, @prix, @quantite, @categorie, @boutiqueId, @seuilAlerte, @ref, @dateAjout, @createdAt, @updatedAt, 1, 0)
+          VALUES (@id, @nom, @description, @prix, 0, @categorie, @boutiqueId, @seuilAlerte, @ref, @dateAjout, @createdAt, @updatedAt, 1, 0)
         `).run({
           id,
           nom: l.nom,
           description: l.description || null,
           prix: Number(l.prix),
-          quantite: Number(l.quantite) || 0,
           categorie: l.categorie,
           boutiqueId,
           seuilAlerte: l.seuilAlerte !== undefined && l.seuilAlerte !== '' ? Number(l.seuilAlerte) : 5,
@@ -251,6 +316,11 @@ router.post('/import', (req, res) => {
           createdAt: maintenantIso,
           updatedAt: maintenantIso,
         });
+        if (quantiteInitiale > 0 && magasinParDefaut) {
+          db.prepare('INSERT INTO stock_magasins (produit_id, magasin_id, quantite, updated_at) VALUES (?, ?, ?, ?)')
+            .run(id, magasinParDefaut, quantiteInitiale, maintenantIso);
+          db.prepare('UPDATE produits SET quantite = ? WHERE id = ?').run(quantiteInitiale, id);
+        }
         const ligneCreee = db.prepare('SELECT * FROM produits WHERE id = ?').get(id);
         ajouterAOutbox('create', id, versFormatApi(ligneCreee));
         succes.push({ ligne: i + 1, nom: l.nom });
@@ -266,13 +336,15 @@ router.post('/import', (req, res) => {
 });
 
 // PUT - Modifier un produit (multipart/form-data, champ fichier "image" optionnel —
-// si absent, l'image existante est conservée)
+// si absent, l'image existante est conservée). Ne touche JAMAIS "quantite"
+// (voir versFormatApi/recalculerQuantiteProduit) — seuls la création avec
+// stock initial, un transfert ou un mouvement le modifient.
 router.put('/:id', upload.single('image'), (req, res) => {
   try {
     const existant = db.prepare('SELECT * FROM produits WHERE id = ? AND is_deleted = 0').get(req.params.id);
     if (!existant) return res.status(404).json({ message: 'Produit introuvable.' });
 
-    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte, ref } = req.body;
+    const { nom, description, prix, categorie, fournisseur, boutiqueId, seuilAlerte, ref } = req.body;
     const maintenantIso = maintenant();
 
     let cheminImage = existant.image;
@@ -291,7 +363,6 @@ router.put('/:id', upload.single('image'), (req, res) => {
         nom = @nom,
         description = @description,
         prix = @prix,
-        quantite = @quantite,
         categorie = @categorie,
         fournisseur = @fournisseur,
         boutique_id = @boutiqueId,
@@ -306,7 +377,6 @@ router.put('/:id', upload.single('image'), (req, res) => {
       nom: nom ?? existant.nom,
       description: description ?? existant.description,
       prix: prix !== undefined && prix !== '' ? Number(prix) : existant.prix,
-      quantite: quantite !== undefined && quantite !== '' ? Number(quantite) : existant.quantite,
       categorie: categorie ?? existant.categorie,
       fournisseur: fournisseur ?? existant.fournisseur,
       boutiqueId: boutiqueId ?? existant.boutique_id,

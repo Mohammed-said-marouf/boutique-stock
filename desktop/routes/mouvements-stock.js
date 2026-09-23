@@ -57,66 +57,68 @@ router.get('/', (req, res) => {
   }
 });
 
-// POST - Créer un mouvement de stock (entrée ou sortie)
+// POST - Créer un mouvement de stock (entrée ou sortie) sur le stock d'UN
+// MAGASIN précis (un Compte peut en avoir plusieurs) — même contrat que le
+// backend en ligne (backend/routes/mouvements.js).
 router.post('/', (req, res) => {
   const transaction = db.transaction((body) => {
-    const { produit, boutiqueId, type, quantite, note } = body;
+    const { produit, magasinId, boutiqueId, type, quantite, note } = body;
 
-    if (!produit || !boutiqueId || !type || quantite === undefined) {
-      throw new Error('produit, boutiqueId, type et quantite sont requis.');
+    if (!produit || !magasinId || !boutiqueId || !type || quantite === undefined) {
+      throw new Error('produit, magasinId, boutiqueId, type et quantite sont requis.');
     }
 
     const produitExistant = db.prepare('SELECT * FROM produits WHERE id = ? AND is_deleted = 0').get(produit);
     if (!produitExistant) throw new Error('Produit introuvable.');
 
-    const nouveauStock = type === 'entree'
-      ? produitExistant.quantite + Number(quantite)
-      : produitExistant.quantite - Number(quantite);
+    const qte = Number(quantite);
+    const ligneMagasin = db.prepare('SELECT quantite FROM stock_magasins WHERE produit_id = ? AND magasin_id = ?').get(produit, magasinId);
+    const stockActuelMagasin = ligneMagasin ? ligneMagasin.quantite : 0;
+    const nouveauStockMagasin = type === 'entree' ? stockActuelMagasin + qte : stockActuelMagasin - qte;
+    if (nouveauStockMagasin < 0) throw new Error('Stock insuffisant dans ce magasin pour cette sortie.');
 
     const maintenantIso = maintenant();
     const id = crypto.randomUUID();
 
+    if (ligneMagasin) {
+      db.prepare('UPDATE stock_magasins SET quantite = ?, updated_at = ? WHERE produit_id = ? AND magasin_id = ?')
+        .run(nouveauStockMagasin, maintenantIso, produit, magasinId);
+    } else {
+      db.prepare('INSERT INTO stock_magasins (produit_id, magasin_id, quantite, updated_at) VALUES (?, ?, ?, ?)')
+        .run(produit, magasinId, nouveauStockMagasin, maintenantIso);
+    }
+
+    const totalMagasins = db.prepare('SELECT COALESCE(SUM(quantite),0) AS total FROM stock_magasins WHERE produit_id = ?').get(produit).total;
+
     db.prepare(`
-      INSERT INTO mouvements_stock (id, produit, boutique_id, type, quantite, stock_restant, note, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @produit, @boutiqueId, @type, @quantite, @stockRestant, @note, @createdAt, @updatedAt, 1, 0)
+      INSERT INTO mouvements_stock (id, produit, boutique_id, type, quantite, stock_restant, magasin_id, note, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @produit, @boutiqueId, @type, @quantite, @stockRestant, @magasinId, @note, @createdAt, @updatedAt, 1, 0)
     `).run({
-      id, produit, boutiqueId, type,
-      quantite: Number(quantite),
-      stockRestant: nouveauStock,
+      id, produit, boutiqueId, type, magasinId,
+      quantite: qte,
+      stockRestant: nouveauStockMagasin,
       note: note || '',
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
     });
 
     db.prepare('UPDATE produits SET quantite = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
-      .run(nouveauStock, maintenantIso, produit);
+      .run(totalMagasins, maintenantIso, produit);
 
+    // Un seul outbox pour ce mouvement, qui sera rejoué contre la VRAIE
+    // route /api/mouvements-stock en ligne (voir sync/push.js) — celle-ci
+    // recalcule elle-même produit.quantite à partir de stockMagasins côté
+    // serveur. On ne pousse PAS en plus une mise à jour brute du produit
+    // avec son total local : ça écraserait le total en ligne (qui peut
+    // inclure d'autres magasins inconnus ici) au lieu de le recalculer
+    // correctement à partir du mouvement lui-même.
     ajouterAOutbox('mouvements_stock', 'create', id, {
       produit,
       boutiqueId,
+      magasinId,
       type,
-      quantite: Number(quantite),
+      quantite: qte,
       note: note || '',
-    });
-
-    // Payload rempli avec les vraies données du produit après mise à jour
-    // (avant : envoyé à `null`, ce qui empêchait la nouvelle quantité
-    // d'être transmise au serveur en ligne lors du push — le produit
-    // restait marqué "modifié" sans jamais transmettre ni recevoir la
-    // bonne valeur, d'où une divergence silencieuse entre local et en ligne).
-    const produitMisAJour = db.prepare('SELECT * FROM produits WHERE id = ?').get(produit);
-    ajouterAOutbox('produits', 'update', produit, {
-      _id: produitMisAJour.id,
-      nom: produitMisAJour.nom,
-      description: produitMisAJour.description,
-      prix: produitMisAJour.prix,
-      quantite: produitMisAJour.quantite,
-      categorie: produitMisAJour.categorie,
-      fournisseur: produitMisAJour.fournisseur,
-      boutiqueId: produitMisAJour.boutique_id,
-      seuilAlerte: produitMisAJour.seuil_alerte,
-      ref: produitMisAJour.ref,
-      image: produitMisAJour.image,
     });
 
     return id;

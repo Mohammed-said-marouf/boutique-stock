@@ -115,6 +115,42 @@ async function pousserEntree(entree, token) {
       }
       break;
 
+    case 'comptoirs':
+      if (operation === 'create') {
+        await appelApi(`${API_EN_LIGNE}/api/comptoirs`, 'POST', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/comptoirs/${record_id}`, 'PUT', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/comptoirs/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
+    case 'magasins':
+      if (operation === 'create') {
+        await appelApi(`${API_EN_LIGNE}/api/magasins`, 'POST', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/magasins/${record_id}`, 'PUT', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/magasins/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
     case 'fournisseurs':
       if (operation === 'create') {
         await appelApi(`${API_EN_LIGNE}/api/fournisseurs`, 'POST', headers, payload);
@@ -142,12 +178,29 @@ async function pousserEntree(entree, token) {
         // deux bases divergent sur cet enregistrement.
         if (payload?._id) formData.append('_id', payload._id);
 
-        const champsTexte = ['nom', 'description', 'prix', 'quantite', 'categorie', 'fournisseur', 'boutiqueId', 'seuilAlerte', 'ref'];
+        // "quantite" n'est envoyé que pour une CRÉATION (stock initial) —
+        // jamais pour une simple mise à jour (prix, nom...) : c'est un total
+        // recalculé côté serveur à partir de stockMagasins, qui peut inclure
+        // des magasins inconnus d'ici. Le renvoyer sur un update écraserait
+        // ce total en ligne avec une valeur locale potentiellement périmée
+        // (voir routes/produits.js desktop, qui ne le modifie plus lui-même
+        // en dehors d'une création/transfert/mouvement).
+        const champsTexte = operation === 'create'
+          ? ['nom', 'description', 'prix', 'quantite', 'categorie', 'fournisseur', 'boutiqueId', 'seuilAlerte', 'ref']
+          : ['nom', 'description', 'prix', 'categorie', 'fournisseur', 'boutiqueId', 'seuilAlerte', 'ref'];
         for (const champ of champsTexte) {
           const valeur = payload?.[champ];
           if (valeur !== null && valeur !== undefined) {
             formData.append(champ, String(valeur));
           }
+        }
+
+        // Pour une création avec stock initial, précise dans QUEL magasin ce
+        // stock a été placé localement (voir routes/produits.js desktop) —
+        // sans ça, le backend retomberait sur son propre repli ("premier
+        // magasin actif"), potentiellement différent de celui utilisé ici.
+        if (operation === 'create' && payload?.stockMagasins?.[0]?.magasin?._id) {
+          formData.append('magasinId', payload.stockMagasins[0].magasin._id);
         }
 
         // Si le produit a une image locale (chemin /uploads/produits/xxx.png
@@ -194,6 +247,28 @@ async function pousserEntree(entree, token) {
 
         await appelApiMultipart(url, method, token, formData);
         marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/produits/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
+    case 'transferts':
+      if (operation === 'create') {
+        // Rejoue le transfert contre la VRAIE route en ligne — elle
+        // recalcule elle-même stockMagasins/stockComptoirs/quantite côté
+        // serveur, plutôt que d'écraser ces totaux avec des valeurs locales
+        // (voir routes/produits.js desktop, endpoint /:id/transferer).
+        await appelApi(`${API_EN_LIGNE}/api/produits/${payload.produitId}/transferer`, 'POST', headers, {
+          magasinId: payload.magasinId,
+          comptoirId: payload.comptoirId,
+          quantite: payload.quantite,
+          note: payload.note,
+        });
+        marquerNonDirty('produits', payload.produitId);
         return 'synchronisee';
       }
       break;

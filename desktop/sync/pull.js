@@ -93,6 +93,38 @@ const COLLECTIONS = {
     }),
   },
 
+  // "comptoirs" (Boutiques, points de vente) et "magasins" (réserves) n'ont
+  // pas de champ updatedAt côté Mongo (pas de {timestamps:true} sur ces
+  // modèles) — on retombe sur dateCreation pour les deux colonnes locales,
+  // suffisant ici puisque seul is_dirty décide si une ligne locale est
+  // écrasée (voir upsertLigne).
+  comptoirs: {
+    endpoint: '/api/comptoirs',
+    table: 'comptoirs',
+    versColonnes: (item) => ({
+      id: item._id,
+      nom: item.nom,
+      boutique_id: idRef(item.boutiqueId),
+      actif: item.actif ? 1 : 0,
+      created_at: item.dateCreation || maintenant(),
+      updated_at: item.dateCreation || maintenant(),
+    }),
+  },
+
+  magasins: {
+    endpoint: '/api/magasins',
+    table: 'magasins',
+    versColonnes: (item) => ({
+      id: item._id,
+      nom: item.nom,
+      boutique_id: idRef(item.boutiqueId),
+      adresse: item.adresse || '',
+      actif: item.actif ? 1 : 0,
+      created_at: item.dateCreation || maintenant(),
+      updated_at: item.dateCreation || maintenant(),
+    }),
+  },
+
   produits: {
     endpoint: '/api/produits',
     table: 'produits',
@@ -444,6 +476,94 @@ async function tirerBoutiques() {
   };
 }
 
+// "produits" a besoin d'un traitement dédié (pas générique comme les autres
+// collections) car chaque produit a deux répartitions de stock associées
+// (stockMagasins, stockComptoirs — des tableaux embarqués côté Mongo) qu'il
+// faut refléter dans les tables de jonction locales stock_magasins /
+// stock_comptoirs. Stratégie : comme pour ventes/vente_produits, on
+// supprime les anciennes lignes locales puis on réinsère depuis l'API —
+// mais SEULEMENT si le produit local n'est pas is_dirty (sinon on le
+// laisse intact, il sera réconcilié au push suivant).
+async function tirerProduits() {
+  const token = obtenirToken();
+  const config = COLLECTIONS.produits;
+  const items = await appelApiGet(`${API_EN_LIGNE}${config.endpoint}`, token);
+
+  let creees = 0, misesAJour = 0, ignoreesDirty = 0, echouees = 0;
+  const echantillonsErreurs = [];
+
+  for (const item of items) {
+    const produitId = item._id;
+    if (!produitId) continue;
+
+    const existante = db.prepare('SELECT is_dirty FROM produits WHERE id = ?').get(produitId);
+    if (existante && existante.is_dirty === 1) {
+      ignoreesDirty++;
+      continue;
+    }
+
+    try {
+      const colonnes = config.versColonnes(item);
+
+      db.transaction(() => {
+        const nomsColonnes = Object.keys(colonnes);
+        const placeholders = nomsColonnes.map(c => `@${c}`).join(', ');
+        const misAJourSql = nomsColonnes.filter(c => c !== 'id').map(c => `${c} = @${c}`).join(', ');
+
+        if (existante) {
+          db.prepare(`UPDATE produits SET ${misAJourSql}, is_dirty = 0, is_deleted = 0 WHERE id = @id`).run(colonnes);
+        } else {
+          db.prepare(`INSERT INTO produits (${nomsColonnes.join(', ')}, is_dirty, is_deleted) VALUES (${placeholders}, 0, 0)`).run(colonnes);
+        }
+
+        // Répartition par magasin : ne garde que les lignes dont le magasin
+        // existe déjà en local (référence souple, comme pour logs/ventes —
+        // "comptoirs"/"magasins" sont pullés avant "produits", voir tirerTout).
+        db.prepare('DELETE FROM stock_magasins WHERE produit_id = ?').run(produitId);
+        const insererStockMagasin = db.prepare('INSERT INTO stock_magasins (produit_id, magasin_id, quantite, updated_at) VALUES (?, ?, ?, ?)');
+        for (const ligne of (item.stockMagasins || [])) {
+          const magasinId = idRef(ligne.magasin);
+          if (magasinId && existeLocal('magasins', magasinId)) {
+            insererStockMagasin.run(produitId, magasinId, ligne.quantite || 0, maintenant());
+          }
+        }
+
+        // Répartition par comptoir (stock vendable).
+        db.prepare('DELETE FROM stock_comptoirs WHERE produit_id = ?').run(produitId);
+        const insererStockComptoir = db.prepare('INSERT INTO stock_comptoirs (produit_id, comptoir_id, quantite, updated_at) VALUES (?, ?, ?, ?)');
+        for (const ligne of (item.stockComptoirs || [])) {
+          const comptoirId = idRef(ligne.comptoir);
+          if (comptoirId && existeLocal('comptoirs', comptoirId)) {
+            insererStockComptoir.run(produitId, comptoirId, ligne.quantite || 0, maintenant());
+          }
+        }
+      })();
+
+      if (existante) misesAJour++; else creees++;
+    } catch (err) {
+      echouees++;
+      if (echantillonsErreurs.length < 3) {
+        echantillonsErreurs.push({ id: produitId, erreur: err.message });
+      }
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO sync_meta (collection, last_synced_at) VALUES (?, ?)
+    ON CONFLICT(collection) DO UPDATE SET last_synced_at = excluded.last_synced_at
+  `).run('produits', maintenant());
+
+  return {
+    collection: 'produits',
+    total_recus: items.length,
+    creees,
+    mises_a_jour: misesAJour,
+    ignorees_dirty: ignoreesDirty,
+    echouees,
+    echantillons_erreurs: echantillonsErreurs,
+  };
+}
+
 async function tirerCollection(nomCollection) {
   const config = COLLECTIONS[nomCollection];
   if (!config) throw new Error(`Collection "${nomCollection}" non prise en charge par le pull.`);
@@ -504,16 +624,32 @@ async function tirerTout() {
 
   const resultats = [];
 
-  // "boutiques" en premier (traitement dédié, voir tirerBoutiques) : les
-  // autres collections en dépendent (FK produits.boutique_id -> boutiques.id).
+  // Ordre important (dépendances de clé étrangère) :
+  // boutiques -> comptoirs/magasins -> produits (stockMagasins/stockComptoirs
+  // référencent comptoirs/magasins) -> reste -> ventes (référence produits).
   try {
     resultats.push(await tirerBoutiques());
   } catch (err) {
     resultats.push({ collection: 'boutiques', erreur: err.message });
   }
 
-  // Reste des collections simples ("boutiques" déjà traitée ci-dessus).
-  for (const nomCollection of Object.keys(COLLECTIONS).filter(c => c !== 'boutiques')) {
+  for (const nomCollection of ['comptoirs', 'magasins']) {
+    try {
+      resultats.push(await tirerCollection(nomCollection));
+    } catch (err) {
+      resultats.push({ collection: nomCollection, erreur: err.message });
+    }
+  }
+
+  try {
+    resultats.push(await tirerProduits());
+  } catch (err) {
+    resultats.push({ collection: 'produits', erreur: err.message });
+  }
+
+  // Reste des collections simples (déjà traitées ci-dessus : boutiques,
+  // comptoirs, magasins, produits).
+  for (const nomCollection of Object.keys(COLLECTIONS).filter(c => !['boutiques', 'comptoirs', 'magasins', 'produits'].includes(c))) {
     try {
       resultats.push(await tirerCollection(nomCollection));
     } catch (err) {
@@ -540,4 +676,4 @@ async function tirerTout() {
   return { statut: 'termine', resultats };
 }
 
-module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerVentes, tirerUsers };
+module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerProduits, tirerVentes, tirerUsers };
