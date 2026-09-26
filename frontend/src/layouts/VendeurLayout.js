@@ -223,7 +223,12 @@ function VendeurDashboard({ user }) {
     // desktop, ou simplement une vente faite pendant que l'onglet était déjà
     // ouvert) — on rafraîchit donc aussi automatiquement toutes les 60s.
     const chargerStats = () => {
-      axios.get(`${API_BASE}/api/ventes/stats`, authHeaders())
+      // "Aujourd'hui"/"ce mois" doit refléter le fuseau horaire de la
+      // boutique (l'appareil de l'utilisateur), pas celui du serveur — voir
+      // le même correctif dans AdminLayout.js.
+      const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
+      const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
+      axios.get(`${API_BASE}/api/ventes/stats`, { ...authHeaders(), params: { debutJour: debutJour.toISOString(), debutMois: debutMois.toISOString() } })
         .then(res => setStats(res.data))
         .catch(() => {});
     };

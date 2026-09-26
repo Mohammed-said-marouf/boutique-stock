@@ -111,8 +111,14 @@ router.get('/stats', verifierToken, async (req, res) => {
       filtre.boutiqueId = req.user.boutiqueId;
     }
 
-    const aujourdhui = new Date();
-    aujourdhui.setHours(0, 0, 0, 0);
+    // "Aujourd'hui"/"ce mois" doit refléter la journée de la BOUTIQUE (là où
+    // elle vend réellement), pas celle du serveur — un serveur cloud tourne
+    // presque toujours en UTC, sans rapport avec le fuseau horaire réel du
+    // commerce. Le frontend calcule donc ces bornes dans SON PROPRE fuseau
+    // (celui de l'appareil de l'utilisateur) et les passe en query params ;
+    // on ne calcule côté serveur que si un vieux client ne les envoie pas.
+    const aujourdhui = req.query.debutJour ? new Date(req.query.debutJour) : new Date();
+    if (!req.query.debutJour) aujourdhui.setHours(0, 0, 0, 0);
 
     const totalVentes = await Vente.countDocuments(filtre);
     const chiffreAffaires = await Vente.aggregate([
@@ -125,8 +131,8 @@ router.get('/stats', verifierToken, async (req, res) => {
       { $group: { _id: null, total: { $sum: '$montantTotal' } } }
     ]);
 
-    const debutMois = new Date();
-    debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
+    const debutMois = req.query.debutMois ? new Date(req.query.debutMois) : new Date();
+    if (!req.query.debutMois) { debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0); }
     const ventesMois = await Vente.countDocuments({ ...filtre, dateVente: { $gte: debutMois } });
     const caMois = await Vente.aggregate([
       { $match: { ...filtre, dateVente: { $gte: debutMois } } },

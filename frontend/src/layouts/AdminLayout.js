@@ -312,7 +312,16 @@ function AdminDashboard() {
     const h = { Authorization: `Bearer ${token}` };
 
     const chargerStats = () => {
-      fetch(`${API_URL}/api/ventes/stats`, { headers: h })
+      // "Aujourd'hui"/"ce mois" doit refléter le fuseau horaire de la
+      // boutique (l'appareil de l'utilisateur), pas celui du serveur (un
+      // serveur cloud tourne presque toujours en UTC) — sinon desktop et le
+      // site en ligne ne s'accordent pas sur où se trouve la frontière du
+      // jour, et les chiffres divergent selon d'où vient la requête.
+      const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
+      const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
+      const bornesDates = `debutJour=${encodeURIComponent(debutJour.toISOString())}&debutMois=${encodeURIComponent(debutMois.toISOString())}`;
+
+      fetch(`${API_URL}/api/ventes/stats?${bornesDates}`, { headers: h })
         .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
 
       fetch(`${API_URL}/api/produits/stats`, { headers: h })

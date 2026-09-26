@@ -196,11 +196,14 @@ router.get('/stats', (req, res) => {
 
     const filtreBoutique = boutiqueId ? 'AND boutique_id = @boutiqueId' : '';
 
-    const debutJour = new Date();
-    debutJour.setHours(0, 0, 0, 0);
-    const debutMois = new Date();
-    debutMois.setDate(1);
-    debutMois.setHours(0, 0, 0, 0);
+    // Même règle que le backend en ligne : privilégier le début de journée
+    // calculé par le FRONTEND (fuseau horaire de l'appareil de
+    // l'utilisateur, celui de la boutique) plutôt que celui du serveur, pour
+    // que desktop et le site en ligne s'accordent toujours sur "aujourd'hui".
+    const debutJour = req.query.debutJour ? new Date(req.query.debutJour) : new Date();
+    if (!req.query.debutJour) debutJour.setHours(0, 0, 0, 0);
+    const debutMois = req.query.debutMois ? new Date(req.query.debutMois) : new Date();
+    if (!req.query.debutMois) { debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0); }
 
     const params = { boutiqueId, debutJour: debutJour.toISOString(), debutMois: debutMois.toISOString() };
 
