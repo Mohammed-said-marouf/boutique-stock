@@ -311,17 +311,27 @@ function AdminDashboard() {
     const token = localStorage.getItem('token');
     const h = { Authorization: `Bearer ${token}` };
 
-    fetch(`${API_URL}/api/ventes/stats`, { headers: h })
-      .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
+    const chargerStats = () => {
+      fetch(`${API_URL}/api/ventes/stats`, { headers: h })
+        .then(r => r.json()).then(d => { if (!d.message) setStatsVentes(d); });
 
-    fetch(`${API_URL}/api/produits/stats`, { headers: h })
-      .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
+      fetch(`${API_URL}/api/produits/stats`, { headers: h })
+        .then(r => r.json()).then(d => { if (!d.message) setStatsProduits(d); });
 
-    fetch(`${API_URL}/api/ventes`, { headers: h })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 4)); });
+      fetch(`${API_URL}/api/ventes`, { headers: h })
+        .then(r => r.json()).then(d => { if (Array.isArray(d)) setVentesRecentes(d.slice(0, 4)); });
 
-    fetch(`${API_URL}/api/tresorerie/soldes`, { headers: h })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setSoldes(d); });
+      fetch(`${API_URL}/api/tresorerie/soldes`, { headers: h })
+        .then(r => r.json()).then(d => { if (Array.isArray(d)) setSoldes(d); });
+    };
+
+    // Un chargement unique au montage laissait le dashboard figé sur des
+    // chiffres périmés dès qu'une vente arrivait après coup (synchro
+    // desktop, ou simplement une vente faite pendant que l'onglet était déjà
+    // ouvert) — on rafraîchit donc aussi automatiquement toutes les 60s.
+    chargerStats();
+    const intervalle = setInterval(chargerStats, 60 * 1000);
+    return () => clearInterval(intervalle);
   }, []);
 
   const soldeTotal = soldes.reduce((s, c) => s + (c.solde || 0), 0);

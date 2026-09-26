@@ -218,15 +218,29 @@ function VendeurDashboard({ user }) {
   const [soldeCaisse, setSoldeCaisse] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/ventes/stats`, authHeaders())
-      .then(res => setStats(res.data))
-      .catch(() => {});
+    // Un chargement unique au montage laissait le dashboard figé sur des
+    // chiffres périmés dès qu'une vente arrivait après coup (synchro
+    // desktop, ou simplement une vente faite pendant que l'onglet était déjà
+    // ouvert) — on rafraîchit donc aussi automatiquement toutes les 60s.
+    const chargerStats = () => {
+      axios.get(`${API_BASE}/api/ventes/stats`, authHeaders())
+        .then(res => setStats(res.data))
+        .catch(() => {});
+    };
+    chargerStats();
+    const intervalle = setInterval(chargerStats, 60 * 1000);
+    return () => clearInterval(intervalle);
   }, []);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/tresorerie/soldes`, authHeaders())
-      .then(res => { if (Array.isArray(res.data)) setSoldeCaisse(res.data[0] || null); })
-      .catch(() => {});
+    const chargerSolde = () => {
+      axios.get(`${API_BASE}/api/tresorerie/soldes`, authHeaders())
+        .then(res => { if (Array.isArray(res.data)) setSoldeCaisse(res.data[0] || null); })
+        .catch(() => {});
+    };
+    chargerSolde();
+    const intervalle = setInterval(chargerSolde, 60 * 1000);
+    return () => clearInterval(intervalle);
   }, []);
 
   useEffect(() => {
