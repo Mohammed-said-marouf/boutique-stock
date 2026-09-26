@@ -96,7 +96,36 @@ async function pousserEntree(entree, token) {
   switch (collection) {
     case 'ventes':
       if (operation === 'create') {
-        await appelApi(`${API_EN_LIGNE}/api/ventes`, 'POST', headers, payload);
+        // Le backend en ligne exige un caisseId : pour un appelant "vendeur",
+        // il force TOUJOURS req.user.caisseId (jamais une valeur du corps,
+        // par sécurité) ; pour un admin/superadmin, il honore celui du
+        // corps. Or le token de synchro appartient à UN SEUL compte du
+        // poste — pas forcément le vendeur qui a fait CETTE vente — donc
+        // pousser le payload tel quel ne marchait QUE par coïncidence
+        // (quand ce même vendeur était encore la session active). On
+        // résout ici le caisseId réel du vendeur de la vente et on
+        // l'ajoute explicitement : ça fonctionne dans tous les cas où le
+        // token de synchro est un admin/superadmin (le cas normal).
+        const payloadAvecCaisse = { ...payload };
+        if (!payloadAvecCaisse.caisseId && payloadAvecCaisse.vendeur) {
+          const vendeurLocal = db.prepare('SELECT caisse_id FROM users WHERE id = ?').get(payloadAvecCaisse.vendeur);
+          if (vendeurLocal?.caisse_id) payloadAvecCaisse.caisseId = vendeurLocal.caisse_id;
+        }
+        // Le payload local (routes/ventes.js desktop, chargerVenteComplete)
+        // a chaque ligne avec un produit PEUPLÉ ({_id, nom, categorie,
+        // prix, image}, pour l'affichage local) — le backend en ligne
+        // attend un simple id (Produit.findById(item.produit)), sinon il
+        // échoue avec "Produit introuvable ([object Object])". On reconvertit
+        // ici au format attendu, sans toucher au format local (utile tel
+        // quel pour l'affichage desktop).
+        if (Array.isArray(payloadAvecCaisse.produits)) {
+          payloadAvecCaisse.produits = payloadAvecCaisse.produits.map(l => ({
+            produit: l.produit?._id || l.produit,
+            quantite: l.quantite,
+            prixUnitaire: l.prixUnitaire,
+          }));
+        }
+        await appelApi(`${API_EN_LIGNE}/api/ventes`, 'POST', headers, payloadAvecCaisse);
         marquerNonDirty(collection, record_id);
         return 'synchronisee';
       }
