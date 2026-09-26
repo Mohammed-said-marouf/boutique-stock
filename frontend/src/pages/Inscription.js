@@ -25,6 +25,10 @@ export default function Inscription() {
       setErreur('Veuillez remplir tous les champs obligatoires.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailAdmin)) {
+      setErreur("Format d'email invalide.");
+      return;
+    }
     if (form.motDePasseAdmin.length < 6) {
       setErreur('Le mot de passe doit contenir au moins 6 caractères.');
       return;

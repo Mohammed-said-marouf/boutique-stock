@@ -2835,6 +2835,10 @@ function AdminVendeurs() {
       setErreur('Nom, email et mot de passe sont requis.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setErreur("Format d'email invalide.");
+      return;
+    }
     setEnvoi(true);
     try {
       const res = await fetch(`${API_URL}/api/users`, {
@@ -2884,7 +2888,7 @@ function AdminVendeurs() {
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
-            {[{ key: 'nom', label: 'Nom complet', ph: 'Nom du vendeur' }, { key: 'email', label: 'Email', ph: 'email@boutique.com' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'motDePasse', label: 'Mot de passe', ph: '••••••••', type: 'password' }].map(f => (
+            {[{ key: 'nom', label: 'Nom complet', ph: 'Nom du vendeur' }, { key: 'email', label: 'Email', ph: 'email@boutique.com', type: 'email' }, { key: 'telephone', label: 'Téléphone', ph: '77 000 00 00' }, { key: 'motDePasse', label: 'Mot de passe', ph: '••••••••', type: 'password' }].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>{f.label}</label>
                 <input type={f.type || 'text'} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}

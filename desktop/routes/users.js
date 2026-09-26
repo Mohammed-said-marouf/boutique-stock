@@ -11,6 +11,11 @@ const db = require('../local-db/db');
 
 const maintenant = () => new Date().toISOString();
 
+// Même règle que backend/models/User.js — vérifiée ici aussi car un compte
+// vendeur peut être créé entièrement hors-ligne, sans jamais passer par le
+// serveur en ligne au moment de la création.
+const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function ajouterAOutbox(operation, recordId, payload) {
   db.prepare(`
     INSERT INTO sync_outbox (collection, operation, record_id, payload, created_at)
@@ -63,6 +68,9 @@ router.post('/', async (req, res) => {
     const { nom, email, motDePasse, role, boutiqueId } = req.body;
     if (!nom || !email || !motDePasse) {
       return res.status(400).json({ message: 'nom, email et motDePasse sont requis.' });
+    }
+    if (!EMAIL_VALIDE.test(email)) {
+      return res.status(400).json({ message: "Format d'email invalide." });
     }
 
     const existant = db.prepare('SELECT id FROM users WHERE email = ?').get(email);

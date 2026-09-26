@@ -253,7 +253,10 @@ function VendeurDashboard({ user }) {
     { label: 'Ventes du jour', value: `${(stats.caJour || 0).toLocaleString()} FCFA`, sub: `${stats.ventesJour || 0} ventes`, icon: '🛒', bg: '#dcfce7', color: '#059669' },
     { label: 'Nombre de ventes', value: String(stats.ventesJour || 0), sub: "Aujourd'hui", icon: '📊', bg: '#dbeafe', color: '#2563eb' },
     { label: 'Total ventes', value: String(stats.totalVentes || 0), sub: 'Depuis le début', icon: '📦', bg: '#ede9fe', color: '#7c3aed' },
-    { label: "Chiffre d'affaires", value: `${(stats.chiffreAffaires || 0).toLocaleString()} FCFA`, sub: 'Total', icon: '💰', bg: '#fef9c3', color: '#ca8a04' },
+    // Pas de carte "Chiffre d'affaires" ici : ce chiffre est celui de TOUTE
+    // la boutique (le backend ne le filtre pas par vendeur, voir
+    // routes/ventes.js /stats), pas seulement des ventes de ce vendeur — un
+    // vendeur ne doit pas voir le chiffre d'affaires global du propriétaire.
     soldeCaisse
       ? { label: 'Solde de caisse', value: `${(soldeCaisse.solde || 0).toLocaleString()} FCFA`, sub: `− ${(soldeCaisse.depenses || 0).toLocaleString()} dépenses, − ${(soldeCaisse.versements || 0).toLocaleString()} versements`, icon: '🧾', bg: soldeCaisse.solde < 0 ? '#fee2e2' : '#dcfce7', color: soldeCaisse.solde < 0 ? '#dc2626' : '#16a34a' }
       : { label: 'Solde de caisse', value: '—', sub: "Aucune caisse assignée", icon: '🧾', bg: '#f1f5f9', color: '#94a3b8' },

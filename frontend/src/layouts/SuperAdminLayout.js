@@ -276,6 +276,10 @@ function BoutiquesAdmin() {
       setErreur('Veuillez remplir au minimum le nom de la boutique et les infos admin.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailAdmin)) {
+      setErreur("Format d'email invalide.");
+      return;
+    }
     setEnvoi(true);
     try {
       const res = await fetch(`${API_URL}/api/boutiques/creer-complete`, {
@@ -366,7 +370,7 @@ function BoutiquesAdmin() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
             <input placeholder="Nom complet" value={form.nomAdmin} onChange={e => setForm(p => ({ ...p, nomAdmin: e.target.value }))}
               style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
-            <input placeholder="Email" value={form.emailAdmin} onChange={e => setForm(p => ({ ...p, emailAdmin: e.target.value }))}
+            <input type="email" placeholder="Email" value={form.emailAdmin} onChange={e => setForm(p => ({ ...p, emailAdmin: e.target.value }))}
               style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
             <input type="password" placeholder="Mot de passe" value={form.motDePasseAdmin} onChange={e => setForm(p => ({ ...p, motDePasseAdmin: e.target.value }))}
               style={{ padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />

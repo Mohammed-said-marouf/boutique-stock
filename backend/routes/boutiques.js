@@ -7,6 +7,13 @@ const upload = require('../middleware/upload');
 const enregistrerLog = require('../utils/logger');
 const { supprimerCompteEtDonnees } = require('../utils/supprimerCompte');
 
+// Même règle que le modèle User (voir models/User.js) — vérifiée ICI, en
+// plus, AVANT de créer quoi que ce soit : sans ça, un email invalide ferait
+// échouer la création du User admin APRÈS que la Boutique ait déjà été
+// enregistrée (deux étapes distinctes), laissant une boutique orpheline
+// sans propriétaire.
+const EMAIL_VALIDE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Liste toutes les boutiques (superadmin)
 router.get('/', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
@@ -105,6 +112,9 @@ router.post('/inscription', async (req, res) => {
     if (motDePasseAdmin.length < 6) {
       return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères.' });
     }
+    if (!EMAIL_VALIDE.test(emailAdmin)) {
+      return res.status(400).json({ message: "Format d'email invalide." });
+    }
 
     const existant = await User.findOne({ email: emailAdmin });
     if (existant) return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
@@ -152,6 +162,10 @@ router.post('/inscription', async (req, res) => {
 router.post('/creer-complete', verifierToken, autoriser('superadmin'), async (req, res) => {
   try {
     const { nomBoutique, adresse, telephoneBoutique, abonnement, nomAdmin, emailAdmin, motDePasseAdmin } = req.body;
+
+    if (!EMAIL_VALIDE.test(emailAdmin || '')) {
+      return res.status(400).json({ message: "Format d'email invalide." });
+    }
 
     // Vérifier que l'email n'existe pas déjà
     const existant = await User.findOne({ email: emailAdmin });

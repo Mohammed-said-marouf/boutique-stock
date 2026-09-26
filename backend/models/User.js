@@ -5,7 +5,11 @@ const { v4: uuidv4 } = require('uuid');
 const userSchema = new mongoose.Schema({
   _id: { type: String, default: uuidv4 },
   nom: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  // Validé au niveau du modèle (pas juste côté formulaire) : c'est le seul
+  // point de passage garanti pour TOUTE création/modification de compte
+  // (inscription, création par un admin/superadmin, profil...), y compris
+  // les appels API directs qui contournent l'interface.
+  email: { type: String, required: true, unique: true, match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Format d'email invalide."] },
   motDePasse: { type: String, required: true },
   role: { type: String, enum: ['superadmin', 'admin', 'vendeur'], default: 'vendeur' },
   boutiqueId: { type: String, ref: 'Boutique', default: null },
