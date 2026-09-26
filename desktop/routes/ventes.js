@@ -83,11 +83,26 @@ router.get('/', (req, res) => {
 
 // POST - Enregistrer une vente
 router.post('/', (req, res) => {
-  const transaction = db.transaction((body) => {
-    const { produits, montantTotal, typeVente, vendeur, nomVendeur, clientNom, boutiqueId, notes } = body;
+  const transaction = db.transaction((body, boutiqueId) => {
+    const { produits, montantTotal, typeVente, vendeur, nomVendeur, clientNom, comptoirId, notes } = body;
 
     if (!Array.isArray(produits) || produits.length === 0 || montantTotal === undefined) {
-      throw new Error('produits (tableau) et montantTotal sont requis.');
+      throw Object.assign(new Error('produits (tableau) et montantTotal sont requis.'), { statut: 400 });
+    }
+    if (!comptoirId) {
+      throw Object.assign(new Error('comptoirId requis : choisissez le comptoir de vente.'), { statut: 400 });
+    }
+
+    // Validation préalable : chaque produit doit avoir assez de stock à CE
+    // comptoir, avant de committer quoi que ce soit (transaction unique de
+    // toute façon, mais on préfère un message d'erreur clair par produit).
+    for (const item of produits) {
+      const ligneStock = db.prepare('SELECT quantite FROM stock_comptoirs WHERE produit_id = ? AND comptoir_id = ?').get(item.produit, comptoirId);
+      const dispo = ligneStock ? ligneStock.quantite : 0;
+      if (dispo < item.quantite) {
+        const produitInfo = db.prepare('SELECT nom FROM produits WHERE id = ?').get(item.produit);
+        throw Object.assign(new Error(`Stock insuffisant à ce comptoir pour "${produitInfo?.nom || item.produit}" (disponible : ${dispo}).`), { statut: 400 });
+      }
     }
 
     const venteId = crypto.randomUUID();
@@ -95,8 +110,8 @@ router.post('/', (req, res) => {
     const maintenantIso = maintenant();
 
     db.prepare(`
-      INSERT INTO ventes (id, montant_total, type_vente, vendeur, nom_vendeur, client_nom, num_facture, boutique_id, date_vente, notes, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @montantTotal, @typeVente, @vendeur, @nomVendeur, @clientNom, @numFacture, @boutiqueId, @dateVente, @notes, @createdAt, @updatedAt, 1, 0)
+      INSERT INTO ventes (id, montant_total, type_vente, vendeur, nom_vendeur, client_nom, num_facture, boutique_id, comptoir_id, date_vente, notes, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @montantTotal, @typeVente, @vendeur, @nomVendeur, @clientNom, @numFacture, @boutiqueId, @comptoirId, @dateVente, @notes, @createdAt, @updatedAt, 1, 0)
     `).run({
       id: venteId,
       montantTotal,
@@ -106,24 +121,26 @@ router.post('/', (req, res) => {
       clientNom: clientNom || 'Client anonyme',
       numFacture,
       boutiqueId: boutiqueId || null,
+      comptoirId,
       dateVente: maintenantIso,
       notes: notes || null,
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
     });
 
-    // Lignes de produits + décrément du stock
+    // Lignes de produits + décrément du stock DU COMPTOIR (pas du Magasin —
+    // le Magasin n'est qu'une réserve, jamais vendu directement).
     const insererLigne = db.prepare(`
       INSERT INTO vente_produits (id, vente_id, produit_id, quantite, prix_unitaire)
       VALUES (?, ?, ?, ?, ?)
     `);
-    const decrementerStock = db.prepare(`
-      UPDATE produits SET quantite = quantite - ?, is_dirty = 1, updated_at = ? WHERE id = ?
+    const decrementerStockComptoir = db.prepare(`
+      UPDATE stock_comptoirs SET quantite = quantite - ?, updated_at = ? WHERE produit_id = ? AND comptoir_id = ?
     `);
 
     for (const item of produits) {
       insererLigne.run(crypto.randomUUID(), venteId, item.produit, item.quantite, item.prixUnitaire);
-      decrementerStock.run(item.quantite, maintenantIso, item.produit);
+      decrementerStockComptoir.run(item.quantite, maintenantIso, item.produit, comptoirId);
       ajouterAOutbox('produits', 'update', item.produit, null);
     }
 
@@ -152,7 +169,16 @@ router.post('/', (req, res) => {
   });
 
   try {
-    const venteId = transaction(req.body);
+    // boutiqueId vient TOUJOURS du token pour un admin/vendeur (jamais du
+    // corps envoyé par le client) — même règle que le backend en ligne
+    // (routes/ventes.js : "const boutiqueId = req.user.boutiqueId || null").
+    // Avant ce correctif, il était lu depuis req.body, resté vide pour les
+    // ventes du vendeur : elles n'apparaissaient plus dans "Ventes du
+    // jour"/le total, qui filtrent par boutique_id.
+    const boutiqueId = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
+      ? req.user.boutiqueId
+      : (req.body.boutiqueId || null);
+    const venteId = transaction(req.body, boutiqueId);
     res.status(201).json(chargerVenteComplete(venteId));
   } catch (err) {
     res.status(400).json({ message: err.message });
