@@ -6,10 +6,28 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const bcrypt = require('bcryptjs');
+const { app: electronApp } = require('electron');
 const db = require('../local-db/db');
 
 const maintenant = () => new Date().toISOString();
+
+// Dossier de stockage des photos de profil, séparé de celui des produits —
+// même emplacement que la base SQLite locale (dossier userData d'Electron).
+const DOSSIER_UPLOADS_PHOTOS = path.join(electronApp.getPath('userData'), 'uploads', 'photos');
+fs.mkdirSync(DOSSIER_UPLOADS_PHOTOS, { recursive: true });
+
+const stockagePhoto = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, DOSSIER_UPLOADS_PHOTOS),
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname) || '';
+    cb(null, `${crypto.randomUUID()}${extension}`);
+  },
+});
+const uploadPhoto = multer({ storage: stockagePhoto });
 
 // Même règle que backend/models/User.js — vérifiée ici aussi car un compte
 // vendeur peut être créé entièrement hors-ligne, sans jamais passer par le
@@ -32,6 +50,11 @@ function versFormatApi(ligne) {
     email: ligne.email,
     role: ligne.role,
     boutiqueId: ligne.boutique_id,
+    // "photo" est soit une URL Cloudinary complète (arrivée par le pull),
+    // soit un chemin relatif /uploads/... (changée depuis ce poste) — le
+    // frontend (resoudreImage) gère déjà les deux cas, comme pour les
+    // images de produits.
+    photo: ligne.photo || null,
     actif: !!ligne.actif,
     createdAt: ligne.created_at,
     updatedAt: ligne.updated_at,
@@ -60,6 +83,42 @@ router.get('/', (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// PUT - Changer ma propre photo de profil (n'importe quel rôle connecté) —
+// même contrat que le backend en ligne (PUT /api/users/me/photo).
+router.put('/me/photo', (req, res) => {
+  uploadPhoto.single('photo')(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: 'Aucune image reçue.' });
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Non authentifié.' });
+
+    try {
+      const existant = db.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').get(req.user.id);
+      if (!existant) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+
+      const cheminPhoto = `/uploads/photos/${req.file.filename}`;
+      // Nettoyage : supprime l'ancienne photo locale s'il y en avait une,
+      // pour ne pas accumuler des fichiers orphelins (comme pour les images
+      // de produits — voir routes/produits.js).
+      if (existant.photo && existant.photo.startsWith('/uploads/')) {
+        const ancienChemin = path.join(electronApp.getPath('userData'), existant.photo);
+        fs.unlink(ancienChemin, () => {});
+      }
+
+      const maintenantIso = maintenant();
+      db.prepare('UPDATE users SET photo = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
+        .run(cheminPhoto, maintenantIso, req.user.id);
+
+      const ligne = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+      const utilisateurModifie = versFormatApi(ligne);
+      ajouterAOutbox('update', req.user.id, utilisateurModifie);
+
+      res.json(utilisateurModifie);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  });
 });
 
 // POST - Créer un utilisateur

@@ -18,6 +18,19 @@ const { lireSession } = require('./token-store');
 
 const maintenant = () => new Date().toISOString();
 
+// Mot de passe "sentinelle" pour un utilisateur créé par le pull (pas par
+// une vraie connexion locale) : le backend ne renvoie jamais motDePasse
+// (.select('-motDePasse')), impossible de créer un compte réellement
+// utilisable hors-ligne sans lui. On crée quand même la ligne (pour que
+// l'admin voie/gère ses vendeurs même s'ils ne se sont jamais connectés sur
+// CE poste — voir tirerUsers), mais avec cette valeur reconnaissable : elle
+// ne matche jamais un hash bcrypt réel, donc bcrypt.compare() échouera
+// toujours pour elle. routes/auth.js doit vérifier cette valeur AVANT de
+// tenter la comparaison, sinon le premier essai de connexion réel de ce
+// vendeur serait bloqué à tort en "mot de passe incorrect" (cas 1) au lieu
+// de basculer sur le relai en ligne (cas 2) qui poserait le vrai hash.
+const MOT_DE_PASSE_NON_LOCAL = 'PULL_PLACEHOLDER_PAS_DE_CONNEXION_LOCALE';
+
 function obtenirToken() {
   const session = lireSession();
   return session?.token || null;
@@ -356,44 +369,56 @@ async function tirerUsers() {
   const token = obtenirToken();
   const items = await appelApiGet(`${API_EN_LIGNE}/api/users`, token);
 
-  let misesAJour = 0, ignoreesAbsent = 0, ignoreesDirty = 0, echouees = 0;
+  let creees = 0, misesAJour = 0, ignoreesDirty = 0, echouees = 0;
   const echantillonsErreurs = [];
 
   for (const item of items) {
     const id = item._id;
     if (!id) continue;
 
-    const existante = db.prepare('SELECT is_dirty FROM users WHERE id = ?').get(id);
-    if (!existante) {
-      ignoreesAbsent++; // ne crée jamais via le pull, voir commentaire ci-dessus
-      continue;
-    }
-    if (existante.is_dirty === 1) {
+    const existante = db.prepare('SELECT is_dirty, mot_de_passe FROM users WHERE id = ?').get(id);
+    if (existante && existante.is_dirty === 1) {
       ignoreesDirty++;
       continue;
     }
 
+    const colonnes = {
+      id,
+      nom: item.nom,
+      email: item.email,
+      role: item.role,
+      boutiqueId: idRef(item.boutiqueId), // populé côté API (.populate('boutiqueId', 'nom'))
+      photo: item.photo || null,
+      actif: item.actif ? 1 : 0,
+      updatedAt: item.updatedAt || maintenant(),
+    };
+
     try {
-      db.prepare(`
-        UPDATE users SET
-          nom = @nom,
-          email = @email,
-          role = @role,
-          boutique_id = @boutiqueId,
-          actif = @actif,
-          updated_at = @updatedAt,
-          is_dirty = 0
-        WHERE id = @id
-      `).run({
-        id,
-        nom: item.nom,
-        email: item.email,
-        role: item.role,
-        boutiqueId: idRef(item.boutiqueId), // populé côté API (.populate('boutiqueId', 'nom'))
-        actif: item.actif ? 1 : 0,
-        updatedAt: item.updatedAt || maintenant(),
-      });
-      misesAJour++;
+      if (existante) {
+        db.prepare(`
+          UPDATE users SET
+            nom = @nom, email = @email, role = @role, boutique_id = @boutiqueId,
+            photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
+          WHERE id = @id
+        `).run(colonnes);
+        misesAJour++;
+      } else {
+        // Créé pour que l'admin voie/gère ce vendeur (liste, activer/
+        // désactiver, assigner une caisse...) même s'il ne s'est jamais
+        // connecté sur CE poste — mais avec un mot de passe "sentinelle"
+        // qui ne permet PAS de connexion locale (voir MOT_DE_PASSE_NON_LOCAL
+        // et routes/auth.js) : sa première vraie connexion sur ce poste
+        // passera par le relai en ligne, qui posera le vrai hash.
+        db.prepare(`
+          INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
+          VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @photo, @actif, @createdAt, @updatedAt, 0, 0)
+        `).run({
+          ...colonnes,
+          motDePasse: MOT_DE_PASSE_NON_LOCAL,
+          createdAt: item.createdAt || maintenant(),
+        });
+        creees++;
+      }
     } catch (err) {
       echouees++;
       if (echantillonsErreurs.length < 3) {
@@ -410,8 +435,8 @@ async function tirerUsers() {
   return {
     collection: 'users',
     total_recus: items.length,
+    creees,
     mises_a_jour: misesAJour,
-    ignorees_absent: ignoreesAbsent,
     ignorees_dirty: ignoreesDirty,
     echouees,
     echantillons_erreurs: echantillonsErreurs,
@@ -676,4 +701,4 @@ async function tirerTout() {
   return { statut: 'termine', resultats };
 }
 
-module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerProduits, tirerVentes, tirerUsers };
+module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerProduits, tirerVentes, tirerUsers, MOT_DE_PASSE_NON_LOCAL };

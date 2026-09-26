@@ -306,6 +306,46 @@ async function pousserEntree(entree, token) {
         marquerNonDirty(collection, record_id);
         return 'synchronisee';
       }
+      // Seule une photo changée localement est prise en charge ici pour
+      // l'instant (voir routes/users.js desktop, PUT /me/photo) — via
+      // PUT /:id/photo plutôt que /me/photo : le token de synchro appartient
+      // à UN SEUL compte du poste, qui n'est pas forcément celui dont la
+      // photo vient de changer (ex: un vendeur a changé la sienne).
+      if (operation === 'update' && payload?.photo && payload.photo.startsWith('/uploads/')) {
+        const cheminAbsolu = path.join(electronApp.getPath('userData'), payload.photo);
+        const nomFichier = path.basename(payload.photo);
+        const extension = path.extname(nomFichier).toLowerCase();
+        const TYPES_MIME_ACCEPTES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jfif': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+        const typeMime = TYPES_MIME_ACCEPTES[extension];
+        if (!typeMime) {
+          // Format non supporté par le backend : abandonné silencieusement
+          // (comme pour les images de produits), plutôt que de bloquer la
+          // file d'attente indéfiniment sur cette entrée.
+          marquerNonDirty(collection, record_id);
+          return 'synchronisee';
+        }
+        let octets;
+        try {
+          octets = fs.readFileSync(cheminAbsolu);
+        } catch {
+          // Fichier introuvable sur le disque (ex: supprimé manuellement) :
+          // rien à pousser, on marque quand même synchronisé plutôt que de
+          // retenter indéfiniment sur un fichier qui n'existe plus.
+          marquerNonDirty(collection, record_id);
+          return 'synchronisee';
+        }
+        // Ne PAS avaler une erreur ici (contrairement au cas ci-dessus) :
+        // un échec de l'upload lui-même (réseau, Cloudinary...) doit
+        // remonter normalement pour que pousserOutbox() la comptabilise
+        // comme un échec et retente au prochain cycle — sinon l'entrée
+        // serait marquée "synchronisée" à tort alors que rien n'est arrivé
+        // au serveur.
+        const formData = new FormData();
+        formData.append('photo', new Blob([octets], { type: typeMime }), nomFichier);
+        await appelApiMultipart(`${API_EN_LIGNE}/api/users/${record_id}/photo`, 'PUT', token, formData);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
       break;
 
     // "clients" : déjà géré côté serveur via la création de la vente associée — volontairement ignoré ici.

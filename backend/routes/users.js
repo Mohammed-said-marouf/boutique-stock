@@ -79,6 +79,35 @@ router.put('/me/photo', verifierToken, (req, res) => {
   });
 });
 
+// Changer la photo de profil d'un utilisateur précis (soi-même, ou un
+// admin/superadmin gérant cet utilisateur) — utilisé par la synchro
+// desktop (voir desktop/sync/push.js) : le token de synchro appartient à
+// UN SEUL compte du poste, qui peut avoir besoin de pousser le changement
+// de photo d'un AUTRE utilisateur (ex: un vendeur a changé sa photo
+// hors-ligne) — /me/photo ne le permettrait pas (toujours self-référent).
+router.put('/:id/photo', verifierToken, (req, res) => {
+  upload.single('photo')(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: 'Aucune image reçue.' });
+    try {
+      const cible = await User.findById(req.params.id);
+      if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+      const estSoiMeme = req.user.id === req.params.id;
+      const estGestionnaire = req.user.role === 'superadmin'
+        || (req.user.role === 'admin' && String(cible.boutiqueId) === String(req.user.boutiqueId));
+      if (!estSoiMeme && !estGestionnaire) {
+        return res.status(403).json({ message: 'Accès refusé.' });
+      }
+      cible.photo = req.file.path;
+      await cible.save();
+      const { motDePasse, ...userSansMotDePasse } = cible.toObject();
+      res.json(userSansMotDePasse);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+});
+
 // Changer mon propre mot de passe
 router.put('/me/motdepasse', verifierToken, async (req, res) => {
   try {

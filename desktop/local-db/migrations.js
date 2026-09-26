@@ -80,10 +80,21 @@ function migrerMouvementsStockVersMagasins(db) {
   console.log('✅ Migration mouvements_stock (magasin_id) terminée.');
 }
 
+// users a été créée, sur les postes existants, sans la colonne photo
+// (ajoutée avec le support des photos de profil). Simple ALTER TABLE ADD
+// COLUMN (pas de CHECK à toucher).
+function migrerUsersVersPhoto(db) {
+  if (colonneExiste(db, 'users', 'photo')) return;
+  console.log('🔧 Migration : ajout de photo à users...');
+  db.exec(`ALTER TABLE users ADD COLUMN photo TEXT`);
+  console.log('✅ Migration users (photo) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
   migrerMouvementsStockVersMagasins(db);
+  migrerUsersVersPhoto(db);
 }
 
 module.exports = { executerMigrations };

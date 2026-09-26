@@ -26,6 +26,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../local-db/db');
 const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
 const { enregistrerSession } = require('../sync/token-store');
+const { MOT_DE_PASSE_NON_LOCAL } = require('../sync/pull');
 
 const maintenant = () => new Date().toISOString();
 
@@ -101,6 +102,7 @@ function formaterUtilisateur(ligne) {
     nom: ligne.nom,
     email: ligne.email,
     role: ligne.role,
+    photo: ligne.photo || null,
     boutique,
   };
 }
@@ -113,9 +115,14 @@ router.post('/login', async (req, res) => {
     }
 
     const utilisateurLocal = db.prepare('SELECT * FROM users WHERE email = ? AND is_deleted = 0').get(email);
+    // Une ligne créée par le pull (vendeur jamais connecté sur ce poste,
+    // voir sync/pull.js) n'a pas de vrai mot de passe local — on la traite
+    // comme "inexistante" pour la connexion, afin de basculer sur le cas 2
+    // (relai en ligne) qui posera le vrai hash à la première connexion.
+    const existeVraimentEnLocal = utilisateurLocal && utilisateurLocal.mot_de_passe !== MOT_DE_PASSE_NON_LOCAL;
 
     // --- Cas 1 : le compte existe déjà en local ---
-    if (utilisateurLocal) {
+    if (existeVraimentEnLocal) {
       if (!utilisateurLocal.actif) {
         return res.status(403).json({ message: 'Ce compte est désactivé.' });
       }
@@ -195,9 +202,18 @@ router.post('/login', async (req, res) => {
     const motDePasseHache = await bcrypt.hash(motDePasse, 10);
     const maintenantIso = maintenant();
 
+    // INSERT ... ON CONFLICT plutôt qu'un simple INSERT : une ligne
+    // "vitrine" (créée par le pull, sans vrai mot de passe — voir
+    // MOT_DE_PASSE_NON_LOCAL) peut déjà exister avec ce même id/email,
+    // auquel cas on la complète avec le vrai hash au lieu d'échouer sur la
+    // contrainte d'unicité.
     db.prepare(`
-      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, actif, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, 1, @createdAt, @updatedAt, 0, 0)
+      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @photo, 1, @createdAt, @updatedAt, 0, 0)
+      ON CONFLICT(id) DO UPDATE SET
+        nom = excluded.nom, email = excluded.email, mot_de_passe = excluded.mot_de_passe,
+        role = excluded.role, boutique_id = excluded.boutique_id, photo = excluded.photo,
+        actif = 1, updated_at = excluded.updated_at
     `).run({
       id: utilisateurDistant.id,
       nom: utilisateurDistant.nom,
@@ -205,6 +221,7 @@ router.post('/login', async (req, res) => {
       motDePasse: motDePasseHache,
       role: utilisateurDistant.role,
       boutiqueId: idRef(utilisateurDistant.boutique),
+      photo: utilisateurDistant.photo || null,
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
     });

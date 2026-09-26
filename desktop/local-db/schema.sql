@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS users (
   mot_de_passe  TEXT NOT NULL,
   role          TEXT DEFAULT 'vendeur' CHECK (role IN ('superadmin', 'admin', 'vendeur')),
   boutique_id   TEXT REFERENCES boutiques(id),
+  -- URL Cloudinary (comme en ligne) une fois synchronisée, ou chemin local
+  -- /uploads/... si changée depuis ce poste hors-ligne (voir routes/users.js).
+  photo         TEXT,
   actif         INTEGER DEFAULT 1,
   created_at    TEXT,
   updated_at    TEXT,
