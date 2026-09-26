@@ -151,6 +151,36 @@ async function pousserEntree(entree, token) {
       }
       break;
 
+    case 'caisses':
+      if (operation === 'create') {
+        await appelApi(`${API_EN_LIGNE}/api/caisses`, 'POST', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/caisses/${record_id}`, 'PUT', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/caisses/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
+    // Assignation/retrait de la caisse d'un vendeur (voir routes/users.js
+    // desktop, PUT /:id/caisse) — entrée dédiée plutôt qu'une mise à jour
+    // générique de "users" : la route en ligne correspondante attend
+    // {caisseId} précisément, pas un objet users complet.
+    case 'affectations_caisse':
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/users/${record_id}/caisse`, 'PUT', headers, payload);
+        marquerNonDirty('users', record_id);
+        return 'synchronisee';
+      }
+      break;
+
     case 'fournisseurs':
       if (operation === 'create') {
         await appelApi(`${API_EN_LIGNE}/api/fournisseurs`, 'POST', headers, payload);

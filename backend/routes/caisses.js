@@ -39,7 +39,10 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     if (!comptoir) return res.status(404).json({ message: 'Boutique introuvable.' });
     if (!req.body.nom) return res.status(400).json({ message: 'nom requis.' });
 
-    const caisse = new Caisse({ nom: req.body.nom, comptoirId: req.body.comptoirId });
+    // _id explicite optionnel (même raison que routes/comptoirs.js et
+    // routes/magasins.js) — nécessaire pour que la synchro desktop garde le
+    // même id des deux côtés.
+    const caisse = new Caisse({ _id: req.body._id || undefined, nom: req.body.nom, comptoirId: req.body.comptoirId });
     const nouvelleCaisse = await caisse.save();
     res.status(201).json(nouvelleCaisse);
   } catch (err) {

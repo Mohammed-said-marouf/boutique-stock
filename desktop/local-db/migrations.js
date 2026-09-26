@@ -90,11 +90,21 @@ function migrerUsersVersPhoto(db) {
   console.log('✅ Migration users (photo) terminée.');
 }
 
+// users a été créée, sur les postes existants, sans la colonne caisse_id
+// (ajoutée avec le support des Caisses). Simple ALTER TABLE ADD COLUMN.
+function migrerUsersVersCaisse(db) {
+  if (colonneExiste(db, 'users', 'caisse_id')) return;
+  console.log('🔧 Migration : ajout de caisse_id à users...');
+  db.exec(`ALTER TABLE users ADD COLUMN caisse_id TEXT REFERENCES caisses(id)`);
+  console.log('✅ Migration users (caisse_id) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
   migrerMouvementsStockVersMagasins(db);
   migrerUsersVersPhoto(db);
+  migrerUsersVersCaisse(db);
 }
 
 module.exports = { executerMigrations };

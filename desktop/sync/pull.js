@@ -138,6 +138,22 @@ const COLLECTIONS = {
     }),
   },
 
+  // "caisses" n'a pas de champ updatedAt côté Mongo (pas de {timestamps:true}
+  // sur ce modèle) — même repli que comptoirs/magasins : dateCreation pour
+  // les deux colonnes locales.
+  caisses: {
+    endpoint: '/api/caisses',
+    table: 'caisses',
+    versColonnes: (item) => ({
+      id: item._id,
+      nom: item.nom,
+      comptoir_id: idRef(item.comptoirId),
+      actif: item.actif ? 1 : 0,
+      created_at: item.dateCreation || maintenant(),
+      updated_at: item.dateCreation || maintenant(),
+    }),
+  },
+
   produits: {
     endpoint: '/api/produits',
     table: 'produits',
@@ -358,13 +374,12 @@ async function tirerVentes() {
   };
 }
 
-// "users" — option A : on met à jour les champs non sensibles (nom, role,
-// actif, boutiqueId) des utilisateurs DÉJÀ connus en local, mais on n'en
-// crée JAMAIS de nouveaux via le pull — le backend ne renvoie jamais le
-// mot de passe haché (.select('-motDePasse')), donc impossible de créer un
-// compte local complet sans lui. Un nouvel utilisateur n'apparaîtra en
-// local que le jour où il se connecte lui-même au desktop (POST
-// /api/sync/login), pas via le pull.
+// "users" : GET /api/users met à jour les vendeurs (et les crée s'ils
+// n'existent pas encore en local, voir MOT_DE_PASSE_NON_LOCAL) — mais ne
+// renvoie JAMAIS le compte de l'appelant lui-même (le backend l'exclut
+// explicitement pour un admin, voir backend/routes/users.js). Le profil de
+// l'utilisateur actuellement connecté sur ce poste (nom/email/photo) est
+// donc rafraîchi séparément par tirerMonProfil() ci-dessous, via GET /me.
 async function tirerUsers() {
   const token = obtenirToken();
   const items = await appelApiGet(`${API_EN_LIGNE}/api/users`, token);
@@ -382,12 +397,19 @@ async function tirerUsers() {
       continue;
     }
 
+    // Référence souple sur la caisse (comme pour logs.utilisateur/ventes) :
+    // si elle n'existe pas encore en local (pas encore pullée, ou
+    // supprimée), on stocke null plutôt que de faire échouer toute la ligne
+    // sur la contrainte de clé étrangère.
+    const caisseId = idRef(item.caisseId);
+
     const colonnes = {
       id,
       nom: item.nom,
       email: item.email,
       role: item.role,
       boutiqueId: idRef(item.boutiqueId), // populé côté API (.populate('boutiqueId', 'nom'))
+      caisseId: existeLocal('caisses', caisseId) ? caisseId : null,
       photo: item.photo || null,
       actif: item.actif ? 1 : 0,
       updatedAt: item.updatedAt || maintenant(),
@@ -398,7 +420,7 @@ async function tirerUsers() {
         db.prepare(`
           UPDATE users SET
             nom = @nom, email = @email, role = @role, boutique_id = @boutiqueId,
-            photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
+            caisse_id = @caisseId, photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
           WHERE id = @id
         `).run(colonnes);
         misesAJour++;
@@ -410,8 +432,8 @@ async function tirerUsers() {
         // et routes/auth.js) : sa première vraie connexion sur ce poste
         // passera par le relai en ligne, qui posera le vrai hash.
         db.prepare(`
-          INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
-          VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @photo, @actif, @createdAt, @updatedAt, 0, 0)
+          INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
+          VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, @actif, @createdAt, @updatedAt, 0, 0)
         `).run({
           ...colonnes,
           motDePasse: MOT_DE_PASSE_NON_LOCAL,
@@ -441,6 +463,53 @@ async function tirerUsers() {
     echouees,
     echantillons_erreurs: echantillonsErreurs,
   };
+}
+
+// Rafraîchit le profil de l'utilisateur actuellement connecté SUR CE POSTE
+// (nom/email/photo/caisse) via GET /api/users/me — le seul moyen de le
+// tenir à jour, puisque GET /api/users (tirerUsers ci-dessus) exclut
+// toujours l'appelant lui-même. Sans ça, un changement de photo (ou de nom)
+// fait depuis un autre appareil (le site web, par ex.) ne remonterait
+// jamais ici.
+async function tirerMonProfil() {
+  const session = lireSession();
+  const monId = session?.user?.id;
+  if (!monId) return { collection: 'mon_profil', ignore: true };
+
+  const token = obtenirToken();
+  const item = await appelApiGet(`${API_EN_LIGNE}/api/users/me`, token);
+
+  const existante = db.prepare('SELECT is_dirty FROM users WHERE id = ?').get(monId);
+  if (existante && existante.is_dirty === 1) {
+    return { collection: 'mon_profil', ignoree_dirty: true };
+  }
+
+  const caisseId = idRef(item.caisseId);
+  const colonnes = {
+    id: monId,
+    nom: item.nom,
+    email: item.email,
+    role: item.role,
+    boutiqueId: idRef(item.boutiqueId),
+    caisseId: existeLocal('caisses', caisseId) ? caisseId : null,
+    photo: item.photo || null,
+    actif: item.actif ? 1 : 0,
+    updatedAt: item.updatedAt || maintenant(),
+  };
+
+  if (existante) {
+    db.prepare(`
+      UPDATE users SET
+        nom = @nom, email = @email, role = @role, boutique_id = @boutiqueId,
+        caisse_id = @caisseId, photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
+      WHERE id = @id
+    `).run(colonnes);
+  }
+  // Si l'utilisateur connecté n'existe pas encore localement, rien à faire
+  // ici : c'est la connexion elle-même (routes/auth.js) qui l'a créé avec
+  // toutes ses infos déjà à jour.
+
+  return { collection: 'mon_profil', mis_a_jour: !!existante };
 }
 
 // "boutiques" (Comptes) a besoin d'un traitement dédié : GET /api/boutiques
@@ -698,7 +767,13 @@ async function tirerTout() {
     resultats.push({ collection: 'users', erreur: err.message });
   }
 
+  try {
+    resultats.push(await tirerMonProfil());
+  } catch (err) {
+    resultats.push({ collection: 'mon_profil', erreur: err.message });
+  }
+
   return { statut: 'termine', resultats };
 }
 
-module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerProduits, tirerVentes, tirerUsers, MOT_DE_PASSE_NON_LOCAL };
+module.exports = { tirerTout, tirerCollection, tirerBoutiques, tirerProduits, tirerVentes, tirerUsers, tirerMonProfil, MOT_DE_PASSE_NON_LOCAL };

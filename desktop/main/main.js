@@ -23,19 +23,6 @@ const { demarrerSynchronisationAutomatique, arreterSynchronisationAutomatique } 
 let fenetrePrincipale;
 let serveurLocal;
 
-// En développement, le build React se trouve dans le dossier frère
-// frontend/build (../../frontend/build depuis main/). Une fois l'application
-// empaquetée en .exe, cette structure de dossiers n'existe plus à cet
-// emplacement relatif — electron-builder copie plutôt ce dossier dans
-// resources/frontend-build (voir "extraResources" dans package.json),
-// accessible via process.resourcesPath.
-function cheminIndexFrontend() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'frontend-build', 'index.html');
-  }
-  return path.join(__dirname, '..', '..', 'frontend', 'build', 'index.html');
-}
-
 function creerFenetre() {
   fenetrePrincipale = new BrowserWindow({
     width: 1280,
@@ -47,7 +34,12 @@ function creerFenetre() {
     },
   });
 
-  fenetrePrincipale.loadFile(cheminIndexFrontend());
+  // Chargée via http://localhost:4000 (le serveur local lui-même sert le
+  // build React, voir local-server.js) plutôt que via file:// : sous
+  // file://, un chemin absolu comme "/logo512.png" utilisé tel quel dans le
+  // code React se résout contre la racine du DISQUE et reste cassé — même
+  // origine http que le reste de l'API, cohérent avec la version web.
+  fenetrePrincipale.loadURL('http://localhost:4000');
 
   fenetrePrincipale.on('closed', () => {
     fenetrePrincipale = null;
@@ -60,7 +52,14 @@ app.whenReady().then(() => {
   serveurLocal = demarrerServeurLocal();
   demarrerSynchronisationAutomatique();
 
-  creerFenetre();
+  // La fenêtre charge http://localhost:4000 (voir creerFenetre) : elle ne
+  // doit s'ouvrir qu'une fois ce serveur réellement à l'écoute, sinon la
+  // toute première requête arrive avant que le port soit prêt.
+  if (serveurLocal.listening) {
+    creerFenetre();
+  } else {
+    serveurLocal.once('listening', creerFenetre);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) creerFenetre();

@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS users (
   mot_de_passe  TEXT NOT NULL,
   role          TEXT DEFAULT 'vendeur' CHECK (role IN ('superadmin', 'admin', 'vendeur')),
   boutique_id   TEXT REFERENCES boutiques(id),
+  -- Assignation fixe d'un vendeur à une Caisse précise — décidée par
+  -- l'admin, jamais par le vendeur lui-même. Non pertinent pour admin/superadmin.
+  caisse_id     TEXT REFERENCES caisses(id),
   -- URL Cloudinary (comme en ligne) une fois synchronisée, ou chemin local
   -- /uploads/... si changée depuis ce poste hors-ligne (voir routes/users.js).
   photo         TEXT,
@@ -107,6 +110,21 @@ CREATE TABLE IF NOT EXISTS magasins (
   nom           TEXT NOT NULL,
   boutique_id   TEXT NOT NULL REFERENCES boutiques(id),
   adresse       TEXT DEFAULT '',
+  actif         INTEGER DEFAULT 1,
+  created_at    TEXT,
+  updated_at    TEXT,
+  is_dirty      INTEGER DEFAULT 0,
+  is_deleted    INTEGER DEFAULT 0
+);
+
+-- ---------- Caisses (registres au sein d'une boutique) ----------
+-- Ne porte aucun stock (le stock vendable est au niveau de la boutique,
+-- partagé par toutes ses caisses — voir stock_comptoirs). Sert à assigner
+-- un vendeur (users.caisse_id) et à tracer d'où vient chaque vente.
+CREATE TABLE IF NOT EXISTS caisses (
+  id            TEXT PRIMARY KEY,
+  nom           TEXT NOT NULL,
+  comptoir_id   TEXT NOT NULL REFERENCES comptoirs(id),
   actif         INTEGER DEFAULT 1,
   created_at    TEXT,
   updated_at    TEXT,
@@ -278,6 +296,7 @@ INSERT OR IGNORE INTO sync_meta (collection, last_synced_at) VALUES
   ('fournisseurs', NULL),
   ('comptoirs', NULL),
   ('magasins', NULL),
+  ('caisses', NULL),
   ('produits', NULL),
   ('ventes', NULL),
   ('mouvements_stock', NULL),

@@ -109,6 +109,7 @@ function demarrerServeurLocal() {
   app.use('/api/produits', require('../routes/produits'));
   app.use('/api/comptoirs', require('../routes/comptoirs'));
   app.use('/api/magasins', require('../routes/magasins'));
+  app.use('/api/caisses', require('../routes/caisses'));
   app.use('/api/ventes', require('../routes/ventes'));
   app.use('/api/boutiques', require('../routes/boutiques'));
   app.use('/api/clients', require('../routes/clients'));
@@ -118,6 +119,25 @@ function demarrerServeurLocal() {
   app.use('/api/logs', require('../routes/logs'));
   app.use('/api/icones', require('../routes/icones'));
   app.use('/api/sync', require('../routes/sync'));
+
+  // Sert le build React lui-même, pour que la fenêtre Electron charge la
+  // page via http://localhost:4000 (voir main.js) plutôt que file:// :
+  // sous file://, un chemin absolu comme "/logo512.png" ou "/favicon.ico"
+  // utilisé tel quel dans le code React (hors resoudreImage) se résout
+  // contre la racine du DISQUE, pas du dossier de l'appli, et reste cassé.
+  // Même origine http que /uploads et /api/... ci-dessus : cohérent avec
+  // le comportement de la version web.
+  const dossierFrontend = electronApp.isPackaged
+    ? path.join(process.resourcesPath, 'frontend-build')
+    : path.join(__dirname, '..', '..', 'frontend', 'build');
+  app.use(express.static(dossierFrontend));
+
+  // Callback de secours pour le routage côté client (React Router) : toute
+  // route qui n'est pas une API reçoit index.html, React Router prend le
+  // relais dans le navigateur (ex: recharger sur /admin/produits).
+  app.get(/^(?!\/api\/).*/, (req, res) => {
+    res.sendFile(path.join(dossierFrontend, 'index.html'));
+  });
 
   const serveur = app.listen(PORT, () => {
     console.log(`✅ Serveur local démarré sur http://localhost:${PORT}`);

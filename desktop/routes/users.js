@@ -44,12 +44,25 @@ function ajouterAOutbox(operation, recordId, payload) {
 // Ne renvoie jamais le mot de passe haché au frontend.
 function versFormatApi(ligne) {
   if (!ligne) return null;
+
+  // Le frontend attend caisseId POPULÉ (objet {_id, nom, comptoirId}), pas
+  // juste l'id brut — voir AdminLayout.js (v.caisseId?.nom) — même format
+  // que renvoyé par le backend en ligne (.populate('caisseId', 'nom comptoirId')).
+  let caisse = null;
+  if (ligne.caisse_id) {
+    const ligneCaisse = db.prepare('SELECT * FROM caisses WHERE id = ?').get(ligne.caisse_id);
+    if (ligneCaisse) {
+      caisse = { _id: ligneCaisse.id, nom: ligneCaisse.nom, comptoirId: ligneCaisse.comptoir_id };
+    }
+  }
+
   return {
     _id: ligne.id,
     nom: ligne.nom,
     email: ligne.email,
     role: ligne.role,
     boutiqueId: ligne.boutique_id,
+    caisseId: caisse,
     // "photo" est soit une URL Cloudinary complète (arrivée par le pull),
     // soit un chemin relatif /uploads/... (changée depuis ce poste) — le
     // frontend (resoudreImage) gère déjà les deux cas, comme pour les
@@ -119,6 +132,32 @@ router.put('/me/photo', (req, res) => {
       res.status(400).json({ message: e.message });
     }
   });
+});
+
+// PUT - (Ré)assigner la caisse fixe d'un vendeur — décision de l'admin,
+// jamais du vendeur lui-même. caisseId: null retire l'assignation.
+router.put('/:id/caisse', (req, res) => {
+  try {
+    const existant = db.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').get(req.params.id);
+    if (!existant) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+
+    db.prepare('UPDATE users SET caisse_id = ?, updated_at = ?, is_dirty = 1 WHERE id = ?')
+      .run(req.body.caisseId || null, maintenant(), req.params.id);
+
+    const ligne = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    const utilisateurModifie = versFormatApi(ligne);
+    // Poussé via une entrée dédiée ("affectations_caisse") plutôt qu'une
+    // mise à jour générique : la route en ligne correspondante
+    // (PUT /api/users/:id/caisse) attend {caisseId}, pas un objet users complet.
+    db.prepare(`
+      INSERT INTO sync_outbox (collection, operation, record_id, payload, created_at)
+      VALUES ('affectations_caisse', 'update', ?, ?, ?)
+    `).run(req.params.id, JSON.stringify({ caisseId: req.body.caisseId || null }), maintenant());
+
+    res.json(utilisateurModifie);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 // POST - Créer un utilisateur

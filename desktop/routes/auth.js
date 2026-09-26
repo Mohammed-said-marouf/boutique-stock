@@ -207,16 +207,24 @@ router.post('/login', async (req, res) => {
     // MOT_DE_PASSE_NON_LOCAL) peut déjà exister avec ce même id/email,
     // auquel cas on la complète avec le vrai hash au lieu d'échouer sur la
     // contrainte d'unicité.
+    // Référence souple sur la caisse (comme dans sync/pull.js) : sur une
+    // machine neuve, la table locale "caisses" peut être complètement vide
+    // (aucun pull n'a encore eu lieu) — on stocke null plutôt que de faire
+    // échouer la connexion sur la contrainte de clé étrangère.
+    const caisseIdDistante = idRef(utilisateurDistant.caisseId);
+    const caisseExisteLocalement = caisseIdDistante && db.prepare('SELECT id FROM caisses WHERE id = ?').get(caisseIdDistante);
+
     db.prepare(`
-      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @photo, 1, @createdAt, @updatedAt, 0, 0)
+      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, 1, @createdAt, @updatedAt, 0, 0)
       ON CONFLICT(id) DO UPDATE SET
         nom = excluded.nom, email = excluded.email, mot_de_passe = excluded.mot_de_passe,
-        role = excluded.role, boutique_id = excluded.boutique_id, photo = excluded.photo,
-        actif = 1, updated_at = excluded.updated_at
+        role = excluded.role, boutique_id = excluded.boutique_id, caisse_id = excluded.caisse_id,
+        photo = excluded.photo, actif = 1, updated_at = excluded.updated_at
     `).run({
       id: utilisateurDistant.id,
       nom: utilisateurDistant.nom,
+      caisseId: caisseExisteLocalement ? caisseIdDistante : null,
       email: utilisateurDistant.email,
       motDePasse: motDePasseHache,
       role: utilisateurDistant.role,
