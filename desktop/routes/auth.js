@@ -97,12 +97,26 @@ function formaterUtilisateur(ligne) {
     }
   }
 
+  // Le frontend attend caisseId (id brut, voir CaisseVendeur/Tresorerie) ET
+  // caisse (objet peuplé, avec comptoirId — sert à savoir quel stock par
+  // boutique afficher) — même forme que la réponse de connexion en ligne
+  // (backend/routes/auth.js : { caisseId, caisse: caisseInfo }).
+  let caisse = null;
+  if (ligne.caisse_id) {
+    const ligneCaisse = db.prepare('SELECT * FROM caisses WHERE id = ?').get(ligne.caisse_id);
+    if (ligneCaisse) {
+      caisse = { _id: ligneCaisse.id, nom: ligneCaisse.nom, comptoirId: ligneCaisse.comptoir_id, actif: !!ligneCaisse.actif };
+    }
+  }
+
   return {
     id: ligne.id,
     nom: ligne.nom,
     email: ligne.email,
     role: ligne.role,
     photo: ligne.photo || null,
+    caisseId: ligne.caisse_id || null,
+    caisse,
     boutique,
   };
 }
@@ -245,6 +259,26 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// POST - Renouvelle la session LOCALE (frontend) de l'utilisateur courant.
+// Contrairement au vrai backend, le token local n'expire jamais (voir
+// genererTokenLocal) — l'intérêt ici n'est pas de le renouveler avant
+// expiration, mais de renvoyer un SNAPSHOT FRAIS de l'utilisateur (photo,
+// nom, et surtout caisseId/caisse) : appelé automatiquement par le
+// frontend toutes les 30 minutes (voir AuthContext.js), ça permet à un
+// vendeur déjà connecté de voir une caisse tout juste assignée par l'admin
+// sans avoir à se déconnecter/reconnecter.
+router.post('/refresh', (req, res) => {
+  if (!req.user || !req.user.id) return res.status(401).json({ message: 'Non authentifié.' });
+  const utilisateurLocal = db.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').get(req.user.id);
+  if (!utilisateurLocal) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+  if (!utilisateurLocal.actif) return res.status(403).json({ message: 'Ce compte est désactivé.' });
+
+  res.json({
+    token: genererTokenLocal(utilisateurLocal),
+    user: formaterUtilisateur(utilisateurLocal),
+  });
 });
 
 module.exports = router;
