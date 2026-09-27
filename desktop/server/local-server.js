@@ -118,6 +118,9 @@ function demarrerServeurLocal() {
   app.use('/api/mouvements-stock', require('../routes/mouvements-stock'));
   app.use('/api/logs', require('../routes/logs'));
   app.use('/api/icones', require('../routes/icones'));
+  app.use('/api/depenses', require('../routes/depenses'));
+  app.use('/api/versements', require('../routes/versements'));
+  app.use('/api/tresorerie', require('../routes/tresorerie'));
   app.use('/api/sync', require('../routes/sync'));
 
   // Sert le build React lui-même, pour que la fenêtre Electron charge la

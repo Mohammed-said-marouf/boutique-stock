@@ -48,6 +48,8 @@ function chargerVenteComplete(venteId) {
     clientNom: vente.client_nom,
     numFacture: vente.num_facture,
     boutiqueId: vente.boutique_id,
+    comptoirId: vente.comptoir_id,
+    caisseId: vente.caisse_id,
     dateVente: vente.date_vente,
     notes: vente.notes,
   };
@@ -83,7 +85,7 @@ router.get('/', (req, res) => {
 
 // POST - Enregistrer une vente
 router.post('/', (req, res) => {
-  const transaction = db.transaction((body, boutiqueId) => {
+  const transaction = db.transaction((body, boutiqueId, caisseId) => {
     const { produits, montantTotal, typeVente, vendeur, nomVendeur, clientNom, comptoirId, notes } = body;
 
     if (!Array.isArray(produits) || produits.length === 0 || montantTotal === undefined) {
@@ -110,8 +112,8 @@ router.post('/', (req, res) => {
     const maintenantIso = maintenant();
 
     db.prepare(`
-      INSERT INTO ventes (id, montant_total, type_vente, vendeur, nom_vendeur, client_nom, num_facture, boutique_id, comptoir_id, date_vente, notes, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @montantTotal, @typeVente, @vendeur, @nomVendeur, @clientNom, @numFacture, @boutiqueId, @comptoirId, @dateVente, @notes, @createdAt, @updatedAt, 1, 0)
+      INSERT INTO ventes (id, montant_total, type_vente, vendeur, nom_vendeur, client_nom, num_facture, boutique_id, comptoir_id, caisse_id, date_vente, notes, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @montantTotal, @typeVente, @vendeur, @nomVendeur, @clientNom, @numFacture, @boutiqueId, @comptoirId, @caisseId, @dateVente, @notes, @createdAt, @updatedAt, 1, 0)
     `).run({
       id: venteId,
       montantTotal,
@@ -122,6 +124,7 @@ router.post('/', (req, res) => {
       numFacture,
       boutiqueId: boutiqueId || null,
       comptoirId,
+      caisseId: caisseId || null,
       dateVente: maintenantIso,
       notes: notes || null,
       createdAt: maintenantIso,
@@ -178,7 +181,13 @@ router.post('/', (req, res) => {
     const boutiqueId = (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId)
       ? req.user.boutiqueId
       : (req.body.boutiqueId || null);
-    const venteId = transaction(req.body, boutiqueId);
+    // Même règle : un vendeur vend TOUJOURS depuis sa caisse assignée (token),
+    // jamais une valeur du corps — même sécurité que le backend en ligne
+    // (empêche un vendeur de "vendre au nom" d'une autre caisse).
+    const caisseId = req.user?.role === 'vendeur'
+      ? (req.user.caisseId || null)
+      : (req.body.caisseId || null);
+    const venteId = transaction(req.body, boutiqueId, caisseId);
     res.status(201).json(chargerVenteComplete(venteId));
   } catch (err) {
     res.status(400).json({ message: err.message });

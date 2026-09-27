@@ -132,6 +132,50 @@ CREATE TABLE IF NOT EXISTS caisses (
   is_deleted    INTEGER DEFAULT 0
 );
 
+-- ---------- Dépenses ----------
+-- Argent sorti d'UNE caisse (réduit son solde — voir routes/tresorerie.js).
+CREATE TABLE IF NOT EXISTS depenses (
+  id            TEXT PRIMARY KEY,
+  montant       REAL NOT NULL,
+  motif         TEXT NOT NULL,
+  note          TEXT DEFAULT '',
+  boutique_id   TEXT NOT NULL REFERENCES boutiques(id),
+  comptoir_id   TEXT NOT NULL REFERENCES comptoirs(id),
+  caisse_id     TEXT NOT NULL REFERENCES caisses(id),
+  auteur        TEXT REFERENCES users(id),
+  nom_auteur    TEXT DEFAULT '',
+  role_auteur   TEXT DEFAULT '',
+  date          TEXT,
+  created_at    TEXT,
+  updated_at    TEXT,
+  is_dirty      INTEGER DEFAULT 0,
+  is_deleted    INTEGER DEFAULT 0
+);
+
+-- ---------- Versements ----------
+-- Remise d'espèces d'un vendeur à l'admin — ne réduit le solde de la caisse
+-- qu'une fois "valide" (approuvé par l'admin), voir routes/tresorerie.js.
+CREATE TABLE IF NOT EXISTS versements (
+  id              TEXT PRIMARY KEY,
+  montant         REAL NOT NULL,
+  note            TEXT DEFAULT '',
+  statut          TEXT DEFAULT 'en_attente' CHECK (statut IN ('en_attente', 'valide', 'refuse')),
+  decide_par      TEXT REFERENCES users(id),
+  nom_decide_par  TEXT DEFAULT '',
+  date_decision   TEXT,
+  motif_refus     TEXT DEFAULT '',
+  boutique_id     TEXT NOT NULL REFERENCES boutiques(id),
+  comptoir_id     TEXT NOT NULL REFERENCES comptoirs(id),
+  caisse_id       TEXT NOT NULL REFERENCES caisses(id),
+  auteur          TEXT REFERENCES users(id),
+  nom_auteur      TEXT DEFAULT '',
+  date            TEXT,
+  created_at      TEXT,
+  updated_at      TEXT,
+  is_dirty        INTEGER DEFAULT 0,
+  is_deleted      INTEGER DEFAULT 0
+);
+
 -- ---------- Produits ----------
 -- IMPORTANT : "quantite" est le TOTAL du stock Magasin (réserve, pas
 -- vendable tel quel), tenu à jour automatiquement = somme de
@@ -195,6 +239,7 @@ CREATE TABLE IF NOT EXISTS ventes (
   num_facture    TEXT,
   boutique_id    TEXT REFERENCES boutiques(id),
   comptoir_id    TEXT REFERENCES comptoirs(id),
+  caisse_id      TEXT REFERENCES caisses(id),
   date_vente     TEXT,
   notes          TEXT,
   created_at     TEXT,
@@ -297,6 +342,8 @@ INSERT OR IGNORE INTO sync_meta (collection, last_synced_at) VALUES
   ('comptoirs', NULL),
   ('magasins', NULL),
   ('caisses', NULL),
+  ('depenses', NULL),
+  ('versements', NULL),
   ('produits', NULL),
   ('ventes', NULL),
   ('mouvements_stock', NULL),

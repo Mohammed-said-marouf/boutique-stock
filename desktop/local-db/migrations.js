@@ -99,12 +99,23 @@ function migrerUsersVersCaisse(db) {
   console.log('✅ Migration users (caisse_id) terminée.');
 }
 
+// ventes a été créée, sur les postes existants, sans la colonne caisse_id
+// (nécessaire pour calculer le solde d'UNE caisse précise — un comptoir
+// peut avoir plusieurs caisses). Simple ALTER TABLE ADD COLUMN.
+function migrerVentesVersCaisse(db) {
+  if (colonneExiste(db, 'ventes', 'caisse_id')) return;
+  console.log('🔧 Migration : ajout de caisse_id à ventes...');
+  db.exec(`ALTER TABLE ventes ADD COLUMN caisse_id TEXT REFERENCES caisses(id)`);
+  console.log('✅ Migration ventes (caisse_id) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
   migrerMouvementsStockVersMagasins(db);
   migrerUsersVersPhoto(db);
   migrerUsersVersCaisse(db);
+  migrerVentesVersCaisse(db);
 }
 
 module.exports = { executerMigrations };

@@ -154,6 +154,53 @@ const COLLECTIONS = {
     }),
   },
 
+  // Références souples sur comptoirId/caisseId (existeLocal) : une dépense
+  // ou un versement fait ailleurs sur une caisse pas encore connue ici
+  // (rare) est ignoré individuellement plutôt que de faire échouer tout
+  // l'enregistrement.
+  depenses: {
+    endpoint: '/api/depenses',
+    table: 'depenses',
+    versColonnes: (item) => ({
+      id: item._id,
+      montant: item.montant,
+      motif: item.motif,
+      note: item.note || '',
+      boutique_id: idRef(item.boutiqueId),
+      comptoir_id: existeLocal('comptoirs', idRef(item.comptoirId)) ? idRef(item.comptoirId) : null,
+      caisse_id: existeLocal('caisses', idRef(item.caisseId)) ? idRef(item.caisseId) : null,
+      auteur: existeLocal('users', idRef(item.auteur)) ? idRef(item.auteur) : null,
+      nom_auteur: item.nomAuteur || '',
+      role_auteur: item.roleAuteur || '',
+      date: item.date || item.createdAt || maintenant(),
+      created_at: item.createdAt || maintenant(),
+      updated_at: item.updatedAt || maintenant(),
+    }),
+  },
+
+  versements: {
+    endpoint: '/api/versements',
+    table: 'versements',
+    versColonnes: (item) => ({
+      id: item._id,
+      montant: item.montant,
+      note: item.note || '',
+      statut: item.statut || 'en_attente',
+      decide_par: existeLocal('users', idRef(item.decidePar)) ? idRef(item.decidePar) : null,
+      nom_decide_par: item.nomDecidePar || '',
+      date_decision: item.dateDecision || null,
+      motif_refus: item.motifRefus || '',
+      boutique_id: idRef(item.boutiqueId),
+      comptoir_id: existeLocal('comptoirs', idRef(item.comptoirId)) ? idRef(item.comptoirId) : null,
+      caisse_id: existeLocal('caisses', idRef(item.caisseId)) ? idRef(item.caisseId) : null,
+      auteur: existeLocal('users', idRef(item.auteur)) ? idRef(item.auteur) : null,
+      nom_auteur: item.nomAuteur || '',
+      date: item.date || item.createdAt || maintenant(),
+      created_at: item.createdAt || maintenant(),
+      updated_at: item.updatedAt || maintenant(),
+    }),
+  },
+
   produits: {
     endpoint: '/api/produits',
     table: 'produits',

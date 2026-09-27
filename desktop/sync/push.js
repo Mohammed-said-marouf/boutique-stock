@@ -210,6 +210,57 @@ async function pousserEntree(entree, token) {
       }
       break;
 
+    case 'depenses':
+      if (operation === 'create') {
+        await appelApi(`${API_EN_LIGNE}/api/depenses`, 'POST', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/depenses/${record_id}`, 'PUT', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/depenses/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
+    case 'versements':
+      if (operation === 'create') {
+        await appelApi(`${API_EN_LIGNE}/api/versements`, 'POST', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/versements/${record_id}`, 'PUT', headers, payload);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      if (operation === 'delete') {
+        await appelApi(`${API_EN_LIGNE}/api/versements/${record_id}`, 'DELETE', headers);
+        marquerNonDirty(collection, record_id);
+        return 'synchronisee';
+      }
+      break;
+
+    // Décision (approuver/refuser) d'un admin sur un versement en attente —
+    // entrée dédiée plutôt qu'une mise à jour générique : la route en ligne
+    // correspondante (PUT /:id/valider ou /refuser) n'attend pas un objet
+    // versement complet, et le statut ne doit jamais être poussé via un
+    // simple PUT générique (la route de correction n'accepte pas "statut").
+    case 'decisions_versement':
+      if (operation === 'update') {
+        const chemin = payload.statut === 'valide' ? 'valider' : 'refuser';
+        const corps = payload.statut === 'refuse' ? { motif: payload.motifRefus } : undefined;
+        await appelApi(`${API_EN_LIGNE}/api/versements/${record_id}/${chemin}`, 'PUT', headers, corps);
+        marquerNonDirty('versements', record_id);
+        return 'synchronisee';
+      }
+      break;
+
     case 'fournisseurs':
       if (operation === 'create') {
         await appelApi(`${API_EN_LIGNE}/api/fournisseurs`, 'POST', headers, payload);
