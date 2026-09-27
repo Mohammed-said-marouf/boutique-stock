@@ -25,7 +25,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const db = require('../local-db/db');
 const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
-const { enregistrerSession } = require('../sync/token-store');
+const { enregistrerSession, lireSession } = require('../sync/token-store');
 const { MOT_DE_PASSE_NON_LOCAL } = require('../sync/pull');
 
 const maintenant = () => new Date().toISOString();
@@ -41,13 +41,17 @@ function idRef(valeur) {
 
 function genererTokenLocal(utilisateur) {
   // Token léger, non signé cryptographiquement — suffisant tant qu'aucune
-  // route locale ne le vérifie (voir en-tête du fichier). boutiqueId est
-  // inclus pour permettre aux routes de filtrer leurs résultats par
-  // boutique (voir middleware/identifierUtilisateur.js).
+  // route locale ne le vérifie (voir en-tête du fichier). boutiqueId et
+  // caisseId sont inclus pour permettre aux routes de filtrer leurs
+  // résultats (voir middleware/identifierUtilisateur.js) — caisseId en
+  // particulier est indispensable pour les dépenses/versements/trésorerie
+  // d'un vendeur, qui utilisent TOUJOURS sa caisse assignée depuis le
+  // token, jamais une valeur envoyée par le client.
   return Buffer.from(JSON.stringify({
     id: utilisateur.id,
     role: utilisateur.role,
     boutiqueId: utilisateur.boutique_id || null,
+    caisseId: utilisateur.caisse_id || null,
     genereLe: maintenant(),
   })).toString('base64');
 }
@@ -58,8 +62,20 @@ function genererTokenLocal(utilisateur) {
 // de 24h côté serveur ; sans ce rafraîchissement, une connexion hors-ligne
 // normale (cas 1 ci-dessus) ne le touche jamais, et toute synchro
 // (push/pull) échoue silencieusement pour toujours après le premier jour.
-async function rafraichirSessionSyncEnArrierePlan(email, motDePasse) {
+async function rafraichirSessionSyncEnArrierePlan(email, motDePasse, role) {
   try {
+    // Ne JAMAIS rétrograder une session de synchro déjà tenue par un
+    // admin/superadmin (capable de tout ce qu'un vendeur peut faire, PLUS
+    // les actions réservées aux admins — approuver un versement, gérer
+    // comptoirs/caisses/magasins, créer un vendeur...) avec la connexion
+    // d'un simple vendeur : ça casserait silencieusement ces actions (404/403
+    // à chaque tentative) tant qu'un admin ne se reconnecte pas sur ce poste.
+    // Un vendeur ne rafraîchit donc que s'il n'existe encore aucune session,
+    // ou si elle appartient déjà à un vendeur (peu importe lequel).
+    if (role === 'vendeur') {
+      const sessionActuelle = lireSession();
+      if (sessionActuelle?.user?.role && sessionActuelle.user.role !== 'vendeur') return;
+    }
     if (!(await estEnLigne())) return;
     const reponse = await fetch(`${API_EN_LIGNE}/api/auth/login`, {
       method: 'POST',
@@ -150,7 +166,7 @@ router.post('/login', async (req, res) => {
         token: genererTokenLocal(utilisateurLocal),
         user: formaterUtilisateur(utilisateurLocal),
       });
-      rafraichirSessionSyncEnArrierePlan(email, motDePasse);
+      rafraichirSessionSyncEnArrierePlan(email, motDePasse, utilisateurLocal.role);
       return;
     }
 

@@ -29,6 +29,7 @@ function decoderToken(token) {
           id: payload.id,
           role: payload.role,
           boutiqueId: (payload.boutique && payload.boutique._id) || payload.boutique || null,
+          caisseId: (payload.caisse && payload.caisse._id) || payload.caisseId || null,
         };
       }
     } catch {
@@ -43,6 +44,7 @@ function decoderToken(token) {
       id: payload.id,
       role: payload.role,
       boutiqueId: payload.boutiqueId || null,
+      caisseId: payload.caisseId || null,
     };
   } catch {
     return null;
