@@ -36,10 +36,15 @@ router.get('/en-attente/nombre', verifierToken, autoriser('superadmin', 'admin')
   }
 });
 
-// POST - Déclarer un versement (vendeur uniquement : c'est lui qui remet
-// l'argent de sa caisse). Il est créé "en_attente" et les admins du compte
-// sont prévenus.
-router.post('/', verifierToken, autoriser('vendeur'), async (req, res) => {
+// POST - Déclarer un versement. Normalement le vendeur lui-même (c'est lui
+// qui remet l'argent de sa caisse) ; un admin/superadmin peut aussi en
+// déclarer un AU NOM d'un vendeur précis (req.body.auteur) — utilisé par la
+// synchro desktop, dont le token appartient à un seul compte du poste, pas
+// forcément le vendeur qui a réellement déclaré ce versement hors-ligne. Le
+// frontend web n'expose cette action qu'au vendeur lui-même (Tresorerie.js :
+// peutCreer = ... || !estAdmin), donc ça ne change rien à l'usage normal.
+// Il est créé "en_attente" et les admins du compte sont prévenus.
+router.post('/', verifierToken, autoriser('superadmin', 'admin', 'vendeur'), async (req, res) => {
   try {
     const montant = Number(req.body.montant);
     if (!montant || montant <= 0) return res.status(400).json({ message: 'Montant invalide.' });
@@ -47,17 +52,24 @@ router.post('/', verifierToken, autoriser('vendeur'), async (req, res) => {
     const r = await resoudreCaisse(req);
     if (r.erreur) return res.status(r.statut).json({ message: r.erreur });
 
-    // Le statut n'est jamais lu depuis le body : un vendeur ne peut pas
-    // s'auto-valider un versement.
+    const estPourAutrui = req.user.role !== 'vendeur' && req.body.auteur;
+
+    // Le statut n'est jamais lu depuis le body : personne ne peut
+    // s'auto-valider un versement. _id explicite optionnel (même raison que
+    // routes/comptoirs.js) — nécessaire pour que la synchro desktop garde
+    // le même id des deux côtés (sinon la décision d'approbation poussée
+    // juste après, qui référence cet id, ne trouve plus rien : "introuvable
+    // ou déjà traité").
     const versement = await new Versement({
+      _id: req.body._id || undefined,
       montant,
       note: req.body.note || '',
       statut: 'en_attente',
       boutiqueId: r.comptoir.boutiqueId,
       comptoirId: r.comptoir._id,
       caisseId: r.caisse._id,
-      auteur: req.user.id,
-      nomAuteur: req.user.nom || '',
+      auteur: estPourAutrui ? req.body.auteur : req.user.id,
+      nomAuteur: estPourAutrui ? (req.body.nomAuteur || '') : (req.user.nom || ''),
     }).save();
 
     // Notification e-mail aux admins (sans attendre, sans jamais échouer)

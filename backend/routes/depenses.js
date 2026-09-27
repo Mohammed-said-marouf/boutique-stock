@@ -27,7 +27,11 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin', 'vendeur'), asy
     const r = await resoudreCaisse(req);
     if (r.erreur) return res.status(r.statut).json({ message: r.erreur });
 
+    // _id explicite optionnel (même raison que routes/comptoirs.js et
+    // routes/magasins.js) — nécessaire pour que la synchro desktop garde le
+    // même id des deux côtés.
     const depense = await new Depense({
+      _id: req.body._id || undefined,
       montant,
       motif,
       note: req.body.note || '',
