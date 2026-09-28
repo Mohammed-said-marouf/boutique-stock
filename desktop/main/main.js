@@ -8,7 +8,7 @@
  *  4. Ouvrir une fenêtre Electron qui charge le frontend React.
  */
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
 // Initialise la base SQLite dès le démarrage (crée le fichier si besoin, applique le schéma).
@@ -23,6 +23,15 @@ const { demarrerSynchronisationAutomatique, arreterSynchronisationAutomatique } 
 let fenetrePrincipale;
 let serveurLocal;
 
+// Vrai uniquement au tout premier chargement de page depuis le lancement de
+// l'application : le preload s'en sert pour effacer la session précédente
+// et forcer une nouvelle connexion à chaque ouverture (voir preload.js).
+let premierChargement = true;
+ipcMain.on('premier-chargement-fenetre', (event) => {
+  event.returnValue = premierChargement;
+  premierChargement = false;
+});
+
 function creerFenetre() {
   fenetrePrincipale = new BrowserWindow({
     width: 1280,
@@ -31,6 +40,7 @@ function creerFenetre() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
