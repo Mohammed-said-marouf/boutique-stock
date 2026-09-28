@@ -3360,6 +3360,54 @@ async function lireFichierImportProduits(fichier) {
   return lignes;
 }
 
+// Rapport "État des stocks" : une colonne par Magasin (réserve) et une par
+// Boutique (stock vendable, décompté à la vente), avec leurs totaux. Les
+// magasins/boutiques listés sont ceux qui apparaissent dans les stocks des
+// produits (déjà populés par GET /api/produits, en ligne comme sur le
+// desktop). "État" suit la même règle que la cloche d'alertes : une boutique
+// est en alerte quand son stock du produit est au seuil ou en dessous.
+function construireRapportStocks(produits) {
+  const lieux = (cle, champ) => {
+    const parId = new Map();
+    produits.forEach(p => (p[cle] || []).forEach(s => {
+      const lieu = s[champ];
+      if (lieu && typeof lieu === 'object' && !parId.has(lieu._id)) parId.set(lieu._id, lieu.nom || '—');
+    }));
+    return [...parId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+  };
+  const magasins = lieux('stockMagasins', 'magasin');
+  const boutiques = lieux('stockComptoirs', 'comptoir');
+  const qteDans = (liste, champ, id) => {
+    const s = (liste || []).find(x => (x[champ]?._id ?? x[champ]) === id);
+    return s ? s.quantite : null; // null = produit jamais placé à cet endroit
+  };
+
+  const entetes = [
+    'Nom', 'Référence', 'Catégorie', 'Prix (FCFA)',
+    ...magasins.map(([, nom]) => `Magasin · ${nom}`), 'Total magasins',
+    ...boutiques.map(([, nom]) => `Boutique · ${nom}`), 'Total boutiques',
+    'Stock total', "Seuil d'alerte", 'État',
+  ];
+  const lignes = produits.map(p => {
+    const seuil = p.seuilAlerte ?? 5;
+    const parMagasin = magasins.map(([id]) => qteDans(p.stockMagasins, 'magasin', id));
+    const parBoutique = boutiques.map(([id]) => qteDans(p.stockComptoirs, 'comptoir', id));
+    const totalMagasins = p.quantite || 0; // tenu à jour = somme de stockMagasins (voir models/Produit.js)
+    const totalBoutiques = parBoutique.reduce((s, q) => s + (q || 0), 0);
+    const enAlerte = boutiques.filter((_, i) => parBoutique[i] !== null && parBoutique[i] <= seuil).map(([, nom]) => nom);
+    const etat = totalMagasins + totalBoutiques === 0 ? 'Rupture'
+      : enAlerte.length > 0 ? `Stock bas : ${enAlerte.join(', ')}`
+      : 'OK';
+    return [
+      p.nom || '', p.ref || '', p.categorie || '', p.prix || 0,
+      ...parMagasin.map(q => q ?? ''), totalMagasins,
+      ...parBoutique.map(q => q ?? ''), totalBoutiques,
+      totalMagasins + totalBoutiques, seuil, etat,
+    ];
+  });
+  return { titre: 'État des stocks', nomFichier: `etat-stocks-${Date.now()}.xlsx`, entetes, lignes };
+}
+
 function AdminRapports() {
   const [export_, setExport_] = useState('');
   // Rapport chargé, affiché dans l'appli avant tout téléchargement :
@@ -3391,11 +3439,7 @@ function AdminRapports() {
     try {
       const res = await fetch(`${API_URL}/api/produits`, { headers: { Authorization: `Bearer ${token}` } });
       const produits = await res.json();
-      const entetes = ['Nom', 'Référence', 'Catégorie', 'Prix (FCFA)', 'Stock', "Seuil d'alerte"];
-      const lignes = (Array.isArray(produits) ? produits : []).map(p => [
-        p.nom || '', p.ref || '', p.categorie || '', p.prix || 0, p.quantite || 0, p.seuilAlerte || 0
-      ]);
-      setApercuRapport({ titre: 'État des stocks', nomFichier: `etat-stocks-${Date.now()}.xlsx`, entetes, lignes });
+      setApercuRapport(construireRapportStocks(Array.isArray(produits) ? produits : []));
     } catch (err) {
       alert('Erreur : ' + err.message);
     } finally {
@@ -3434,7 +3478,7 @@ function AdminRapports() {
 
   const rapports = [
     { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe', action: chargerVentes, key: 'ventes' },
-    { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7', action: chargerStocks, key: 'stocks' },
+    { iconKey: 'stock', label: 'État des stocks', desc: 'Stock par magasin et par boutique, alertes', color: '#dcfce7', action: chargerStocks, key: 'stocks' },
     { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Liste des fournisseurs', color: '#ede9fe', action: chargerFournisseurs, key: 'fournisseurs' },
   ];
 
@@ -3469,7 +3513,7 @@ function AdminRapports() {
         }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: 'white', borderRadius: '14px', padding: '24px',
-            width: '100%', maxWidth: '820px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
+            width: '100%', maxWidth: '1100px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
               <h3 style={{ margin: 0, color: '#0f172a' }}>{apercuRapport.titre}</h3>
