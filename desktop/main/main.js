@@ -32,6 +32,11 @@ ipcMain.on('premier-chargement-fenetre', (event) => {
   premierChargement = false;
 });
 
+// Secret réservé à la fenêtre de l'application (voir secret-poste.js).
+ipcMain.on('secret-poste', (event) => {
+  event.returnValue = require('./secret-poste');
+});
+
 function creerFenetre() {
   fenetrePrincipale = new BrowserWindow({
     width: 1280,

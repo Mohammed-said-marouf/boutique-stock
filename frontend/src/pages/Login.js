@@ -1,6 +1,49 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { posteDesktopDisponible, importerPoste } from '../api/poste';
+
+// Desktop uniquement : sur une nouvelle machine, personne ne peut encore se
+// connecter (comptes absents de la base locale, et pas forcément internet).
+// On permet donc d'importer ici la sauvegarde complète du poste (faite depuis
+// la page Sauvegarde de l'ancienne machine) — voir desktop/routes/poste.js.
+function ImportSauvegardePoste() {
+  const [etat, setEtat] = useState(null); // { type: 'ok'|'erreur'|'encours', texte }
+  const champ = useRef(null);
+
+  const choisir = async (e) => {
+    const fichier = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!fichier) return;
+    const confirme = window.confirm(
+      `Importer « ${fichier.name} » ?\n\n` +
+      "Les données de ce poste seront REMPLACÉES par celles de la sauvegarde (une copie de l'ancienne base est conservée). " +
+      "L'application redémarrera ensuite ; connectez-vous avec vos identifiants habituels."
+    );
+    if (!confirme) return;
+    setEtat({ type: 'encours', texte: 'Vérification de la sauvegarde...' });
+    try {
+      const r = await importerPoste(fichier);
+      if (!r.ok) { setEtat({ type: 'erreur', texte: r.message }); return; }
+      const b = r.bilan || {};
+      setEtat({ type: 'ok', texte: `Sauvegarde importée (${b.comptes ?? 0} compte(s), ${b.produits ?? 0} produit(s), ${b.ventes ?? 0} vente(s)). Redémarrage...` });
+    } catch (err) {
+      setEtat({ type: 'erreur', texte: err.message });
+    }
+  };
+
+  const couleurs = { ok: '#86efac', erreur: '#ff8fa3', encours: 'rgba(255,255,255,0.75)' };
+  return (
+    <div style={{ width: '100%', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.12)', textAlign: 'center' }}>
+      <input ref={champ} type="file" accept=".bsdb" onChange={choisir} style={{ display: 'none' }} />
+      <button type="button" onClick={() => champ.current && champ.current.click()} disabled={etat?.type === 'encours' || etat?.type === 'ok'}
+        style={{ background: 'none', border: 'none', color: '#93c5fd', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+        📂 Nouvelle machine ? Importer une sauvegarde
+      </button>
+      {etat && <div style={{ marginTop: '8px', fontSize: '12.5px', color: couleurs[etat.type] }}>{etat.type === 'erreur' ? '⚠️ ' : etat.type === 'ok' ? '✅ ' : '⏳ '}{etat.texte}</div>}
+    </div>
+  );
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -103,6 +146,7 @@ export default function Login() {
             Mot de passe oublié ? Contactez l'administrateur de la plateforme pour le réinitialiser.
           </div>
         </form>
+        {posteDesktopDisponible() && <ImportSauvegardePoste />}
       </div>
     </div>
   );

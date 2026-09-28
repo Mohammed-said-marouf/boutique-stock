@@ -11,7 +11,14 @@
  * n'est pas concernée.
  */
 
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, contextBridge } = require('electron');
+
+// Secret du poste, exposé à la page pour les routes protégées du serveur
+// local (sauvegarde/import complet du poste — voir main/secret-poste.js).
+// Sa présence sert aussi au frontend à savoir qu'il tourne dans le desktop.
+contextBridge.exposeInMainWorld('bsDesktop', {
+  secretPoste: ipcRenderer.sendSync('secret-poste'),
+});
 
 if (ipcRenderer.sendSync('premier-chargement-fenetre')) {
   try {
