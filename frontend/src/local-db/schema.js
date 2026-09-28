@@ -225,6 +225,23 @@ CREATE TABLE IF NOT EXISTS sync_meta (
   last_synced_at    TEXT
 );
 
+-- Un token en ligne (réel JWT) PAR utilisateur local connu, plutôt qu'une
+-- session unique partagée par tout le moteur de synchro (c'est cette session
+-- unique, côté desktop, qui a causé plusieurs bugs cette session : une
+-- mutation poussée sous la mauvaise identité quand un autre utilisateur
+-- s'était connecté entre-temps). push.js résout le token à utiliser pour
+-- CHAQUE item de sync_outbox via sync_outbox.auteur_id -> sessions_sync.user_id,
+-- jamais via "la session active en ce moment".
+CREATE TABLE IF NOT EXISTS sessions_sync (
+  user_id         TEXT PRIMARY KEY,
+  token           TEXT NOT NULL,
+  nom             TEXT,
+  role            TEXT,
+  boutique_id     TEXT,
+  caisse_id       TEXT,
+  enregistre_le   TEXT
+);
+
 INSERT OR IGNORE INTO sync_meta (collection, last_synced_at) VALUES
   ('boutiques', NULL),
   ('users', NULL),
