@@ -344,8 +344,14 @@ async function tirerVentes() {
 
     // "vendeur" est populé côté API (objet User complet) — référence souple
     // comme pour logs.utilisateur : null si le compte n'existe pas encore
-    // en local ("users" n'est pas encore pullé).
+    // en local ("users" n'est pas encore pullé). Même chose pour
+    // comptoirId/caisseId (manquaient ici jusqu'ici — une vente déjà
+    // synchronisée, avec une vraie caisse en ligne, restait avec caisse_id
+    // NULL en local pour toujours : le solde de caisse local ignorait donc
+    // silencieusement toutes les ventes antérieures à ce correctif).
     const vendeurId = idRef(item.vendeur);
+    const comptoirId = idRef(item.comptoirId);
+    const caisseId = idRef(item.caisseId);
     const colonnesVente = {
       id: venteId,
       montant_total: item.montantTotal,
@@ -355,6 +361,8 @@ async function tirerVentes() {
       client_nom: item.clientNom || 'Client anonyme',
       num_facture: item.numFacture || null,
       boutique_id: item.boutiqueId || null,
+      comptoir_id: existeLocal('comptoirs', comptoirId) ? comptoirId : null,
+      caisse_id: existeLocal('caisses', caisseId) ? caisseId : null,
       date_vente: item.dateVente || item.createdAt || maintenant(),
       notes: item.notes || null,
       created_at: item.createdAt || maintenant(),
