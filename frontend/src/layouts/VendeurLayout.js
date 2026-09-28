@@ -3,7 +3,6 @@ import autoTable from 'jspdf-autotable';
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
 import { Icone } from '../context/IconesContext';
 import { Html5Qrcode } from 'html5-qrcode';
 import { bipSucces, bipErreur, debloquerAudio } from '../utils/bip';
@@ -12,6 +11,10 @@ import Tresorerie from '../components/Tresorerie';
 import Sauvegarde from '../components/Sauvegarde';
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
+import { statsVentes, creerVente, listerVentes } from '../api/ventes';
+import { listerProduits } from '../api/produits';
+import { listerClients, creerClient } from '../api/clients';
+import { soldes as soldesTresorerie } from '../api/tresorerie';
 
 import { API_URL, estDesktop } from '../config';
 import { BoutonSynchro } from './AdminLayout';
@@ -21,12 +24,6 @@ const resoudreImage = (chemin) => {
   if (!chemin) return null;
   return chemin.startsWith('http') ? chemin : `${API_BASE}${chemin}`;
 };
-
-// Helper : retourne les headers avec le token JWT
-function authHeaders() {
-  const token = localStorage.getItem('token');
-  return { headers: { Authorization: `Bearer ${token}` } };
-}
 
 // Détecte si l'écran est en format mobile, se met à jour au redimensionnement
 function useIsMobile(breakpoint = 768) {
@@ -228,7 +225,7 @@ function VendeurDashboard({ user }) {
       // le même correctif dans AdminLayout.js.
       const debutJour = new Date(); debutJour.setHours(0, 0, 0, 0);
       const debutMois = new Date(); debutMois.setDate(1); debutMois.setHours(0, 0, 0, 0);
-      axios.get(`${API_BASE}/api/ventes/stats`, { ...authHeaders(), params: { debutJour: debutJour.toISOString(), debutMois: debutMois.toISOString() } })
+      statsVentes(debutJour.toISOString(), debutMois.toISOString())
         .then(res => setStats(res.data))
         .catch(() => {});
     };
@@ -239,8 +236,8 @@ function VendeurDashboard({ user }) {
 
   useEffect(() => {
     const chargerSolde = () => {
-      axios.get(`${API_BASE}/api/tresorerie/soldes`, authHeaders())
-        .then(res => { if (Array.isArray(res.data)) setSoldeCaisse(res.data[0] || null); })
+      soldesTresorerie()
+        .then(({ data }) => { if (Array.isArray(data)) setSoldeCaisse(data[0] || null); })
         .catch(() => {});
     };
     chargerSolde();
@@ -249,7 +246,7 @@ function VendeurDashboard({ user }) {
   }, []);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/produits`, authHeaders())
+    listerProduits()
       .then(res => {
         const disponibles = res.data.filter(p => p.image && p.quantite > 0);
         setProduits(disponibles);
@@ -519,7 +516,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
   }, [scanActif]);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/produits`, authHeaders())
+    listerProduits()
       .then(res => {
         setProduits(res.data || []);
         setChargement(false);
@@ -614,7 +611,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
         comptoirId,
       };
 
-      const res = await axios.post(`${API_BASE}/api/ventes`, venteData, authHeaders());
+      const res = await creerVente(venteData);
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
 
       bipSucces(); // confirme l'encaissement, comme chaque scan réussi
@@ -1022,7 +1019,7 @@ function ProduitsVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/produits`, authHeaders())
+    listerProduits()
       .then(res => { setProduits(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -1103,7 +1100,7 @@ function FacturesVendeur() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/ventes`, authHeaders())
+    listerVentes()
       .then(res => { setVentes(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   }, []);
@@ -1163,7 +1160,7 @@ function ClientsVendeur() {
   const [erreur, setErreur] = useState('');
 
   const charger = () => {
-    axios.get(`${API_BASE}/api/clients`, authHeaders())
+    listerClients()
       .then(res => { setClients(res.data); setChargement(false); })
       .catch(() => setChargement(false));
   };
@@ -1176,7 +1173,7 @@ function ClientsVendeur() {
     setEnvoi(true);
     setErreur('');
     try {
-      await axios.post(`${API_BASE}/api/clients`, { nom, telephone }, authHeaders());
+      await creerClient({ nom, telephone });
       setNom(''); setTelephone(''); setNouveau(false);
       charger();
     } catch (err) {

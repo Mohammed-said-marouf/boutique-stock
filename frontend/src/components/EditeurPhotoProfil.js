@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from './Avatar';
-import { API_URL } from '../config';
+import { changerMaPhoto } from '../api/users';
 
 // Bloc "changer sa photo de profil", réutilisé dans les pages de profil de
 // l'admin, du vendeur et du super admin. Envoie vers PUT /api/users/me/photo
@@ -22,15 +22,8 @@ export default function EditeurPhotoProfil({ fond = '#2563eb', taille = 64 }) {
     setEnvoi(true);
     setErreur('');
     try {
-      const formData = new FormData();
-      formData.append('photo', fichier);
-      const res = await fetch(`${API_URL}/api/users/me/photo`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) { setErreur(data.message || 'Erreur'); return; }
+      const { ok, data } = await changerMaPhoto(fichier);
+      if (!ok) { setErreur(data.message || 'Erreur'); return; }
       mettreAJourUtilisateur({ photo: data.photo });
     } catch (err) {
       setErreur('Erreur réseau : ' + err.message);

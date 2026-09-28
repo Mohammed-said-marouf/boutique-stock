@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_URL } from '../config';
+import { changerMotDePasse } from '../api/users';
 
 // Écran bloquant affiché à la connexion après une réinitialisation de mot de
 // passe par le super admin : l'utilisateur doit remplacer le mot de passe
@@ -26,14 +26,8 @@ export default function ChangementMotDePasseObligatoire() {
     setEnvoi(true);
     setErreur('');
     try {
-      const res = await fetch(`${API_URL}/api/users/me/motdepasse`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ ancienMotDePasse: temporaire, nouveauMotDePasse: nouveau }),
-      });
-      let data = null;
-      try { data = await res.json(); } catch { /* corps vide */ }
-      if (!res.ok) { setErreur(data?.message || `Erreur ${res.status}`); return; }
+      const { ok, status, data } = await changerMotDePasse(temporaire, nouveau);
+      if (!ok) { setErreur(data?.message || `Erreur ${status}`); return; }
       mettreAJourUtilisateur({ doitChangerMotDePasse: false });
     } catch (e) {
       setErreur(e.message);

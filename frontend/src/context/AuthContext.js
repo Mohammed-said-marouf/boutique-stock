@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-import { API_URL } from '../config';
+import { login as loginApi, refreshToken } from '../api/auth';
 
 const AuthContext = createContext();
 
@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
     if (!user) return;
     const rafraichirToken = async () => {
       try {
-        const res = await axios.post(`${API_URL}/api/auth/refresh`);
+        const res = await refreshToken();
         const { token, user: utilisateurFrais } = res.data;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(utilisateurFrais));
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
   }, [user?.id]);
 
   const login = async (email, motDePasse) => {
-   const res = await axios.post(`${API_URL}/api/auth/login`, { email, motDePasse });
+   const res = await loginApi(email, motDePasse);
     const { token, user } = res.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

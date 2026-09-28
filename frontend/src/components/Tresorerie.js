@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { API_URL } from '../config';
+import * as tresorerieApi from '../api/tresorerie';
 
 // Page "Dépenses & versements", partagée entre l'admin et le vendeur.
 //  - Dépense : argent sorti de la caisse (vendeur sur sa caisse assignée, admin
@@ -14,18 +14,6 @@ import { API_URL } from '../config';
 
 const fcfa = (n) => `${(n || 0).toLocaleString('fr-FR')} FCFA`;
 const dateFr = (d) => new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-
-async function appel(methode, chemin, corps) {
-  const token = localStorage.getItem('token');
-  const res = await fetch(`${API_URL}${chemin}`, {
-    method: methode,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: corps ? JSON.stringify(corps) : undefined,
-  });
-  let data = null;
-  try { data = await res.json(); } catch { /* corps vide */ }
-  return { ok: res.ok, data };
-}
 
 const champ = { width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' };
 const etiquette = { fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' };
@@ -48,7 +36,7 @@ export function useVersementsEnAttente(actif = true) {
     let arrete = false;
     const lire = async () => {
       try {
-        const { ok, data } = await appel('GET', '/api/versements/en-attente/nombre');
+        const { ok, data } = await tresorerieApi.versementsEnAttenteNombre();
         if (!arrete && ok) setNombre(data.nombre || 0);
       } catch { /* réseau instable : on réessaiera au prochain passage */ }
     };
@@ -77,9 +65,9 @@ export default function Tresorerie({ role, caisseId }) {
 
   const charger = async () => {
     const [s, d, v] = await Promise.all([
-      appel('GET', '/api/tresorerie/soldes'),
-      appel('GET', '/api/depenses'),
-      appel('GET', '/api/versements'),
+      tresorerieApi.soldes(),
+      tresorerieApi.listerDepenses(),
+      tresorerieApi.listerVersements(),
     ]);
     if (Array.isArray(s.data)) setSoldes(s.data);
     if (Array.isArray(d.data)) setDepenses(d.data);
@@ -122,7 +110,6 @@ export default function Tresorerie({ role, caisseId }) {
     if (onglet === 'depenses' && !form.motif.trim()) { setErreur('Le motif est requis.'); return; }
     if (!form.id && estAdmin && onglet === 'depenses' && !form.caisseId) { setErreur('Choisissez une caisse.'); return; }
 
-    const base = onglet === 'depenses' ? '/api/depenses' : '/api/versements';
     const corps = onglet === 'depenses'
       ? { montant, motif: form.motif, note: form.note, caisseId: form.caisseId }
       : { montant, note: form.note };
@@ -131,8 +118,8 @@ export default function Tresorerie({ role, caisseId }) {
     setErreur('');
     try {
       const { ok, data } = form.id
-        ? await appel('PUT', `${base}/${form.id}`, corps)
-        : await appel('POST', base, corps);
+        ? (onglet === 'depenses' ? await tresorerieApi.modifierDepense(form.id, corps) : await tresorerieApi.modifierVersement(form.id, corps))
+        : (onglet === 'depenses' ? await tresorerieApi.creerDepense(corps) : await tresorerieApi.creerVersement(corps));
       if (!ok) { setErreur(data?.message || 'Erreur'); return; }
       if (onglet === 'versements' && !form.id) {
         setInfo("Versement envoyé : il sera pris en compte dans le solde de la caisse dès que l'admin l'aura approuvé.");
@@ -148,7 +135,9 @@ export default function Tresorerie({ role, caisseId }) {
 
   // Décision de l'admin sur un versement en attente
   const decider = async (ligne, action, corps) => {
-    const { ok, data } = await appel('PUT', `/api/versements/${ligne._id}/${action}`, corps);
+    const { ok, data } = action === 'valider'
+      ? await tresorerieApi.validerVersement(ligne._id)
+      : await tresorerieApi.refuserVersement(ligne._id, corps);
     if (!ok) window.alert(data?.message || 'Erreur');
     await charger();
     window.dispatchEvent(new Event('versements-modifies')); // met la pastille du menu à jour
@@ -168,7 +157,9 @@ export default function Tresorerie({ role, caisseId }) {
   const supprimer = async (ligne) => {
     const quoi = onglet === 'depenses' ? 'cette dépense' : 'ce versement';
     if (!window.confirm(`Supprimer ${quoi} de ${fcfa(ligne.montant)} ?`)) return;
-    const { ok, data } = await appel('DELETE', `${onglet === 'depenses' ? '/api/depenses' : '/api/versements'}/${ligne._id}`);
+    const { ok, data } = onglet === 'depenses'
+      ? await tresorerieApi.supprimerDepense(ligne._id)
+      : await tresorerieApi.supprimerVersement(ligne._id);
     if (!ok) { window.alert(data?.message || 'Erreur'); return; }
     charger();
   };
