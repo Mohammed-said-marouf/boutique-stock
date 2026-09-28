@@ -72,3 +72,14 @@ export async function interrogerUne(statement, valeurs = []) {
   const lignes = await interroger(statement, valeurs);
   return lignes[0];
 }
+
+// Exécute plusieurs instructions paramétrées comme UNE SEULE transaction
+// atomique (tout ou rien) — équivalent de db.transaction(...) (better-sqlite3)
+// côté desktop, utilisé partout où plusieurs écritures doivent réussir ou
+// échouer ensemble (ex. créer une vente = ligne de vente + décrément de stock
+// + mise à jour client, en un seul bloc). `instructions` : tableau de
+// { statement, values }.
+export async function executerLot(instructions) {
+  const sqlite = await getDb();
+  return sqlite.executeSet({ database: NOM_BASE, set: instructions, transaction: true });
+}
