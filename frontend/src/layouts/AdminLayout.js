@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
 import Tresorerie, { useVersementsEnAttente } from '../components/Tresorerie';
+import ClocheAlertesStock from '../components/ClocheAlertesStock';
 import Sauvegarde from '../components/Sauvegarde';
 import LicenceBoutique, { BandeauLicence } from '../components/Licence';
 import Avatar from '../components/Avatar';
@@ -251,7 +252,7 @@ export default function AdminLayout() {
               <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
             )}
             {estDesktop && <BoutonSynchro />}
-            <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
+            <ClocheAlertesStock />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#2563eb" />
               {!isMobile && (
@@ -636,6 +637,7 @@ function AdminProduits() {
         })
       ));
       const echecs = resultats.filter(r => !r.ok).length;
+      window.dispatchEvent(new Event('stock-modifie')); // met la cloche d'alertes de stock à jour
       setTransfertGroupe(null);
       viderSelection();
       charger();
@@ -1493,6 +1495,7 @@ function AdminStocks() {
       });
       const data = await res.json();
       if (!res.ok) { setErreurTransfert(data.message || 'Erreur'); return; }
+      window.dispatchEvent(new Event('stock-modifie')); // met la cloche d'alertes de stock à jour
       setTransfertProduit(null);
       chargerProduits();
       charger();
