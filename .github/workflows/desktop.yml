@@ -23,13 +23,20 @@ jobs:
         with:
           node-version: 20
 
+      # REACT_APP_API_URL fige l'adresse du serveur LOCAL du desktop dans le
+      # build (voir frontend/src/config.js) : sans elle, le desktop parle
+      # directement au serveur en ligne — plus de hors-ligne ni de base
+      # locale. La vérification qui suit fait échouer le build si c'est le cas.
       - name: Compiler le frontend React
         working-directory: frontend
+        shell: bash
         env:
           CI: 'false' # ne pas transformer les avertissements ESLint en erreurs
+          REACT_APP_API_URL: http://localhost:4000
         run: |
           npm ci
           npm run build
+          grep -q "localhost:4000" build/static/js/main.*.js || { echo "::error::Le build frontend ne pointe pas vers le serveur local (localhost:4000)"; exit 1; }
 
       - name: Installer les dépendances desktop
         working-directory: desktop
