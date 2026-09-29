@@ -41,7 +41,10 @@ function creerFenetre() {
   fenetrePrincipale = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'Boutique Stock (Desktop)',
+    title: 'Boutique Stock',
+    // Logo sans texte : le logo complet (logo.png, avec « StockBoutique by
+    // M.SAÏD ») devient illisible réduit à la taille d'une icône de fenêtre.
+    icon: path.join(__dirname, 'icone.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
