@@ -1,6 +1,5 @@
 import QRCode from 'qrcode';
 import jsPDF from 'jspdf';
-import { devise } from './configGenerale';
 
 // ============================================================================
 // Configuration de la grille d'étiquettes — à AJUSTER pour correspondre
@@ -96,7 +95,7 @@ function dessinerEtiquette(doc, x, y, largeurEtiquette, hauteurEtiquette, dataUr
   }
 
   const texteRef = produit.ref ? `Ref: ${produit.ref}` : '';
-  const textePrix = `${formaterPrixPdf(produit.prix)} ${devise()}`;
+  const textePrix = `${formaterPrixPdf(produit.prix)} FCFA`;
 
   // Empile nom (1-2 lignes) + référence + prix, centré verticalement dans
   // l'étiquette. text() positionne sur la ligne de base : ligneNomH * 0.75

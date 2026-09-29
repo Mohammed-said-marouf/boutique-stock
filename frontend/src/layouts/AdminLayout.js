@@ -15,7 +15,6 @@ import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 
 import { API_URL, estDesktop } from '../config';
-import { devise, nomApplication } from '../utils/configGenerale';
 
 const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
@@ -349,14 +348,14 @@ function AdminDashboard() {
   const versementsEnAttenteTotal = soldes.reduce((s, c) => s + (c.versementsEnAttente || 0), 0);
 
   const cartes = [
-    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} ${devise()}`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'ventes', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
-    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} ${devise()}`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'calendrier', bg: 'linear-gradient(135deg, #16a34a, #15803d)' },
+    { label: 'Ventes du jour', value: `${statsVentes.caJour.toLocaleString()} FCFA`, sub: `${statsVentes.ventesJour} ventes`, iconKey: 'ventes', bg: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
+    { label: 'Ventes du mois', value: `${statsVentes.caMois.toLocaleString()} FCFA`, sub: `${statsVentes.ventesMois} ventes ce mois`, iconKey: 'calendrier', bg: 'linear-gradient(135deg, #16a34a, #15803d)' },
     { label: 'Produits en stock', value: statsProduits.total, sub: 'Articles disponibles', iconKey: 'produits', bg: 'linear-gradient(135deg, #7c3aed, #6d28d9)' },
     { label: 'Produits en rupture', value: statsProduits.rupture, sub: `Stock faible : ${statsProduits.faible}`, iconKey: 'stock', bg: 'linear-gradient(135deg, #d97706, #b45309)' },
-    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} ${devise()}`, sub: 'Toutes périodes', iconKey: 'chiffreaffaires', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
+    { label: 'Chiffre total', value: `${statsVentes.chiffreAffaires?.toLocaleString() || 0} FCFA`, sub: 'Toutes périodes', iconKey: 'chiffreaffaires', bg: 'linear-gradient(135deg, #0891b2, #0e7490)' },
     {
-      label: 'Solde des caisses', value: `${soldeTotal.toLocaleString()} ${devise()}`,
-      sub: soldes.length === 0 ? 'Aucune caisse' : `${soldes.length} caisse(s)${versementsEnAttenteTotal > 0 ? ` · ${versementsEnAttenteTotal.toLocaleString()} ${devise()} en attente` : ''}`,
+      label: 'Solde des caisses', value: `${soldeTotal.toLocaleString()} FCFA`,
+      sub: soldes.length === 0 ? 'Aucune caisse' : `${soldes.length} caisse(s)${versementsEnAttenteTotal > 0 ? ` · ${versementsEnAttenteTotal.toLocaleString()} FCFA en attente` : ''}`,
       iconKey: 'solde', bg: soldeTotal < 0 ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)',
     },
   ];
@@ -450,7 +449,7 @@ function AdminDashboard() {
                   <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '6px 0', color: '#2563eb', fontWeight: '500' }}>{v.numFacture || '#—'}</td>
                     <td style={{ color: '#333' }}>{v.nomClient || 'Client'}</td>
-                    <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} {devise()}</td>
+                    <td style={{ textAlign: 'right', color: '#333', fontWeight: '500' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{
                         background: '#dcfce7', color: '#16a34a',
@@ -856,7 +855,7 @@ function AdminProduits() {
                 // du nom + numéro, voir backend/utils/reference.js) — seule une
                 // référence déjà existante reste modifiable ici.
                 ...(editId ? [{ key: 'ref', label: 'Référence', ph: 'Ex: BAL-001' }] : []),
-                { key: 'prix', label: `Prix (${devise()})`, ph: '0', type: 'number' },
+                { key: 'prix', label: 'Prix (FCFA)', ph: '0', type: 'number' },
                 { key: 'quantite', label: 'Stock initial', ph: '0', type: 'number' },
                 { key: 'seuilAlerte', label: "Seuil d'alerte", ph: '5', type: 'number' },
               ].map(f => (
@@ -957,7 +956,7 @@ function AdminProduits() {
                 <td style={{ padding: '10px 8px', color: '#2563eb', fontSize: '13px', fontWeight: '500' }}>{p.ref || '—'}</td>
                 <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{p.nom}</td>
                 <td style={{ padding: '10px 8px', color: '#666' }}>{p.categorie}</td>
-                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{Number(p.prix).toLocaleString()} {devise()}</td>
+                <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{Number(p.prix).toLocaleString()} FCFA</td>
                 <td style={{ padding: '10px 8px', color: '#333' }}>{p.quantite}</td>
                 <td style={{ padding: '10px 8px' }}>
                   <span style={{
@@ -1216,7 +1215,7 @@ function AdminProduits() {
                       <div style={{ fontSize: '10px', color: '#999' }}>Réf: {qrApercu.produit.ref}</div>
                     )}
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#16a34a' }}>
-                      {Number(qrApercu.produit.prix || 0).toLocaleString()} {devise()}
+                      {Number(qrApercu.produit.prix || 0).toLocaleString()} FCFA
                     </div>
                   </div>
                 </div>
@@ -2525,7 +2524,7 @@ function AdminVentes() {
       </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         {[
-          { label: 'Total ventes', value: `${total.toLocaleString()} ${devise()}`, iconKey: 'ventes', color: '#dcfce7' },
+          { label: 'Total ventes', value: `${total.toLocaleString()} FCFA`, iconKey: 'ventes', color: '#dcfce7' },
           { label: 'Nombre de ventes', value: ventes.length, iconKey: 'caisse', color: '#dbeafe' },
           { label: 'Ventes payées', value: ventes.length, iconKey: 'actif', color: '#ede9fe' },
         ].map((s, i) => (
@@ -2561,7 +2560,7 @@ function AdminVentes() {
                   <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{v.numFacture || '—'}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{v.clientNom || 'Client anonyme'}</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{v.nomVendeur || '—'}</td>
-                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(v.montantTotal || 0).toLocaleString()} {devise()}</td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>Payée</span>
                   </td>
@@ -2667,7 +2666,7 @@ function AdminClients() {
                   <td style={{ padding: '10px 8px', color: '#666' }}>{c.telephone || '-'}</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{c.email || '-'}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{c.achats || 0}</td>
-                  <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} {devise()}</td>
+                  <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} FCFA</td>
                 </tr>
               ))}
             </tbody>
@@ -3041,7 +3040,7 @@ function AdminFactures({ user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${devise()}`;
+  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
 
   const chargerImageBase64 = async (url) => {
     if (!url) return null;
@@ -3062,7 +3061,7 @@ function AdminFactures({ user }) {
   const voirFacture = async (f) => {
     setGeneration(f._id);
     try {
-      const nomBoutique = user?.boutique?.nom || nomApplication();
+      const nomBoutique = user?.boutique?.nom || 'Boutique Stock';
       const logoBase64 = await chargerImageBase64(resoudreImage(user?.boutique?.logo));
 
       const doc = new jsPDF();
@@ -3174,7 +3173,7 @@ function AdminFactures({ user }) {
                   <td style={{ padding: '10px 8px', color: '#2563eb', fontWeight: '600' }}>{f.numFacture || '—'}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{f.clientNom || 'Client anonyme'}</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{f.nomVendeur || '—'}</td>
-                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(f.montantTotal || 0).toLocaleString()} {devise()}</td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '600' }}>{(f.montantTotal || 0).toLocaleString()} FCFA</td>
                   <td style={{ padding: '10px 8px', color: '#666' }}>{f.dateVente ? new Date(f.dateVente).toLocaleDateString('fr-FR') : '—'}</td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>Payée</span>
@@ -3200,7 +3199,7 @@ function AdminFactures({ user }) {
 // en-têtes de colonnes en gras avec fond bleu, bordures fines, lignes alternées.
 async function telechargerXLSX(nomFichier, titreFeuille, entetes, lignes) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = nomApplication();
+  workbook.creator = 'Boutique Stock';
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet(titreFeuille.slice(0, 31));
@@ -3289,7 +3288,7 @@ const COLONNES_IMPORT_PRODUITS = [
 // la ligne 1 est TOUJOURS l'en-tête.
 async function telechargerModeleImportProduits() {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = nomApplication();
+  workbook.creator = 'Boutique Stock';
   const sheet = workbook.addWorksheet('Produits');
 
   const entetes = COLONNES_IMPORT_PRODUITS.map(c => c.entete);
@@ -3384,7 +3383,7 @@ function construireRapportStocks(produits) {
   };
 
   const entetes = [
-    'Nom', 'Référence', 'Catégorie', `Prix (${devise()})`,
+    'Nom', 'Référence', 'Catégorie', 'Prix (FCFA)',
     ...magasins.map(([, nom]) => `Magasin · ${nom}`), 'Total magasins',
     ...boutiques.map(([, nom]) => `Boutique · ${nom}`), 'Total boutiques',
     'Stock total', "Seuil d'alerte", 'État',
@@ -3422,7 +3421,7 @@ function AdminRapports() {
     try {
       const res = await fetch(`${API_URL}/api/ventes`, { headers: { Authorization: `Bearer ${token}` } });
       const ventes = await res.json();
-      const entetes = ['N° Facture', 'Client', 'Vendeur', `Montant (${devise()})`, 'Date'];
+      const entetes = ['N° Facture', 'Client', 'Vendeur', 'Montant (FCFA)', 'Date'];
       const lignes = (Array.isArray(ventes) ? ventes : []).map(v => [
         v.numFacture || '', v.clientNom || '', v.nomVendeur || '', v.montantTotal || 0,
         v.dateVente ? new Date(v.dateVente).toLocaleDateString('fr-FR') : ''

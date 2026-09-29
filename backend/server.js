@@ -48,7 +48,6 @@ app.use('/api/icones', require('./routes/icones'));
 app.use('/api/mouvements-stock', require('./routes/mouvements'));
 app.use('/api/logs', require('./routes/logs'));
 app.use('/api/maintenance', require('./routes/maintenance'));
-app.use('/api/parametres', require('./routes/parametres'));
 
 const { demarrerVerificationStock } = require('./services/stockVerifier');
 

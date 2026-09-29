@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import * as tresorerieApi from '../api/tresorerie';
-import { devise } from '../utils/configGenerale';
 
 // Page "Dépenses & versements", partagée entre l'admin et le vendeur.
 //  - Dépense : argent sorti de la caisse (vendeur sur sa caisse assignée, admin
@@ -13,7 +12,7 @@ import { devise } from '../utils/configGenerale';
 // Un versement déclaré par le vendeur reste "en attente" jusqu'à ce que l'admin
 // confirme l'avoir reçu : seuls les versements validés réduisent le solde.
 
-const fcfa = (n) => `${(n || 0).toLocaleString('fr-FR')} ${devise()}`;
+const fcfa = (n) => `${(n || 0).toLocaleString('fr-FR')} FCFA`;
 const dateFr = (d) => new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 
 const champ = { width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' };
@@ -256,7 +255,7 @@ export default function Tresorerie({ role, caisseId }) {
                 </div>
               )}
               <div>
-                <label style={etiquette}>Montant ({devise()})</label>
+                <label style={etiquette}>Montant (FCFA)</label>
                 <input type="number" min="1" autoFocus value={form.montant} onChange={e => setForm({ ...form, montant: e.target.value })} style={champ} />
               </div>
               {onglet === 'depenses' && (

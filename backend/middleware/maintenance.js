@@ -22,9 +22,7 @@ async function estEnMaintenance() {
 
 async function verifierMaintenance(req, res, next) {
   try {
-    // /api/parametres/config : lecture publique (nom, devise...) utilisée
-    // par l'écran de connexion — le super admin doit pouvoir s'y connecter.
-    if (req.path.startsWith('/api/auth') || req.path.startsWith('/api/maintenance') || req.path === '/api/parametres/config' && req.method === 'GET') {
+    if (req.path.startsWith('/api/auth') || req.path.startsWith('/api/maintenance')) {
       return next();
     }
 

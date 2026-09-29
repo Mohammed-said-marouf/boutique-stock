@@ -19,7 +19,6 @@ import { soldes as soldesTresorerie } from '../api/tresorerie';
 
 import { API_URL, estDesktop } from '../config';
 import { BoutonSynchro } from './AdminLayout';
-import { devise, nomApplication } from '../utils/configGenerale';
 
 const API_BASE = `${API_URL}`;
 const resoudreImage = (chemin) => {
@@ -268,7 +267,7 @@ function VendeurDashboard({ user }) {
   const produitVedette = produits[slideIndex];
 
   const cartes = [
-    { label: 'Ventes du jour', value: `${(stats.caJour || 0).toLocaleString()} ${devise()}`, sub: `${stats.ventesJour || 0} ventes`, icon: '🛒', bg: '#dcfce7', color: '#059669' },
+    { label: 'Ventes du jour', value: `${(stats.caJour || 0).toLocaleString()} FCFA`, sub: `${stats.ventesJour || 0} ventes`, icon: '🛒', bg: '#dcfce7', color: '#059669' },
     { label: 'Nombre de ventes', value: String(stats.ventesJour || 0), sub: "Aujourd'hui", icon: '📊', bg: '#dbeafe', color: '#2563eb' },
     { label: 'Total ventes', value: String(stats.totalVentes || 0), sub: 'Depuis le début', icon: '📦', bg: '#ede9fe', color: '#7c3aed' },
     // Pas de carte "Chiffre d'affaires" ici : ce chiffre est celui de TOUTE
@@ -276,7 +275,7 @@ function VendeurDashboard({ user }) {
     // routes/ventes.js /stats), pas seulement des ventes de ce vendeur — un
     // vendeur ne doit pas voir le chiffre d'affaires global du propriétaire.
     soldeCaisse
-      ? { label: 'Solde de caisse', value: `${(soldeCaisse.solde || 0).toLocaleString()} ${devise()}`, sub: `− ${(soldeCaisse.depenses || 0).toLocaleString()} dépenses, − ${(soldeCaisse.versements || 0).toLocaleString()} versements`, icon: '🧾', bg: soldeCaisse.solde < 0 ? '#fee2e2' : '#dcfce7', color: soldeCaisse.solde < 0 ? '#dc2626' : '#16a34a' }
+      ? { label: 'Solde de caisse', value: `${(soldeCaisse.solde || 0).toLocaleString()} FCFA`, sub: `− ${(soldeCaisse.depenses || 0).toLocaleString()} dépenses, − ${(soldeCaisse.versements || 0).toLocaleString()} versements`, icon: '🧾', bg: soldeCaisse.solde < 0 ? '#fee2e2' : '#dcfce7', color: soldeCaisse.solde < 0 ? '#dc2626' : '#16a34a' }
       : { label: 'Solde de caisse', value: '—', sub: "Aucune caisse assignée", icon: '🧾', bg: '#f1f5f9', color: '#94a3b8' },
   ];
 
@@ -328,7 +327,7 @@ function VendeurDashboard({ user }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <span style={{ color: '#6ee7b7', fontSize: '26px', fontWeight: '800' }}>
-                    {(produitVedette.prix || 0).toLocaleString()} {devise()}
+                    {(produitVedette.prix || 0).toLocaleString()} FCFA
                   </span>
                   <span style={{
                     background: 'rgba(255,255,255,0.15)', color: 'white', padding: '4px 12px',
@@ -378,7 +377,7 @@ function VendeurDashboard({ user }) {
                     {p.nom}
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>
-                    {(p.prix || 0).toLocaleString()} {devise()}
+                    {(p.prix || 0).toLocaleString()} FCFA
                   </div>
                 </div>
               </div>
@@ -562,7 +561,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
 
   const total = panier.reduce((sum, p) => sum + p.prix * p.qte, 0);
 
-  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${devise()}`;
+  const formatMontant = (n) => `${Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
 
   const chargerImageBase64 = async (url) => {
     if (!url) return null;
@@ -653,7 +652,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
 
   const genererFacturePdfA4 = async (vente) => {
     const numFacture = vente.numFacture;
-    const nomBoutique = boutique?.nom || nomApplication();
+    const nomBoutique = boutique?.nom || 'Boutique Stock';
     const logoBase64 = await chargerImageBase64(resoudreImage(boutique?.logo));
 
     const doc = new jsPDF();
@@ -849,7 +848,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#333', marginBottom: '4px' }}>{p.nom}</div>
                 <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>{p.categorie}</div>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#059669', marginBottom: '4px' }}>
-                  {(p.prix || 0).toLocaleString()} {devise()}
+                  {(p.prix || 0).toLocaleString()} FCFA
                 </div>
                 <div style={{ fontSize: '11px', color: stockBoutiqueDe(p) <= p.seuilAlerte ? '#dc2626' : '#666' }}>
                   Stock boutique : {stockBoutiqueDe(p)}
@@ -882,7 +881,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>{p.nom}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>{(p.prix || 0).toLocaleString()} {devise()}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{(p.prix || 0).toLocaleString()} FCFA</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button onClick={() => modifierQte(p._id, -1)} style={{
@@ -896,7 +895,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
                 }}>+</button>
               </div>
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#059669', minWidth: '80px', textAlign: 'right' }}>
-                {((p.prix || 0) * p.qte).toLocaleString()} {devise()}
+                {((p.prix || 0) * p.qte).toLocaleString()} FCFA
               </div>
               <button onClick={() => supprimerDuPanier(p._id)} style={{
                 background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '16px'
@@ -913,13 +912,13 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
 
         <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', color: '#666' }}>
-            <span>Sous-total</span><span>{total.toLocaleString()} {devise()}</span>
+            <span>Sous-total</span><span>{total.toLocaleString()} FCFA</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px', color: '#666' }}>
-            <span>Réduction</span><span>0 {devise()}</span>
+            <span>Réduction</span><span>0 FCFA</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '18px', fontWeight: '700', color: '#064e3b' }}>
-            <span>Total</span><span>{total.toLocaleString()} {devise()}</span>
+            <span>Total</span><span>{total.toLocaleString()} FCFA</span>
           </div>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <button onClick={() => setPanier([])} style={{
@@ -1082,7 +1081,7 @@ function ProduitsVendeur() {
               <div style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>{p.nom}</div>
               <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>{p.categorie}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '16px', fontWeight: '700', color: '#059669' }}>{(p.prix || 0).toLocaleString()} {devise()}</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#059669' }}>{(p.prix || 0).toLocaleString()} FCFA</span>
                 <span style={{
                   background: p.quantite === 0 ? '#fee2e2' : p.quantite <= p.seuilAlerte ? '#fef9c3' : '#dcfce7',
                   color: p.quantite === 0 ? '#dc2626' : p.quantite <= p.seuilAlerte ? '#ca8a04' : '#16a34a',
@@ -1135,7 +1134,7 @@ function FacturesVendeur() {
                   </td>
                   <td style={{ padding: '12px 8px', color: '#333' }}>{v.clientNom || 'Client anonyme'}</td>
                   <td style={{ padding: '12px 8px', color: '#333', fontSize: '14px' }}>{v.produits?.length || 0} article(s)</td>
-                  <td style={{ padding: '12px 8px', color: '#333', fontWeight: '600', fontSize: '14px' }}>{(v.montantTotal || 0).toLocaleString()} {devise()}</td>
+                  <td style={{ padding: '12px 8px', color: '#333', fontWeight: '600', fontSize: '14px' }}>{(v.montantTotal || 0).toLocaleString()} FCFA</td>
                   <td style={{ padding: '12px 8px' }}>
                     <span style={{ background: '#dcfce7', color: '#16a34a', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
                       Payée
@@ -1235,7 +1234,7 @@ function ClientsVendeur() {
                   <td style={{ padding: '12px 8px', fontWeight: '600', color: '#333' }}>{c.nom}</td>
                   <td style={{ padding: '12px 8px', color: '#666' }}>{c.telephone || '—'}</td>
                   <td style={{ padding: '12px 8px', color: '#333' }}>{c.achats || 0} achat(s)</td>
-                  <td style={{ padding: '12px 8px', color: '#059669', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} {devise()}</td>
+                  <td style={{ padding: '12px 8px', color: '#059669', fontWeight: '600' }}>{(c.total || 0).toLocaleString()} FCFA</td>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { API_URL } from '../config';
-import { nomApplication, emailContact } from '../utils/configGenerale';
 
 // Outils du super admin :
 //  - LicencesAdmin : génération des clés de licence par boutique (abonnement +
@@ -63,7 +62,7 @@ function BoutonCopier({ texte, libelle = 'Copier', style }) {
 
 export function ModaleMotDePasseTemporaire({ resultat, onClose }) {
   if (!resultat) return null;
-  const message = `Bonjour ${resultat.nom}, votre mot de passe ${nomApplication()} a été réinitialisé.\nEmail : ${resultat.email}\nMot de passe temporaire : ${resultat.motDePasseTemporaire}\nVous devrez le remplacer par le vôtre à la première connexion.${emailContact() ? `\nUne question ? ${emailContact()}` : ''}`;
+  const message = `Bonjour ${resultat.nom}, votre mot de passe Boutique Stock a été réinitialisé.\nEmail : ${resultat.email}\nMot de passe temporaire : ${resultat.motDePasseTemporaire}\nVous devrez le remplacer par le vôtre à la première connexion.`;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '420px' }}>
@@ -134,7 +133,7 @@ export function LicencesAdmin() {
     charger();
   };
 
-  const messagePour = (l) => `Bonjour, voici votre clé de licence ${nomApplication()} (abonnement ${l.abonnement}, ${l.dureeMois} mois) :\n${l.cle}\nPour l'activer : connectez-vous → Paramètres → « Activer une licence ».${emailContact() ? `\nUne question ? ${emailContact()}` : ''}`;
+  const messagePour = (l) => `Bonjour, voici votre clé de licence Boutique Stock (abonnement ${l.abonnement}, ${l.dureeMois} mois) :\n${l.cle}\nPour l'activer : connectez-vous → Paramètres → « Activer une licence ».`;
 
   const statutLicence = (l) => {
     if (l.statut === 'activee') return { texte: `✅ Activée le ${dateFr(l.dateActivation)}${l.dateExpiration ? ` · expire le ${dateFr(l.dateExpiration)}` : ''}`, fond: '#dcfce7', couleur: '#166534' };

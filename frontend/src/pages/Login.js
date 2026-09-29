@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { posteDesktopDisponible, importerPoste } from '../api/poste';
-import { emailContact, nomApplication } from '../utils/configGenerale';
 
 // Desktop uniquement : sur une nouvelle machine, personne ne peut encore se
 // connecter (comptes absents de la base locale, et pas forcément internet).
@@ -84,7 +83,7 @@ export default function Login() {
           <h1 style={styles.title}>Connexion</h1>
         </div>
 
-        <p style={styles.subtitle}>Connectez-vous à votre espace {nomApplication()}</p>
+        <p style={styles.subtitle}>Connectez-vous à votre espace</p>
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
           <label style={styles.label}>Email</label>
@@ -144,8 +143,7 @@ export default function Login() {
             </Link>
           </div>
           <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-            Mot de passe oublié ? Contactez l'administrateur de la plateforme pour le réinitialiser
-            {emailContact() ? <> : <a href={`mailto:${emailContact()}`} style={{ color: '#93c5fd', textDecoration: 'none' }}>{emailContact()}</a></> : '.'}
+            Mot de passe oublié ? Contactez l'administrateur de la plateforme pour le réinitialiser.
           </div>
         </form>
         {posteDesktopDisponible() && <ImportSauvegardePoste />}
