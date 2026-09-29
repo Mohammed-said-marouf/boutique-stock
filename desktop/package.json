@@ -1,6 +1,6 @@
 {
   "name": "boutique-stock-desktop",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Boutique Stock - Application desktop hors-ligne",
   "main": "main/main.js",
   "scripts": {

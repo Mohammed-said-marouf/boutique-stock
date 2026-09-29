@@ -1,4 +1,6 @@
+import { Fragment, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { chargerConfigGenerale, EVENEMENT as EVENEMENT_CONFIG } from './utils/configGenerale';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
@@ -63,9 +65,27 @@ function AppRoutes() {
   );
 }
 
+// Charge la configuration générale (nom, devise, fuseau... — voir
+// utils/configGenerale.js) et ré-affiche l'appli quand elle change. Les
+// composants lisent devise()/nomApplication() directement au rendu, sans
+// s'abonner : on remonte donc l'arbre (clé) — ça n'arrive que lorsque le
+// super admin modifie la configuration, ou au premier chargement sur un
+// appareil qui ne la connaissait pas encore.
+function ConfigGeneraleProvider({ children }) {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const maj = () => setVersion(v => v + 1);
+    window.addEventListener(EVENEMENT_CONFIG, maj);
+    chargerConfigGenerale();
+    return () => window.removeEventListener(EVENEMENT_CONFIG, maj);
+  }, []);
+  return <Fragment key={version}>{children}</Fragment>;
+}
+
 export default function App() {
   return (
     <HashRouter>
+      <ConfigGeneraleProvider>
       <AuthProvider>
         <IconesProvider>
           <BarriereMaintenance>
@@ -73,6 +93,7 @@ export default function App() {
           </BarriereMaintenance>
         </IconesProvider>
       </AuthProvider>
+      </ConfigGeneraleProvider>
     </HashRouter>
   );
 }

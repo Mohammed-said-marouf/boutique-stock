@@ -7,6 +7,7 @@ import { LicencesAdmin, ModaleMotDePasseTemporaire } from '../components/SuperAd
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
 import { changerMotDePasse } from '../api/users';
+import { configGenerale, appliquerConfigGenerale } from '../utils/configGenerale';
 
 import { API_URL } from '../config';
 
@@ -742,6 +743,95 @@ function ChangerMonMotDePasse() {
   );
 }
 
+// Fuseaux proposés dans la liste (on peut en saisir un autre : tout nom IANA
+// valide est accepté par le serveur).
+const FUSEAUX_COURANTS = [
+  'Africa/Douala', 'Africa/Abidjan', 'Africa/Dakar', 'Africa/Lagos', 'Africa/Kinshasa', 'Africa/Libreville',
+  'Africa/Bamako', 'Africa/Ouagadougou', 'Africa/Niamey', 'Africa/Ndjamena', 'Africa/Casablanca', 'Africa/Algiers',
+  'Africa/Tunis', 'Africa/Johannesburg', 'Africa/Nairobi', 'Europe/Paris', 'Europe/London', 'America/New_York', 'UTC',
+];
+
+// Configuration générale de la plateforme (voir utils/configGenerale.js
+// et backend/routes/parametres.js) : appliquée partout dans l'appli dès
+// l'enregistrement.
+function ConfigurationGenerale() {
+  const [valeurs, setValeurs] = useState(configGenerale());
+  const [envoi, setEnvoi] = useState(false);
+  const [message, setMessage] = useState(null); // { ok, texte }
+
+  const enregistrer = async (e) => {
+    e.preventDefault();
+    setEnvoi(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API_URL}/api/parametres/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(valeurs),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ ok: false, texte: data.message || (res.status === 404 ? 'Réglage disponible uniquement sur la version web.' : `Erreur ${res.status}.`) });
+        return;
+      }
+      // Ré-affiche toute l'appli avec la nouvelle configuration (ce
+      // composant est remonté : le message de succès passe par le stockage)
+      sessionStorage.setItem('configGenerale-enregistree', '1');
+      if (!appliquerConfigGenerale(data)) {
+        sessionStorage.removeItem('configGenerale-enregistree');
+        setMessage({ ok: true, texte: '✅ Configuration enregistrée (aucun changement).' });
+      }
+    } catch (err) {
+      setMessage({ ok: false, texte: 'Erreur réseau : ' + err.message });
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  useEffect(() => {
+    if (sessionStorage.getItem('configGenerale-enregistree')) {
+      sessionStorage.removeItem('configGenerale-enregistree');
+      setMessage({ ok: true, texte: '✅ Configuration enregistrée et appliquée.' });
+    }
+  }, []);
+
+  const style = { width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' };
+  const etiquette = { fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' };
+  const champs = [
+    { cle: 'nomApplication', label: "Nom de l'application", aide: "Titre de la fenêtre, écran de connexion, e-mails, messages envoyés aux utilisateurs" },
+    { cle: 'emailContact', label: 'Email de contact', type: 'email', aide: "Affiché sur l'écran de connexion (mot de passe oublié) et dans les messages aux utilisateurs" },
+    { cle: 'devise', label: 'Devise', aide: 'Affichée à côté de tous les montants (ex : FCFA, EUR, $) — ne convertit pas les prix' },
+  ];
+  return (
+    <form onSubmit={enregistrer}>
+      {champs.map(f => (
+        <div key={f.cle} style={{ marginBottom: '16px' }}>
+          <label style={etiquette}>{f.label}</label>
+          <input type={f.type || 'text'} required={f.cle !== 'emailContact'} value={valeurs[f.cle] || ''}
+            onChange={e => setValeurs(v => ({ ...v, [f.cle]: e.target.value }))} style={style} />
+          <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>{f.aide}</div>
+        </div>
+      ))}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={etiquette}>Fuseau horaire</label>
+        <input list="fuseaux-courants" required value={valeurs.fuseauHoraire || ''}
+          onChange={e => setValeurs(v => ({ ...v, fuseauHoraire: e.target.value }))} style={style} />
+        <datalist id="fuseaux-courants">{FUSEAUX_COURANTS.map(z => <option key={z} value={z} />)}</datalist>
+        <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>Heure utilisée pour afficher toutes les dates (ventes, factures, journaux...)</div>
+      </div>
+      {message && (
+        <div style={{ marginBottom: '12px', fontSize: '13px', color: message.ok ? '#16a34a' : '#dc2626' }}>
+          {message.ok ? '' : '⚠️ '}{message.texte}
+        </div>
+      )}
+      <button type="submit" disabled={envoi} style={{
+        padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px',
+        cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1
+      }}>{envoi ? '...' : '💾 Sauvegarder'}</button>
+    </form>
+  );
+}
+
 function ParametresSuperAdmin({ user }) {
   return (
     <div>
@@ -751,23 +841,7 @@ function ParametresSuperAdmin({ user }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔧 Configuration générale</h3>
-          {[
-            { label: "Nom de l'application", val: 'Boutique Stock' },
-            { label: 'Email de contact', val: 'contact@boutique-stock.com' },
-            { label: 'Devise', val: 'FCFA' },
-            { label: 'Fuseau horaire', val: 'Africa/Douala' },
-          ].map((f, i) => (
-            <div key={i} style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-              <input value={f.val} readOnly style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', background: '#f8fafc', color: '#475569' }} />
-            </div>
-          ))}
-          {/* Valeurs fixes : aucune n'est enregistrée côté serveur ni lue
-              ailleurs dans l'appli (la devise, par exemple, est écrite en
-              dur partout) — un bouton "Sauvegarder" ne ferait rien. */}
-          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-            Valeurs fixes pour le moment : elles ne sont pas encore modifiables depuis l'application.
-          </div>
+          <ConfigurationGenerale />
         </div>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔒 Mon compte Super Admin</h3>

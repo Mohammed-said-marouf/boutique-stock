@@ -1,4 +1,13 @@
 const nodemailer = require('nodemailer');
+const { lireConfigGenerale } = require('../utils/configGenerale');
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Nom de l'application et devise configurés par le super admin (valeurs par
+// défaut si la base est indisponible : un e-mail ne doit jamais échouer pour ça).
+async function configEmails() {
+  try { return await lireConfigGenerale(); } catch { return { nomApplication: 'Boutique Stock', devise: 'FCFA' }; }
+}
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -10,6 +19,7 @@ const transporter = nodemailer.createTransport({
 
 const envoyerAlerteStock = async (produits) => {
   if (produits.length === 0) return;
+  const { nomApplication } = await configEmails();
 
   const listeProduits = produits.map(p =>
     `• ${p.nom} — Stock: ${p.quantite} (Seuil: ${p.seuilAlerte})`
@@ -18,7 +28,7 @@ const envoyerAlerteStock = async (produits) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: process.env.EMAIL_DEST,
-    subject: '⚠️ Alerte Stock Bas — Boutique Stock',
+    subject: `⚠️ Alerte Stock Bas — ${nomApplication}`,
     html: `
       <div style="font-family: Arial; padding: 20px; background: #f0f2f5;">
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; margin: auto;">
@@ -33,7 +43,7 @@ const envoyerAlerteStock = async (produits) => {
               </div>
             `).join('<hr/>')}
           </div>
-          <p style="color: #888;">Connectez-vous sur <a href="https://boutique-stock.vercel.app">Boutique Stock</a> pour réapprovisionner.</p>
+          <p style="color: #888;">Connectez-vous sur <a href="https://boutique-stock.vercel.app">${esc(nomApplication)}</a> pour réapprovisionner.</p>
         </div>
       </div>
     `
@@ -50,15 +60,16 @@ const envoyerAlerteStock = async (produits) => {
 // Email de test simple, déclenché depuis la page Maintenance du panneau
 // Super Admin, pour vérifier que l'envoi fonctionne toujours.
 const envoyerEmailTest = async (utilisateur) => {
+  const { nomApplication } = await configEmails();
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: process.env.EMAIL_DEST || utilisateur?.email,
-    subject: '✅ Test — Boutique Stock',
+    subject: `✅ Test — ${nomApplication}`,
     html: `
       <div style="font-family: Arial; padding: 20px; background: #f0f2f5;">
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; margin: auto;">
           <h2 style="color: #16a34a;">✅ Test d'envoi réussi</h2>
-          <p>Cet email confirme que le service d'envoi de notifications de Boutique Stock fonctionne correctement.</p>
+          <p>Cet email confirme que le service d'envoi de notifications de ${esc(nomApplication)} fonctionne correctement.</p>
           <p style="color: #888; font-size: 13px;">Déclenché depuis la page Maintenance du panneau Super Admin.</p>
         </div>
       </div>
@@ -73,23 +84,23 @@ const envoyerEmailTest = async (utilisateur) => {
 // échouer l'enregistrement du versement.
 const envoyerNotificationVersement = async (destinataires, { montant, nomAuteur, nomCaisse }) => {
   if (!destinataires || destinataires.length === 0) return;
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { nomApplication, devise } = await configEmails();
   nomAuteur = esc(nomAuteur);
   nomCaisse = esc(nomCaisse);
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: destinataires.join(','),
-      subject: `💰 Versement à approuver — ${Number(montant).toLocaleString('fr-FR')} FCFA`,
+      subject: `💰 Versement à approuver — ${Number(montant).toLocaleString('fr-FR')} ${devise}`,
       html: `
         <div style="font-family: Arial; padding: 20px; background: #f0f2f5;">
           <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; margin: auto;">
             <h2 style="color: #2563eb;">💰 Nouveau versement à approuver</h2>
             <p><strong>${nomAuteur || 'Un vendeur'}</strong> déclare vous avoir versé
-              <strong>${Number(montant).toLocaleString('fr-FR')} FCFA</strong>
+              <strong>${Number(montant).toLocaleString('fr-FR')} ${esc(devise)}</strong>
               (caisse « ${nomCaisse || '—'} »).</p>
             <p>Il ne sera pris en compte dans le solde de la caisse qu'une fois approuvé.</p>
-            <p style="color: #888;">Connectez-vous sur <a href="https://boutique-stock.vercel.app">Boutique Stock</a> →
+            <p style="color: #888;">Connectez-vous sur <a href="https://boutique-stock.vercel.app">${esc(nomApplication)}</a> →
               Dépenses &amp; versements pour l'approuver ou le refuser.</p>
           </div>
         </div>
