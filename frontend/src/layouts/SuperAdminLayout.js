@@ -909,8 +909,10 @@ function MaintenanceAdmin() {
     try {
       const route = modeMaintenance ? 'desactiver' : 'activer';
       const res = await fetch(`${API_URL}/api/maintenance/${route}`, { method: 'POST', ...authHeaders });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) setModeMaintenance(data.enMaintenance);
+      else alert(`Impossible de changer le mode maintenance : ${data.message || `erreur ${res.status}`}` +
+        (res.status === 401 ? '\n\nVotre session a expiré : déconnectez-vous puis reconnectez-vous.' : ''));
     } catch (err) {
       alert('Erreur réseau : ' + err.message);
     } finally {
@@ -923,8 +925,9 @@ function MaintenanceAdmin() {
     setMessages(p => ({ ...p, [cle]: '' }));
     try {
       const res = await fetch(`${API_URL}/api/maintenance/${cle}`, { method: 'POST', ...authHeaders });
-      const data = await res.json();
-      setMessages(p => ({ ...p, [cle]: data.message || (res.ok ? '✅ Terminé.' : '❌ Erreur.') }));
+      const data = await res.json().catch(() => ({}));
+      const texte = data.message || (res.ok ? '✅ Terminé.' : `❌ Erreur ${res.status}.`);
+      setMessages(p => ({ ...p, [cle]: res.status === 401 ? `${texte} — session expirée : déconnectez-vous puis reconnectez-vous.` : texte }));
     } catch (err) {
       setMessages(p => ({ ...p, [cle]: '❌ Erreur réseau : ' + err.message }));
     } finally {
