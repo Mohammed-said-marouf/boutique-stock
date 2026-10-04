@@ -11,46 +11,79 @@ const enregistrerLog = require('../utils/logger');
 const REFERENCES = ['stock_initial', 'dernier_approvisionnement', 'historique_mouvements'];
 
 // Le théorique "de départ" (baseline) : ce qui avait été corrigé au dernier
-// inventaire validé sur cette cible, pour chaque produit (quantiteReelle si
-// compté, sinon quantiteTheorique de l'époque) ; date = quand. Réutilisé par
-// "stock_initial" tel quel, et par "historique_mouvements" comme point de
-// départ auquel s'ajoutent les mouvements survenus depuis.
+// inventaire validé sur cette cible, pour chaque produit (stock juste après
+// validation si compté — repli sur quantiteReelle pour les sessions validées
+// avant ce champ — sinon quantiteTheorique de l'époque) ; date = quand.
+// Réutilisé par "stock_initial" tel quel, et par "historique_mouvements"
+// comme point de départ auquel s'ajoutent les mouvements survenus depuis.
 async function dernierInventaireValide(cibleType, cibleId) {
   const dernier = await Inventaire.findOne({ cibleType, cibleId, statut: 'valide' }).sort({ valideLe: -1 });
   if (!dernier) return { baseline: new Map(), depuis: null };
   const baseline = new Map(dernier.lignes.map(l => [
-    l.produit, l.quantiteReelle !== null ? l.quantiteReelle : l.quantiteTheorique,
+    l.produit,
+    l.stockApresValidation ?? l.quantiteReelle ?? l.quantiteTheorique,
   ]));
   return { baseline, depuis: dernier.valideLe };
 }
 
-// Somme des mouvements affectant le stock de la cible, produit par produit,
-// depuis une date (ou depuis toujours si `depuis` est null) :
-//  - magasin  : entrées (+) − sorties (−) − transferts sortants vers une boutique (−)
-//  - comptoir : transferts reçus depuis un magasin (+) − ventes (−)
-async function mouvementsDepuis(cibleType, cibleId, depuis) {
+// Mouvements affectant le stock de la cible, produit par produit, depuis une
+// date (ou depuis toujours si `depuis` est null), séparés en entrées et
+// sorties (toutes deux positives) — Map produitId -> { entrees, sorties } :
+//  - magasin  : entrées = approvisionnements ; sorties = sorties manuelles
+//               + transferts sortants vers une boutique
+//  - comptoir : entrées = transferts reçus d'un magasin ; sorties = ventes
+// `produitId` (optionnel) restreint le calcul à un seul produit.
+async function detailMouvementsDepuis(cibleType, cibleId, depuis, produitId = null) {
   const filtreDate = depuis ? { createdAt: { $gt: depuis } } : {};
+  const resultat = new Map();
+  const ajouter = (id, champ, qte) => {
+    const r = resultat.get(id) || { entrees: 0, sorties: 0 };
+    r[champ] += qte;
+    resultat.set(id, r);
+  };
+
   if (cibleType === 'magasin') {
     const agg = await MouvementStock.aggregate([
-      { $match: { magasinId: cibleId, type: { $in: ['entree', 'sortie', 'transfert'] }, ...filtreDate } },
-      { $group: { _id: '$produit', total: { $sum: { $cond: [{ $eq: ['$type', 'entree'] }, '$quantite', { $multiply: ['$quantite', -1] }] } } } },
+      { $match: { magasinId: cibleId, type: { $in: ['entree', 'sortie', 'transfert'] }, ...filtreDate, ...(produitId ? { produit: produitId } : {}) } },
+      { $group: { _id: { produit: '$produit', entree: { $eq: ['$type', 'entree'] } }, total: { $sum: '$quantite' } } },
     ]);
-    return new Map(agg.map(a => [a._id, a.total]));
+    for (const a of agg) ajouter(a._id.produit, a._id.entree ? 'entrees' : 'sorties', a.total);
+    return resultat;
   }
   const [transferts, ventes] = await Promise.all([
     MouvementStock.aggregate([
-      { $match: { comptoirDestination: cibleId, type: 'transfert', ...filtreDate } },
+      { $match: { comptoirDestination: cibleId, type: 'transfert', ...filtreDate, ...(produitId ? { produit: produitId } : {}) } },
       { $group: { _id: '$produit', total: { $sum: '$quantite' } } },
     ]),
     Vente.aggregate([
       { $match: { comptoirId: cibleId, ...(depuis ? { dateVente: { $gt: depuis } } : {}) } },
       { $unwind: '$produits' },
+      ...(produitId ? [{ $match: { 'produits.produit': produitId } }] : []),
       { $group: { _id: '$produits.produit', total: { $sum: '$produits.quantite' } } },
     ]),
   ]);
-  const total = new Map(transferts.map(t => [t._id, t.total]));
-  for (const v of ventes) total.set(v._id, (total.get(v._id) || 0) - v.total);
-  return total;
+  for (const t of transferts) ajouter(t._id, 'entrees', t.total);
+  for (const v of ventes) ajouter(v._id, 'sorties', v.total);
+  return resultat;
+}
+
+// La "feuille" de la cible : pour chaque produit, le stock au dernier
+// inventaire validé (dernierInv), les entrées et sorties depuis, et le stock
+// attendu qui en découle (jamais négatif). C'est le calcul "historique_
+// mouvements" ci-dessous, détaillé colonne par colonne pour l'écran.
+// Map produitId -> { dernierInv, entrees, sorties, attendu } ; un produit
+// absent de la Map n'a ni inventaire ni mouvement : tout à 0.
+async function calculerFeuille(cibleType, cibleId, produitId = null) {
+  const { baseline, depuis } = await dernierInventaireValide(cibleType, cibleId);
+  const mouvements = await detailMouvementsDepuis(cibleType, cibleId, depuis, produitId);
+  const ids = produitId ? [produitId] : new Set([...baseline.keys(), ...mouvements.keys()]);
+  const lignes = new Map();
+  for (const id of ids) {
+    const dernierInv = baseline.get(id) || 0;
+    const { entrees, sorties } = mouvements.get(id) || { entrees: 0, sorties: 0 };
+    lignes.set(id, { dernierInv, entrees, sorties, attendu: Math.max(0, dernierInv + entrees - sorties) });
+  }
+  return { depuis, lignes };
 }
 
 // Calcule, pour chaque produit, le théorique de référence choisi par l'admin
@@ -82,16 +115,8 @@ async function calculerReferences(referenceType, cibleType, cibleId) {
   // "stock_initial"), puis ajoute tout ce qui s'est passé depuis
   // (transferts/ventes ou entrées/sorties/transferts sortants). Sans
   // inventaire précédent, repart de zéro et additionne tout l'historique.
-  const { baseline, depuis } = await dernierInventaireValide(cibleType, cibleId);
-  const mouvements = await mouvementsDepuis(cibleType, cibleId, depuis);
-  const tousLesIds = new Set([...baseline.keys(), ...mouvements.keys()]);
-  const resultat = new Map();
-  for (const id of tousLesIds) {
-    const depart = baseline.has(id) ? baseline.get(id) : 0;
-    const total = Math.max(0, depart + (mouvements.get(id) || 0));
-    resultat.set(id, { quantite: total, date: depuis });
-  }
-  return resultat;
+  const { depuis, lignes } = await calculerFeuille(cibleType, cibleId);
+  return new Map([...lignes].map(([id, l]) => [id, { quantite: l.attendu, date: depuis }]));
 }
 
 // Cycle de vie d'une session : "en_cours" (ouverte, comptage en cours) ->
@@ -105,6 +130,14 @@ async function cibleAccessible(cibleType, cibleId, boutiqueId) {
   return Comptoir.findOne({ _id: cibleId, boutiqueId });
 }
 
+// Stock actuellement enregistré d'un produit dans la cible (0 si absent).
+function stockDansCible(produit, cibleType, cibleId) {
+  const ligne = cibleType === 'magasin'
+    ? (produit.stockMagasins || []).find(sm => sm.magasin === cibleId)
+    : (produit.stockComptoirs || []).find(sc => sc.comptoir === cibleId);
+  return ligne ? ligne.quantite : 0;
+}
+
 // GET - Lister les sessions du Compte (sans les lignes, pour rester léger)
 router.get('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
@@ -115,11 +148,51 @@ router.get('/', verifierToken, autoriser('superadmin', 'admin'), async (req, res
   }
 });
 
-// GET /:id - Détail complet (avec les lignes), pour compter ou consulter
+// GET /feuille?cibleType=&cibleId= - La feuille d'inventaire "du moment"
+// d'une cible, consultable même sans session ouverte : pour chaque produit
+// du Compte, le stock au dernier inventaire, les entrées/sorties depuis, le
+// stock attendu, le stock enregistré et le prix ; plus la session en cours
+// sur cette cible s'il y en a une (avec ses lignes comptées).
+router.get('/feuille', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
+  try {
+    const { cibleType, cibleId } = req.query;
+    if (!['magasin', 'comptoir'].includes(cibleType) || !cibleId) {
+      return res.status(400).json({ message: 'cibleType ("magasin" ou "comptoir") et cibleId sont requis.' });
+    }
+    const Modele = cibleType === 'magasin' ? Magasin : Comptoir;
+    const cible = await Modele.findOne({ _id: cibleId, ...filtreCompte(req) });
+    if (!cible) return res.status(404).json({ message: cibleType === 'magasin' ? 'Magasin introuvable.' : 'Boutique introuvable.' });
+
+    const [produits, { depuis, lignes }, session] = await Promise.all([
+      Produit.find({ boutiqueId: cible.boutiqueId }, 'nom ref prix stockMagasins stockComptoirs').sort({ nom: 1 }),
+      calculerFeuille(cibleType, cibleId),
+      Inventaire.findOne({ cibleType, cibleId, statut: 'en_cours' }),
+    ]);
+
+    res.json({
+      cible: { type: cibleType, id: cibleId, nom: cible.nom },
+      depuis,
+      session,
+      lignes: produits.map(p => ({
+        produit: p._id, nom: p.nom, ref: p.ref || '', prix: p.prix || 0,
+        ...(lignes.get(p._id) || { dernierInv: 0, entrees: 0, sorties: 0, attendu: 0 }),
+        stockEnregistre: stockDansCible(p, cibleType, cibleId),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /:id - Détail complet (avec les lignes), pour compter ou consulter.
+// Chaque ligne est complétée du prix actuel du produit (colonne "Valeur").
 router.get('/:id', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
-    const inv = await Inventaire.findOne({ _id: req.params.id, ...filtreCompte(req) });
+    const inv = await Inventaire.findOne({ _id: req.params.id, ...filtreCompte(req) }).lean();
     if (!inv) return res.status(404).json({ message: 'Inventaire introuvable.' });
+    const produits = await Produit.find({ _id: { $in: inv.lignes.map(l => l.produit) } }, 'prix').lean();
+    const prix = new Map(produits.map(p => [p._id, p.prix || 0]));
+    inv.lignes = inv.lignes.map(l => ({ ...l, prix: prix.get(l.produit) || 0 }));
     res.json(inv);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -132,7 +205,8 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
   try {
     const boutiqueId = req.user.role === 'admin' ? req.user.boutiqueId : req.body.boutiqueId;
     if (!boutiqueId) return res.status(400).json({ message: 'boutiqueId requis.' });
-    const { cibleType, cibleId, referenceType } = req.body;
+    // Sans choix explicite : le calcul automatique (celui de la feuille).
+    const { cibleType, cibleId, referenceType = 'historique_mouvements' } = req.body;
     if (!['magasin', 'comptoir'].includes(cibleType) || !cibleId) {
       return res.status(400).json({ message: 'cibleType ("magasin" ou "comptoir") et cibleId sont requis.' });
     }
@@ -154,10 +228,7 @@ router.post('/', verifierToken, autoriser('superadmin', 'admin'), async (req, re
     const produits = await Produit.find({ boutiqueId }).sort({ nom: 1 });
     const references = await calculerReferences(referenceType, cibleType, cibleId);
     const lignes = produits.map(p => {
-      const stock = cibleType === 'magasin'
-        ? (p.stockMagasins || []).find(sm => sm.magasin === cibleId)
-        : (p.stockComptoirs || []).find(sc => sc.comptoir === cibleId);
-      const stockActuel = stock ? stock.quantite : 0;
+      const stockActuel = stockDansCible(p, cibleType, cibleId);
       // Produit absent de la référence (jamais approvisionné ici, ou pas
       // encore présent au dernier inventaire) : repli sur le stock actuel.
       const reference = references ? references.get(p._id) : null;
@@ -195,21 +266,43 @@ router.put('/:id/compter', verifierToken, autoriser('superadmin', 'admin'), asyn
       return res.status(400).json({ message: 'produitId et quantiteReelle (nombre >= 0) sont requis.' });
     }
 
+    const inv = await Inventaire.findOne({ _id: req.params.id, ...filtreCompte(req) }, 'statut cibleType cibleId');
+    if (!inv) return res.status(404).json({ message: 'Inventaire introuvable.' });
+    if (inv.statut !== 'en_cours') return res.status(400).json({ message: 'Cette session n\'est plus modifiable.' });
+
+    // Stock enregistré à l'instant du comptage : c'est par rapport à lui que
+    // l'écart sera appliqué à la validation (voir PUT /:id/valider). Un
+    // produit supprimé entre-temps compte pour 0.
+    const [produit, feuille] = await Promise.all([
+      Produit.findById(req.body.produitId, 'stockMagasins stockComptoirs'),
+      calculerFeuille(inv.cibleType, inv.cibleId, req.body.produitId),
+    ]);
+    const stockAuComptage = produit ? stockDansCible(produit, inv.cibleType, inv.cibleId) : 0;
+    // Détail de la feuille figé à l'instant du comptage : l'écart affiché
+    // (compté − attendu) ne bouge plus si on vend ce produit ensuite.
+    const { dernierInv, entrees, sorties, attendu } = feuille.lignes.get(req.body.produitId);
+
     // $set positionnel : ne touche que la ligne visée, atomique, et échoue
-    // proprement (matchedCount 0) si le produit n'est pas dans cette session.
+    // proprement (matchedCount 0) si le produit n'est pas dans cette session
+    // ou si elle a été clôturée entre-temps.
     const maintenant = new Date();
     const r = await Inventaire.updateOne(
       { _id: req.params.id, statut: 'en_cours', 'lignes.produit': req.body.produitId, ...filtreCompte(req) },
-      { $set: { 'lignes.$.quantiteReelle': qte, 'lignes.$.compteLe': maintenant } }
+      { $set: {
+        'lignes.$.quantiteReelle': qte, 'lignes.$.compteLe': maintenant, 'lignes.$.stockAuComptage': stockAuComptage,
+        'lignes.$.dernierInv': dernierInv, 'lignes.$.entrees': entrees, 'lignes.$.sorties': sorties, 'lignes.$.attenduAuComptage': attendu,
+      } }
     );
     if (r.matchedCount === 0) {
-      const inv = await Inventaire.findOne({ _id: req.params.id, ...filtreCompte(req) }, 'statut');
-      if (!inv) return res.status(404).json({ message: 'Inventaire introuvable.' });
-      if (inv.statut !== 'en_cours') return res.status(400).json({ message: 'Cette session n\'est plus modifiable.' });
+      const apres = await Inventaire.findOne({ _id: req.params.id }, 'statut');
+      if (apres && apres.statut !== 'en_cours') return res.status(400).json({ message: 'Cette session n\'est plus modifiable.' });
       return res.status(404).json({ message: 'Ce produit ne fait pas partie de cette session.' });
     }
 
-    res.json({ produitId: req.body.produitId, quantiteReelle: qte, compteLe: maintenant });
+    res.json({
+      produitId: req.body.produitId, quantiteReelle: qte, compteLe: maintenant, stockAuComptage,
+      dernierInv, entrees, sorties, attenduAuComptage: attendu,
+    });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -231,10 +324,13 @@ router.put('/:id/annuler', verifierToken, autoriser('superadmin', 'admin'), asyn
 });
 
 // PUT /:id/valider - Clôture la session : le stock de chaque produit COMPTÉ
-// est mis à jour pour correspondre exactement à la quantité réelle saisie
-// (pas un delta par rapport au théorique du snapshot — la session elle-même
-// fait foi de la trace/l'écart constaté). Les produits non comptés restent
-// inchangés ; la session garde leur ligne à quantiteReelle=null.
+// est corrigé de l'écart constaté AU MOMENT DU COMPTAGE (quantiteReelle −
+// stockAuComptage), pas écrasé par la quantité comptée : une vente ou un
+// transfert survenu entre le comptage et la validation reste donc pris en
+// compte. (Ce n'est pas non plus l'écart au théorique de référence affiché,
+// qui sert seulement d'indicateur.) Chaque correction est tracée par un
+// MouvementStock 'inventaire'. Les produits non comptés restent inchangés ;
+// la session garde leur ligne à quantiteReelle=null.
 router.put('/:id/valider', verifierToken, autoriser('superadmin', 'admin'), async (req, res) => {
   try {
     // Bascule atomique du statut en premier : deux clics simultanés ne
@@ -247,35 +343,57 @@ router.put('/:id/valider', verifierToken, autoriser('superadmin', 'admin'), asyn
     if (!inv) return res.status(409).json({ message: 'Session introuvable ou déjà clôturée.' });
 
     const lignesComptees = inv.lignes.filter(l => l.quantiteReelle !== null);
+    const estMagasin = inv.cibleType === 'magasin';
+    const champStock = estMagasin ? 'stockMagasins' : 'stockComptoirs';
+    const champCible = estMagasin ? 'magasin' : 'comptoir';
     let nbAjustes = 0;
 
     for (const ligne of lignesComptees) {
       const produit = await Produit.findById(ligne.produit);
       if (!produit) continue; // produit supprimé entre-temps : rien à ajuster
 
-      if (inv.cibleType === 'magasin') {
-        const sm = produit.stockMagasins.find(x => x.magasin === inv.cibleId);
-        if (sm) {
-          if (sm.quantite === ligne.quantiteReelle) continue;
-          sm.quantite = ligne.quantiteReelle;
-        } else {
-          if (ligne.quantiteReelle === 0) continue;
-          produit.stockMagasins.push({ magasin: inv.cibleId, quantite: ligne.quantiteReelle });
-        }
-        produit.quantite = produit.stockMagasins.reduce((s, x) => s + x.quantite, 0); // total recalculé
+      const stockActuel = stockDansCible(produit, inv.cibleType, inv.cibleId);
+      // Ligne comptée avant l'ajout de stockAuComptage : pas de référence au
+      // moment du comptage, on retombe sur l'ancien comportement (le stock
+      // devient exactement la quantité comptée).
+      const ecart = ligne.stockAuComptage !== null && ligne.stockAuComptage !== undefined
+        ? ligne.quantiteReelle - ligne.stockAuComptage
+        : ligne.quantiteReelle - stockActuel;
+      // Jamais de stock négatif : si la cible s'est vidée depuis le comptage
+      // au point que l'écart ferait passer sous zéro, on s'arrête à 0.
+      const nouveauStock = Math.max(0, stockActuel + ecart);
+      const delta = nouveauStock - stockActuel;
+      ligne.stockApresValidation = nouveauStock;
+      if (delta === 0) continue;
+
+      // $inc atomique plutôt que produit.save() : une vente qui décrémente
+      // le même stock au même instant (routes/ventes.js fait aussi un $inc)
+      // n'est jamais écrasée.
+      const existe = (produit[champStock] || []).some(x => x[champCible] === inv.cibleId);
+      const inc = { [`${champStock}.$.quantite`]: delta, ...(estMagasin ? { quantite: delta } : {}) };
+      if (existe) {
+        await Produit.updateOne({ _id: produit._id, [`${champStock}.${champCible}`]: inv.cibleId }, { $inc: inc });
       } else {
-        const sc = produit.stockComptoirs.find(x => x.comptoir === inv.cibleId);
-        if (sc) {
-          if (sc.quantite === ligne.quantiteReelle) continue;
-          sc.quantite = ligne.quantiteReelle;
-        } else {
-          if (ligne.quantiteReelle === 0) continue;
-          produit.stockComptoirs.push({ comptoir: inv.cibleId, quantite: ligne.quantiteReelle });
-        }
+        await Produit.updateOne({ _id: produit._id }, {
+          $push: { [champStock]: { [champCible]: inv.cibleId, quantite: delta } },
+          ...(estMagasin ? { $inc: { quantite: delta } } : {}),
+        });
       }
-      await produit.save();
+
+      await new MouvementStock({
+        produit: produit._id, boutiqueId: inv.boutiqueId, type: 'inventaire',
+        magasinId: estMagasin ? inv.cibleId : null,
+        comptoirId: estMagasin ? null : inv.cibleId,
+        inventaireId: inv._id,
+        quantite: delta, stockRestant: nouveauStock,
+        note: `Inventaire du ${inv.createdAt.toLocaleDateString('fr-FR')} : ${delta > 0 ? 'surplus' : 'manquant'} constaté`,
+      }).save();
       nbAjustes++;
     }
+
+    // Mémorise le stock obtenu, point de départ du prochain inventaire de
+    // cette cible (voir dernierInventaireValide).
+    await Inventaire.updateOne({ _id: inv._id }, { $set: { lignes: inv.lignes } });
 
     const nbNonComptes = inv.lignes.length - lignesComptees.length;
     await enregistrerLog({

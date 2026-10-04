@@ -15,6 +15,7 @@ router.get('/', verifierToken, async (req, res) => {
       .populate('produit', 'nom image')
       .populate('magasinId', 'nom')
       .populate('comptoirDestination', 'nom')
+      .populate('comptoirId', 'nom')
       .populate({ path: 'caisseDestination', select: 'nom comptoirId', populate: { path: 'comptoirId', select: 'nom' } })
       .sort({ createdAt: -1 })
       .limit(100);
