@@ -2316,6 +2316,7 @@ function AdminInventaires() {
       return {
         produit: f.produit, nom: f.nom, ref: f.ref, prix: f.prix,
         dernierInv: fige ? s.dernierInv : f.dernierInv,
+        dernierInvEstime: fige ? !!s.dernierInvEstime : !!f.dernierInvEstime,
         entrees: fige ? s.entrees : f.entrees,
         sorties: fige ? s.sorties : f.sorties,
         attendu, compte,
@@ -2327,7 +2328,7 @@ function AdminInventaires() {
   };
   const lignesSession = (inv) => inv.lignes.map(l => ({
     produit: l.produit, nom: l.nom, ref: l.ref, prix: l.prix || 0,
-    dernierInv: l.dernierInv ?? null, entrees: l.entrees ?? null, sorties: l.sorties ?? null,
+    dernierInv: l.dernierInv ?? null, dernierInvEstime: !!l.dernierInvEstime, entrees: l.entrees ?? null, sorties: l.sorties ?? null,
     attendu: l.attenduAuComptage ?? l.quantiteTheorique,
     compte: l.quantiteReelle, compteLe: l.compteLe,
     autres: l.stockApresValidation !== null && l.stockApresValidation !== undefined && l.quantiteReelle !== null
@@ -2431,7 +2432,10 @@ function AdminInventaires() {
                       <div style={{ fontWeight: '600', color: '#333', fontSize: '13px' }}>{l.nom}</div>
                       <div style={{ fontSize: '11px', color: '#94a3b8' }}>{l.ref || '—'}</div>
                     </td>
-                    <td style={{ ...cellule, color: '#475569' }}>{l.dernierInv ?? vide}</td>
+                    <td style={{ ...cellule, color: l.dernierInvEstime ? '#94a3b8' : '#475569', fontStyle: l.dernierInvEstime ? 'italic' : 'normal' }}
+                      title={l.dernierInvEstime ? "Jamais inventorié : stock de départ estimé d'après le stock enregistré" : ''}>
+                      {l.dernierInv === null ? vide : `${l.dernierInvEstime ? '≈ ' : ''}${l.dernierInv}`}
+                    </td>
                     <td style={{ ...cellule, color: '#475569' }}>{l.entrees ?? vide}</td>
                     <td style={{ ...cellule, color: '#475569' }}>{l.sorties === null ? vide : `-${l.sorties}`}</td>
                     <td style={{ ...cellule, fontWeight: '700', color: '#0f172a' }}>{l.attendu}</td>
@@ -2562,7 +2566,7 @@ function AdminInventaires() {
         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666' }}>
           {session
             ? <>⏳ Inventaire en cours — ouvert le {dateFr(session.createdAt)} par {session.nomCreePar || '—'}</>
-            : <>Aucun inventaire en cours — {feuille?.depuis ? `depuis le dernier inventaire du ${dateFr(feuille.depuis)}` : 'aucun inventaire validé : calcul depuis le début'}</>}
+            : <>Aucun inventaire en cours — {feuille?.depuis ? `depuis le dernier inventaire du ${dateFr(feuille.depuis)}` : "aucun inventaire validé : stock de départ estimé (≈) d'après le stock enregistré"}</>}
         </p>
       </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>

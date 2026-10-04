@@ -23,6 +23,7 @@ const ligneInventaireSchema = new mongoose.Schema({
   // dans routes/inventaires.js) : stock au dernier inventaire, entrées et
   // sorties depuis, et stock attendu qui en découle. null = pas compté.
   dernierInv: { type: Number, default: null },
+  dernierInvEstime: { type: Boolean, default: false }, // jamais inventorié : départ déduit du stock enregistré
   entrees: { type: Number, default: null },
   sorties: { type: Number, default: null },
   attenduAuComptage: { type: Number, default: null },

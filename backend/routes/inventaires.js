@@ -4,6 +4,7 @@ const Inventaire = require('../models/Inventaire');
 const Produit = require('../models/Produit');
 const Magasin = require('../models/Magasin');
 const Comptoir = require('../models/Comptoir');
+const Caisse = require('../models/Caisse');
 const MouvementStock = require('../models/MouvementStock');
 const Vente = require('../models/Vente');
 const { verifierToken, autoriser } = require('../middleware/auth');
@@ -50,13 +51,22 @@ async function detailMouvementsDepuis(cibleType, cibleId, depuis, produitId = nu
     for (const a of agg) ajouter(a._id.produit, a._id.entree ? 'entrees' : 'sorties', a.total);
     return resultat;
   }
+  // Ancien système (stock par caisse) : transferts et ventes rattachés à une
+  // caisse de cette boutique, sans la boutique elle-même — comptés aussi.
+  const caisses = (await Caisse.find({ comptoirId: cibleId }, '_id')).map(c => c._id);
   const [transferts, ventes] = await Promise.all([
     MouvementStock.aggregate([
-      { $match: { comptoirDestination: cibleId, type: 'transfert', ...filtreDate, ...(produitId ? { produit: produitId } : {}) } },
+      { $match: {
+        type: 'transfert', ...filtreDate, ...(produitId ? { produit: produitId } : {}),
+        $or: [{ comptoirDestination: cibleId }, { comptoirDestination: null, caisseDestination: { $in: caisses } }],
+      } },
       { $group: { _id: '$produit', total: { $sum: '$quantite' } } },
     ]),
     Vente.aggregate([
-      { $match: { comptoirId: cibleId, ...(depuis ? { dateVente: { $gt: depuis } } : {}) } },
+      { $match: {
+        ...(depuis ? { dateVente: { $gt: depuis } } : {}),
+        $or: [{ comptoirId: cibleId }, { comptoirId: null, caisseId: { $in: caisses } }],
+      } },
       { $unwind: '$produits' },
       ...(produitId ? [{ $match: { 'produits.produit': produitId } }] : []),
       { $group: { _id: '$produits.produit', total: { $sum: '$produits.quantite' } } },
@@ -71,17 +81,31 @@ async function detailMouvementsDepuis(cibleType, cibleId, depuis, produitId = nu
 // inventaire validé (dernierInv), les entrées et sorties depuis, et le stock
 // attendu qui en découle (jamais négatif). C'est le calcul "historique_
 // mouvements" ci-dessous, détaillé colonne par colonne pour l'écran.
-// Map produitId -> { dernierInv, entrees, sorties, attendu } ; un produit
-// absent de la Map n'a ni inventaire ni mouvement : tout à 0.
+//
+// Produit jamais inventorié ici : l'historique ne suffit pas à reconstituer
+// son stock (le stock saisi à la création ou à l'import d'un produit arrive
+// sans aucun mouvement). Son point de départ est alors ESTIMÉ à partir du
+// stock enregistré : enregistré − entrées + sorties (jamais négatif), de
+// sorte que l'attendu retombe sur le stock enregistré, sauf si l'historique
+// prouve qu'il en manque (plus de sorties que ce qui a pu entrer).
+// Map produitId -> { dernierInv, dernierInvEstime, entrees, sorties, attendu }.
 async function calculerFeuille(cibleType, cibleId, produitId = null) {
   const { baseline, depuis } = await dernierInventaireValide(cibleType, cibleId);
-  const mouvements = await detailMouvementsDepuis(cibleType, cibleId, depuis, produitId);
-  const ids = produitId ? [produitId] : new Set([...baseline.keys(), ...mouvements.keys()]);
+  const champCible = cibleType === 'magasin' ? 'stockMagasins.magasin' : 'stockComptoirs.comptoir';
+  const [mouvements, produits] = await Promise.all([
+    detailMouvementsDepuis(cibleType, cibleId, depuis, produitId),
+    Produit.find(produitId ? { _id: produitId } : { [champCible]: cibleId }, 'stockMagasins stockComptoirs'),
+  ]);
+  const enregistre = new Map(produits.map(p => [p._id, stockDansCible(p, cibleType, cibleId)]));
+  const ids = produitId ? [produitId] : new Set([...baseline.keys(), ...mouvements.keys(), ...enregistre.keys()]);
   const lignes = new Map();
   for (const id of ids) {
-    const dernierInv = baseline.get(id) || 0;
     const { entrees, sorties } = mouvements.get(id) || { entrees: 0, sorties: 0 };
-    lignes.set(id, { dernierInv, entrees, sorties, attendu: Math.max(0, dernierInv + entrees - sorties) });
+    const dernierInvEstime = !baseline.has(id);
+    const dernierInv = dernierInvEstime
+      ? Math.max(0, (enregistre.get(id) || 0) - entrees + sorties)
+      : baseline.get(id);
+    lignes.set(id, { dernierInv, dernierInvEstime, entrees, sorties, attendu: Math.max(0, dernierInv + entrees - sorties) });
   }
   return { depuis, lignes };
 }
@@ -175,7 +199,7 @@ router.get('/feuille', verifierToken, autoriser('superadmin', 'admin'), async (r
       session,
       lignes: produits.map(p => ({
         produit: p._id, nom: p.nom, ref: p.ref || '', prix: p.prix || 0,
-        ...(lignes.get(p._id) || { dernierInv: 0, entrees: 0, sorties: 0, attendu: 0 }),
+        ...(lignes.get(p._id) || { dernierInv: 0, dernierInvEstime: true, entrees: 0, sorties: 0, attendu: 0 }),
         stockEnregistre: stockDansCible(p, cibleType, cibleId),
       })),
     });
@@ -280,7 +304,7 @@ router.put('/:id/compter', verifierToken, autoriser('superadmin', 'admin'), asyn
     const stockAuComptage = produit ? stockDansCible(produit, inv.cibleType, inv.cibleId) : 0;
     // Détail de la feuille figé à l'instant du comptage : l'écart affiché
     // (compté − attendu) ne bouge plus si on vend ce produit ensuite.
-    const { dernierInv, entrees, sorties, attendu } = feuille.lignes.get(req.body.produitId);
+    const { dernierInv, dernierInvEstime, entrees, sorties, attendu } = feuille.lignes.get(req.body.produitId);
 
     // $set positionnel : ne touche que la ligne visée, atomique, et échoue
     // proprement (matchedCount 0) si le produit n'est pas dans cette session
@@ -290,7 +314,7 @@ router.put('/:id/compter', verifierToken, autoriser('superadmin', 'admin'), asyn
       { _id: req.params.id, statut: 'en_cours', 'lignes.produit': req.body.produitId, ...filtreCompte(req) },
       { $set: {
         'lignes.$.quantiteReelle': qte, 'lignes.$.compteLe': maintenant, 'lignes.$.stockAuComptage': stockAuComptage,
-        'lignes.$.dernierInv': dernierInv, 'lignes.$.entrees': entrees, 'lignes.$.sorties': sorties, 'lignes.$.attenduAuComptage': attendu,
+        'lignes.$.dernierInv': dernierInv, 'lignes.$.dernierInvEstime': dernierInvEstime, 'lignes.$.entrees': entrees, 'lignes.$.sorties': sorties, 'lignes.$.attenduAuComptage': attendu,
       } }
     );
     if (r.matchedCount === 0) {
@@ -301,7 +325,7 @@ router.put('/:id/compter', verifierToken, autoriser('superadmin', 'admin'), asyn
 
     res.json({
       produitId: req.body.produitId, quantiteReelle: qte, compteLe: maintenant, stockAuComptage,
-      dernierInv, entrees, sorties, attenduAuComptage: attendu,
+      dernierInv, dernierInvEstime, entrees, sorties, attenduAuComptage: attendu,
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
