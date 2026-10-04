@@ -164,7 +164,8 @@ export default function AdminLayout() {
           )}
         </div>
 
-        <nav style={{ flex: 1, padding: '8px 6px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* minHeight 0 : sans lui, un enfant flex ne rétrécit pas sous la hauteur de son contenu et ne défile jamais */}
+        <nav style={{ flex: 1, minHeight: 0, padding: '8px 6px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
           <div style={{ color: '#3b82f6', fontSize: '9.5px', fontWeight: '700', padding: '4px 6px 3px', letterSpacing: '1px' }}>
             {!collapsed && 'MENU PRINCIPAL'}
           </div>
@@ -172,7 +173,7 @@ export default function AdminLayout() {
             <NavLink key={item.path} to={item.path} end={item.path === '/admin'} onClick={fermerMenuMobile}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '7px 8px', borderRadius: '7px', marginBottom: '1px',
+                padding: '7px 8px', borderRadius: '7px', marginBottom: '1px', flexShrink: 0,
                 textDecoration: 'none', color: isActive ? 'white' : '#94a3b8',
                 background: isActive ? '#2563eb' : 'transparent',
                 transition: 'all 0.2s', fontSize: '12.5px'
