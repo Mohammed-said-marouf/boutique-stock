@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const enregistrerLog = require('../utils/logger');
 const { verifierToken } = require('../middleware/auth');
+const { estEnMaintenance, MESSAGE_MAINTENANCE } = require('../middleware/maintenance');
 const router = express.Router();
 
 // Connexion
@@ -30,6 +31,12 @@ router.post('/login', async (req, res) => {
         niveau: 'error'
       });
       return res.status(403).json({ message: 'Compte désactivé' });
+    }
+
+    // Mode maintenance : seul le superadmin peut se connecter (voir
+    // middleware/maintenance.js).
+    if (user.role !== 'superadmin' && await estEnMaintenance()) {
+      return res.status(503).json({ message: MESSAGE_MAINTENANCE, maintenance: true });
     }
 
     const token = jwt.sign(
@@ -72,6 +79,9 @@ router.post('/refresh', verifierToken, async (req, res) => {
     const user = await User.findById(req.user.id).populate('boutiqueId');
     if (!user || !user.actif) {
       return res.status(401).json({ message: 'Compte introuvable ou désactivé.' });
+    }
+    if (user.role !== 'superadmin' && await estEnMaintenance()) {
+      return res.status(503).json({ message: MESSAGE_MAINTENANCE, maintenance: true });
     }
 
     const token = jwt.sign(

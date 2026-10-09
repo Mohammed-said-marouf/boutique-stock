@@ -1,0 +1,58 @@
+name: Build Desktop Windows
+
+# Construit l'installateur Windows (.exe NSIS) de l'application desktop.
+# Lancement : onglet "Actions" du dépôt GitHub -> "Build Desktop Windows" -> "Run workflow"
+# (ou en poussant un tag "desktop-*"). L'installateur est ensuite
+# téléchargeable dans les "Artifacts" de l'exécution (rester connecté à
+# GitHub pour y accéder).
+# Construit sur les serveurs GitHub plutôt qu'en local : Smart App Control
+# (Windows 11) bloque l'exécution du désinstallateur non signé que
+# electron-builder génère pendant la création de l'installateur.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-*']
+
+jobs:
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # REACT_APP_API_URL fige l'adresse du serveur LOCAL du desktop dans le
+      # build (voir frontend/src/config.js) : sans elle, le desktop parle
+      # directement au serveur en ligne — plus de hors-ligne ni de base
+      # locale. La vérification qui suit fait échouer le build si c'est le cas.
+      - name: Compiler le frontend React
+        working-directory: frontend
+        shell: bash
+        env:
+          CI: 'false' # ne pas transformer les avertissements ESLint en erreurs
+          REACT_APP_API_URL: http://localhost:4000
+        run: |
+          npm ci
+          npm run build
+          grep -q "localhost:4000" build/static/js/main.*.js || { echo "::error::Le build frontend ne pointe pas vers le serveur local (localhost:4000)"; exit 1; }
+
+      - name: Installer les dépendances desktop
+        working-directory: desktop
+        run: npm ci
+
+      # electron-builder recompile better-sqlite3 pour Electron avant
+      # l'empaquetage. Pas de signature de code (aucun certificat configuré),
+      # et jamais de publication automatique.
+      - name: Construire l'installateur
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win nsis --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boutique-stock-desktop
+          path: desktop/dist/*.exe
+          if-no-files-found: error

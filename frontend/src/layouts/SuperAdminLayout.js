@@ -6,6 +6,7 @@ import axios from 'axios';
 import { LicencesAdmin, ModaleMotDePasseTemporaire } from '../components/SuperAdminOutils';
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
+import { changerMotDePasse } from '../api/users';
 
 import { API_URL } from '../config';
 
@@ -683,6 +684,64 @@ function PageIcones() {
   );
 }
 
+// Changement du mot de passe du super admin connecté — même route que
+// l'écran de changement obligatoire (PUT /api/users/me/motdepasse), qui
+// exige le mot de passe actuel.
+function ChangerMonMotDePasse() {
+  const vide = { actuel: '', nouveau: '', confirmation: '' };
+  const [champs, setChamps] = useState(vide);
+  const [envoi, setEnvoi] = useState(false);
+  const [message, setMessage] = useState(null); // { ok, texte }
+
+  const envoyer = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    if (champs.nouveau.length < 6) { setMessage({ ok: false, texte: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' }); return; }
+    if (champs.nouveau !== champs.confirmation) { setMessage({ ok: false, texte: 'La confirmation ne correspond pas au nouveau mot de passe.' }); return; }
+    setEnvoi(true);
+    try {
+      const { ok, status, data } = await changerMotDePasse(champs.actuel, champs.nouveau);
+      if (ok) {
+        setChamps(vide);
+        setMessage({ ok: true, texte: data?.message || '✅ Mot de passe mis à jour.' });
+      } else {
+        setMessage({ ok: false, texte: data?.message || `Erreur ${status}.` });
+      }
+    } catch (err) {
+      setMessage({ ok: false, texte: 'Erreur réseau : ' + err.message });
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const style = { width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' };
+  const etiquette = { fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' };
+  return (
+    <form onSubmit={envoyer}>
+      {[
+        { cle: 'actuel', label: 'Mot de passe actuel', auto: 'current-password' },
+        { cle: 'nouveau', label: 'Nouveau mot de passe', auto: 'new-password' },
+        { cle: 'confirmation', label: 'Confirmer le mot de passe', auto: 'new-password' },
+      ].map(f => (
+        <div key={f.cle} style={{ marginBottom: '16px' }}>
+          <label style={etiquette}>{f.label}</label>
+          <input type="password" required autoComplete={f.auto} placeholder="••••••••" value={champs[f.cle]}
+            onChange={e => setChamps(c => ({ ...c, [f.cle]: e.target.value }))} style={style} />
+        </div>
+      ))}
+      {message && (
+        <div style={{ marginBottom: '12px', fontSize: '13px', color: message.ok ? '#16a34a' : '#dc2626' }}>
+          {message.ok ? '' : '⚠️ '}{message.texte}
+        </div>
+      )}
+      <button type="submit" disabled={envoi} style={{
+        padding: '10px 24px', background: '#1e1b4b', color: 'white', border: 'none', borderRadius: '8px',
+        cursor: envoi ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: envoi ? 0.7 : 1
+      }}>{envoi ? '...' : '🔒 Changer le mot de passe'}</button>
+    </form>
+  );
+}
+
 function ParametresSuperAdmin({ user }) {
   return (
     <div>
@@ -700,10 +759,15 @@ function ParametresSuperAdmin({ user }) {
           ].map((f, i) => (
             <div key={i} style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-              <input defaultValue={f.val} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              <input value={f.val} readOnly style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', background: '#f8fafc', color: '#475569' }} />
             </div>
           ))}
-          <button style={{ padding: '10px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>💾 Sauvegarder</button>
+          {/* Valeurs fixes : aucune n'est enregistrée côté serveur ni lue
+              ailleurs dans l'appli (la devise, par exemple, est écrite en
+              dur partout) — un bouton "Sauvegarder" ne ferait rien. */}
+          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+            Valeurs fixes pour le moment : elles ne sont pas encore modifiables depuis l'application.
+          </div>
         </div>
         <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <h3 style={{ margin: '0 0 20px', color: '#1e1b4b' }}>🔒 Mon compte Super Admin</h3>
@@ -715,16 +779,7 @@ function ParametresSuperAdmin({ user }) {
               <span style={{ background: '#e0e7ff', color: '#4f46e5', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>Super Admin</span>
             </div>
           </div>
-          {[
-            { label: 'Nouveau mot de passe', type: 'password', ph: '••••••••' },
-            { label: 'Confirmer le mot de passe', type: 'password', ph: '••••••••' },
-          ].map((f, i) => (
-            <div key={i} style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{f.label}</label>
-              <input type={f.type} placeholder={f.ph} style={{ width: '100%', padding: '10px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-          ))}
-          <button style={{ padding: '10px 24px', background: '#1e1b4b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🔒 Changer le mot de passe</button>
+          <ChangerMonMotDePasse />
         </div>
       </div>
     </div>
@@ -909,8 +964,10 @@ function MaintenanceAdmin() {
     try {
       const route = modeMaintenance ? 'desactiver' : 'activer';
       const res = await fetch(`${API_URL}/api/maintenance/${route}`, { method: 'POST', ...authHeaders });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) setModeMaintenance(data.enMaintenance);
+      else alert(`Impossible de changer le mode maintenance : ${data.message || `erreur ${res.status}`}` +
+        (res.status === 401 ? '\n\nVotre session a expiré : déconnectez-vous puis reconnectez-vous.' : ''));
     } catch (err) {
       alert('Erreur réseau : ' + err.message);
     } finally {
@@ -923,8 +980,9 @@ function MaintenanceAdmin() {
     setMessages(p => ({ ...p, [cle]: '' }));
     try {
       const res = await fetch(`${API_URL}/api/maintenance/${cle}`, { method: 'POST', ...authHeaders });
-      const data = await res.json();
-      setMessages(p => ({ ...p, [cle]: data.message || (res.ok ? '✅ Terminé.' : '❌ Erreur.') }));
+      const data = await res.json().catch(() => ({}));
+      const texte = data.message || (res.ok ? '✅ Terminé.' : `❌ Erreur ${res.status}.`);
+      setMessages(p => ({ ...p, [cle]: res.status === 401 ? `${texte} — session expirée : déconnectez-vous puis reconnectez-vous.` : texte }));
     } catch (err) {
       setMessages(p => ({ ...p, [cle]: '❌ Erreur réseau : ' + err.message }));
     } finally {

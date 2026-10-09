@@ -36,6 +36,56 @@ router.get('/alertes', verifierToken, async (req, res) => {
   }
 });
 
+// GET - Alertes de stock BOUTIQUE (cloche de notification de l'admin et du
+// vendeur) : produits dont le stock dans une boutique (stockComptoirs) est
+// au seuil d'alerte ou en dessous. Contrairement à /alertes (stock Magasin
+// total), c'est le stock réellement vendable, décompté à chaque vente.
+// Seuls les produits déjà présents dans la boutique comptent — sinon tout
+// produit jamais transféré y apparaîtrait comme "en rupture".
+//  - vendeur : la boutique de sa caisse assignée uniquement ;
+//  - admin : toutes les boutiques actives de son Compte ;
+//  - superadmin : toutes.
+// Réponse : { total, boutiques: [{ comptoirId, comptoirNom, produits: [{ _id, nom, ref, quantite, seuilAlerte }] }] }
+router.get('/alertes-boutiques', verifierToken, async (req, res) => {
+  try {
+    const Comptoir = require('../models/Comptoir');
+    let filtreComptoirs = { actif: true };
+    if (req.user.role === 'vendeur') {
+      const Caisse = require('../models/Caisse');
+      const caisse = req.user.caisseId ? await Caisse.findById(req.user.caisseId, 'comptoirId').lean() : null;
+      if (!caisse) return res.json({ total: 0, boutiques: [] });
+      filtreComptoirs._id = caisse.comptoirId;
+    } else if (req.user.role === 'admin') {
+      filtreComptoirs.boutiqueId = req.user.boutiqueId;
+    }
+    const comptoirs = await Comptoir.find(filtreComptoirs, 'nom').lean();
+    if (comptoirs.length === 0) return res.json({ total: 0, boutiques: [] });
+
+    const ids = comptoirs.map(c => c._id);
+    const produits = await Produit.find(
+      { 'stockComptoirs.comptoir': { $in: ids } },
+      'nom ref seuilAlerte stockComptoirs'
+    ).lean();
+
+    const boutiques = comptoirs.map(c => ({ comptoirId: c._id, comptoirNom: c.nom, produits: [] }));
+    const parId = new Map(boutiques.map(b => [b.comptoirId, b]));
+    for (const p of produits) {
+      const seuil = p.seuilAlerte ?? 5;
+      for (const sc of p.stockComptoirs || []) {
+        const boutique = parId.get(sc.comptoir);
+        if (boutique && sc.quantite <= seuil) {
+          boutique.produits.push({ _id: p._id, nom: p.nom, ref: p.ref, quantite: sc.quantite, seuilAlerte: seuil });
+        }
+      }
+    }
+    const avecAlertes = boutiques.filter(b => b.produits.length > 0);
+    avecAlertes.forEach(b => b.produits.sort((a, z) => a.quantite - z.quantite));
+    res.json({ total: avecAlertes.reduce((s, b) => s + b.produits.length, 0), boutiques: avecAlertes });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 const upload = require('../middleware/upload');
 
 // POST - Ajouter un produit avec photo

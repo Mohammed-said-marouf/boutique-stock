@@ -8,6 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { bipSucces, bipErreur, debloquerAudio } from '../utils/bip';
 import { estTelephone } from '../utils/appareil';
 import Tresorerie from '../components/Tresorerie';
+import ClocheAlertesStock from '../components/ClocheAlertesStock';
 import Sauvegarde from '../components/Sauvegarde';
 import Avatar from '../components/Avatar';
 import EditeurPhotoProfil from '../components/EditeurPhotoProfil';
@@ -163,7 +164,7 @@ export default function VendeurLayout() {
               <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
             )}
             {estDesktop && <BoutonSynchro />}
-            <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
+            <ClocheAlertesStock />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#059669" />
               {!isMobile && (
@@ -613,6 +614,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
 
       const res = await creerVente(venteData);
       const numFacture = res.data.numFacture || ('FAC-' + Date.now().toString().slice(-6));
+      window.dispatchEvent(new Event('stock-modifie')); // met la cloche d'alertes de stock à jour
 
       bipSucces(); // confirme l'encaissement, comme chaque scan réussi
 

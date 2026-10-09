@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { API_URL } from '../config';
+import { exporterPoste } from '../api/poste';
 
 // Page "Sauvegarde", partagée entre l'admin et le vendeur.
 //  - Tous : télécharger un fichier de sauvegarde (.json) de ses données
@@ -53,6 +54,59 @@ async function appel(methode, chemin, corps) {
   let data = null;
   try { data = await res.json(); } catch { /* corps non JSON */ }
   return { ok: res.ok, status: res.status, data };
+}
+
+// Desktop : sauvegarde COMPLÈTE du poste (toute la base locale, comptes et
+// opérations non synchronisées compris), à réimporter depuis l'écran de
+// connexion d'une nouvelle machine — voir desktop/routes/poste.js.
+function SauvegardePoste() {
+  const [envoi, setEnvoi] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const sauvegarder = async () => {
+    setEnvoi(true);
+    setMessage(null);
+    try {
+      const r = await exporterPoste();
+      if (!r.ok) { setMessage({ type: 'erreur', texte: r.message }); return; }
+      const url = URL.createObjectURL(r.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = r.nomFichier;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage({ type: 'ok', texte: 'Sauvegarde du poste créée. Gardez ce fichier en lieu sûr (clé USB, Drive...).' });
+    } catch (e) {
+      setMessage({ type: 'erreur', texte: e.message });
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div style={carte}>
+      <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '15px' }}>💾 Sauvegarder ce poste</h3>
+      <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666', lineHeight: 1.6 }}>
+        Le fichier (.bsdb) est une copie complète de ce poste : produits et stocks, ventes, caisses, dépenses, versements…,
+        les comptes de l'admin et des vendeurs, et les opérations pas encore synchronisées.
+        Sur une nouvelle machine, importez-le depuis l'écran de connexion (« Nouvelle machine ? Importer une sauvegarde ») :
+        chacun se reconnecte ensuite avec son mot de passe habituel, même sans internet.
+      </p>
+      <p style={{ margin: '0 0 14px', fontSize: '12.5px', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '8px 12px' }}>
+        🔒 Ce fichier contient les comptes (mots de passe chiffrés) : ne le partagez pas, gardez-le en lieu sûr.
+      </p>
+      <button onClick={sauvegarder} disabled={envoi} style={bouton('#2563eb', envoi)}>
+        {envoi ? '⏳ Préparation...' : '⬇️ Télécharger la sauvegarde du poste'}
+      </button>
+      {message && (
+        <div style={{ marginTop: '12px', fontSize: '13px', color: message.type === 'ok' ? '#166534' : '#dc2626' }}>
+          {message.type === 'ok' ? '✅' : '⚠️'} {message.texte}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Sauvegarde({ role }) {
@@ -127,11 +181,7 @@ export default function Sauvegarde({ role }) {
         Gardez une copie de vos données dans un fichier, pour les retrouver en cas de changement de téléphone ou d'ordinateur.
       </p>
 
-      {enLocalDesktop && (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
-          ⚠️ Cette version hors-ligne n'a pas encore de sauvegarde par fichier : ses données se synchronisent avec le serveur dès qu'une connexion est disponible.
-        </div>
-      )}
+      {enLocalDesktop && <SauvegardePoste />}
 
       {message && (
         <div style={{
@@ -140,7 +190,7 @@ export default function Sauvegarde({ role }) {
         }}>{message.type === 'ok' ? '✅' : '⚠️'} {message.texte}</div>
       )}
 
-      <div style={carte}>
+      {!enLocalDesktop && <div style={carte}>
         <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '15px' }}>💾 Sauvegarder mes données</h3>
         <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666', lineHeight: 1.6 }}>
           {estAdmin
@@ -152,9 +202,9 @@ export default function Sauvegarde({ role }) {
           {envoiExport ? '⏳ Préparation...' : '⬇️ Télécharger la sauvegarde'}
         </button>
         {estNatif() && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>Sur téléphone, choisissez où l'enregistrer (Drive, Fichiers, WhatsApp...).</div>}
-      </div>
+      </div>}
 
-      {estAdmin && (
+      {estAdmin && !enLocalDesktop && (
         <div style={carte}>
           <h3 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: '15px' }}>♻️ Restaurer une sauvegarde</h3>
           <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#666', lineHeight: 1.6 }}>

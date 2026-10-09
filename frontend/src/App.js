@@ -4,6 +4,7 @@ import { IconesProvider } from './context/IconesContext';
 import Login from './pages/Login';
 import Inscription from './pages/Inscription';
 import ChangementMotDePasseObligatoire from './components/ChangementMotDePasseObligatoire';
+import BarriereMaintenance from './components/Maintenance';
 
 // Layouts
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -67,7 +68,9 @@ export default function App() {
     <HashRouter>
       <AuthProvider>
         <IconesProvider>
-          <AppRoutes />
+          <BarriereMaintenance>
+            <AppRoutes />
+          </BarriereMaintenance>
         </IconesProvider>
       </AuthProvider>
     </HashRouter>

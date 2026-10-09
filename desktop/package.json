@@ -1,6 +1,6 @@
 {
   "name": "boutique-stock-desktop",
-  "version": "1.0.13",
+  "version": "1.0.24",
   "description": "Boutique Stock - Application desktop hors-ligne",
   "main": "main/main.js",
   "scripts": {
@@ -40,7 +40,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "main/logo.png"
+      "icon": "main/icone.png"
     },
     "nsis": {
       "oneClick": false,

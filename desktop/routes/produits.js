@@ -156,6 +156,48 @@ router.get('/stats', (req, res) => {
   }
 });
 
+// GET - Alertes de stock BOUTIQUE (cloche de notification) — même contrat
+// que le backend en ligne (routes/produits.js, /alertes-boutiques), calculé
+// sur la base locale pour fonctionner aussi hors-ligne. Enregistrée AVANT
+// GET /:id pour la même raison que /stats.
+router.get('/alertes-boutiques', (req, res) => {
+  try {
+    let sqlComptoirs = 'SELECT id, nom FROM comptoirs WHERE is_deleted = 0 AND actif = 1';
+    const params = [];
+    if (req.user?.role === 'vendeur') {
+      const caisse = req.user.caisseId
+        ? db.prepare('SELECT comptoir_id FROM caisses WHERE id = ? AND is_deleted = 0').get(req.user.caisseId)
+        : null;
+      if (!caisse) return res.json({ total: 0, boutiques: [] });
+      sqlComptoirs += ' AND id = ?';
+      params.push(caisse.comptoir_id);
+    } else if (req.user?.role === 'admin' && req.user.boutiqueId) {
+      sqlComptoirs += ' AND boutique_id = ?';
+      params.push(req.user.boutiqueId);
+    }
+    const comptoirs = db.prepare(sqlComptoirs).all(...params);
+
+    const requeteProduits = db.prepare(`
+      SELECT p.id, p.nom, p.ref, sc.quantite, COALESCE(p.seuil_alerte, 5) AS seuil
+      FROM stock_comptoirs sc
+      JOIN produits p ON p.id = sc.produit_id
+      WHERE sc.comptoir_id = ? AND p.is_deleted = 0 AND sc.quantite <= COALESCE(p.seuil_alerte, 5)
+      ORDER BY sc.quantite ASC
+    `);
+    const boutiques = comptoirs
+      .map(c => ({
+        comptoirId: c.id,
+        comptoirNom: c.nom,
+        produits: requeteProduits.all(c.id).map(p => ({ _id: p.id, nom: p.nom, ref: p.ref, quantite: p.quantite, seuilAlerte: p.seuil })),
+      }))
+      .filter(b => b.produits.length > 0);
+
+    res.json({ total: boutiques.reduce((s, b) => s + b.produits.length, 0), boutiques });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET - Un seul produit par id
 router.get('/:id', (req, res) => {
   try {

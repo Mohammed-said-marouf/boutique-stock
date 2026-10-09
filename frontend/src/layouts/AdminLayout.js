@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { genererDataUrlQR, construirePdfEtiquettes, construirePdfEtiquettesMultiples, telechargerPdfEtiquettes, GRILLE_ETIQUETTES } from '../utils/etiquettesQR';
 import QRCode from 'qrcode';
 import Tresorerie, { useVersementsEnAttente } from '../components/Tresorerie';
+import ClocheAlertesStock from '../components/ClocheAlertesStock';
 import Sauvegarde from '../components/Sauvegarde';
 import LicenceBoutique, { BandeauLicence } from '../components/Licence';
 import Avatar from '../components/Avatar';
@@ -163,7 +164,8 @@ export default function AdminLayout() {
           )}
         </div>
 
-        <nav style={{ flex: 1, padding: '8px 6px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* minHeight 0 : sans lui, un enfant flex ne rétrécit pas sous la hauteur de son contenu et ne défile jamais */}
+        <nav style={{ flex: 1, minHeight: 0, padding: '8px 6px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
           <div style={{ color: '#3b82f6', fontSize: '9.5px', fontWeight: '700', padding: '4px 6px 3px', letterSpacing: '1px' }}>
             {!collapsed && 'MENU PRINCIPAL'}
           </div>
@@ -171,7 +173,7 @@ export default function AdminLayout() {
             <NavLink key={item.path} to={item.path} end={item.path === '/admin'} onClick={fermerMenuMobile}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '7px 8px', borderRadius: '7px', marginBottom: '1px',
+                padding: '7px 8px', borderRadius: '7px', marginBottom: '1px', flexShrink: 0,
                 textDecoration: 'none', color: isActive ? 'white' : '#94a3b8',
                 background: isActive ? '#2563eb' : 'transparent',
                 transition: 'all 0.2s', fontSize: '12.5px'
@@ -251,7 +253,7 @@ export default function AdminLayout() {
               <span onClick={() => setRechercheOuverte(v => !v)} style={{ fontSize: '19px', cursor: 'pointer' }}>🔍</span>
             )}
             {estDesktop && <BoutonSynchro />}
-            <span style={{ fontSize: '20px', cursor: 'pointer' }}>🔔</span>
+            <ClocheAlertesStock />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Avatar nom={user?.nom} photo={user?.photo} size={36} fond="#2563eb" />
               {!isMobile && (
@@ -636,6 +638,7 @@ function AdminProduits() {
         })
       ));
       const echecs = resultats.filter(r => !r.ok).length;
+      window.dispatchEvent(new Event('stock-modifie')); // met la cloche d'alertes de stock à jour
       setTransfertGroupe(null);
       viderSelection();
       charger();
@@ -1493,6 +1496,7 @@ function AdminStocks() {
       });
       const data = await res.json();
       if (!res.ok) { setErreurTransfert(data.message || 'Erreur'); return; }
+      window.dispatchEvent(new Event('stock-modifie')); // met la cloche d'alertes de stock à jour
       setTransfertProduit(null);
       chargerProduits();
       charger();
@@ -1558,7 +1562,19 @@ function AdminStocks() {
     }
   };
 
+  // [libellé, fond, couleur] de chaque type de mouvement
+  const TYPES_MOUVEMENT = {
+    entree: ['↓ Approvisionnement', '#dcfce7', '#16a34a'],
+    sortie: ['↑ Sortie', '#fee2e2', '#dc2626'],
+    transfert: ['⇄ Transfert', '#dbeafe', '#2563eb'],
+    inventaire: ['📋 Inventaire', '#f3e8ff', '#7e22ce'],
+  };
+  const libelleTypeMouvement = (type) => (TYPES_MOUVEMENT[type] || [type])[0];
+  // Quantité affichée : signée pour un inventaire (+ surplus, − manquant).
+  const quantiteMouvement = (m) => (m.type === 'inventaire' && m.quantite > 0 ? `+${m.quantite}` : m.quantite);
+
   const origineDestination = (m) => {
+    if (m.type === 'inventaire' && m.comptoirId?.nom) return `Boutique : ${m.comptoirId.nom}`;
     if (m.type === 'transfert') {
       const magasinNom = m.magasinId?.nom || '—';
       const boutiqueNom = m.comptoirDestination?.nom || m.caisseDestination?.comptoirId?.nom || '—';
@@ -1576,6 +1592,7 @@ function AdminStocks() {
   );
 
   const origineDestinationBadges = (m) => {
+    if (m.type === 'inventaire' && m.comptoirId?.nom) return badgePill(m.comptoirId.nom, '#ffedd5', '#ea580c', '🏪');
     if (m.type === 'transfert') {
       const magasinNom = m.magasinId?.nom;
       const boutiqueNom = m.comptoirDestination?.nom || m.caisseDestination?.comptoirId?.nom;
@@ -1633,7 +1650,7 @@ function AdminStocks() {
     const lignes = mouvementsFiltres.map(m => [
       new Date(m.createdAt).toLocaleString('fr-FR'),
       m.produit?.nom || '',
-      m.type === 'entree' ? 'Approvisionnement' : m.type === 'transfert' ? 'Transfert' : 'Sortie',
+      libelleTypeMouvement(m.type).replace(/^\S+\s/, ''),
       m.quantite,
       m.stockRestant,
       origineDestination(m),
@@ -1785,6 +1802,7 @@ function AdminStocks() {
                     { id: 'entree', label: '↓ Approvisionnement' },
                     { id: 'sortie', label: '↑ Sortie' },
                     { id: 'transfert', label: '⇄ Transfert' },
+                    { id: 'inventaire', label: '📋 Inventaire' },
                   ].map(opt => (
                     <div key={opt.id} onClick={() => { setFiltreTypeMouvement(opt.id); setMenuFiltreOuvert(false); setPageMouvements(1); }} style={{
                       padding: '9px 14px', fontSize: '13px', cursor: 'pointer',
@@ -1841,12 +1859,12 @@ function AdminStocks() {
                   </td>
                   <td style={{ padding: '10px 8px' }}>
                     <span style={{
-                      background: m.type === 'entree' ? '#dcfce7' : m.type === 'transfert' ? '#dbeafe' : '#fee2e2',
-                      color: m.type === 'entree' ? '#16a34a' : m.type === 'transfert' ? '#2563eb' : '#dc2626',
+                      background: (TYPES_MOUVEMENT[m.type] || [])[1] || '#f1f5f9',
+                      color: (TYPES_MOUVEMENT[m.type] || [])[2] || '#64748b',
                       padding: '2px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap'
-                    }}>{m.type === 'entree' ? '↓ Approvisionnement' : m.type === 'transfert' ? '⇄ Transfert' : '↑ Sortie'}</span>
+                    }}>{libelleTypeMouvement(m.type)}</span>
                   </td>
-                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{m.quantite}</td>
+                  <td style={{ padding: '10px 8px', color: '#333', fontWeight: '500' }}>{quantiteMouvement(m)}</td>
                   <td style={{ padding: '10px 8px', color: '#333' }}>{m.stockRestant}</td>
                   <td style={{ padding: '10px 8px', fontSize: '13px' }}>{origineDestinationBadges(m)}</td>
                   <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{m.note || '—'}</td>
@@ -2138,93 +2156,102 @@ function AdminStocks() {
 }
 
 // ===================== INVENTAIRES =====================
-// Une session compare le stock théorique (enregistré) au stock réellement
-// compté d'un Magasin ou d'une Boutique, puis corrige le stock à la
-// validation — voir backend/routes/inventaires.js pour le détail des règles
-// (produits non comptés jamais touchés, écrasement volontaire par le
-// compte réel, pas un delta).
+// La "feuille du moment" d'une cible (Magasin ou Boutique) : pour chaque
+// produit, stock au dernier inventaire + entrées − sorties depuis = stock
+// attendu, comparé au stock compté. Consultable même sans session ouverte ;
+// "Ouvrir l'inventaire" démarre le comptage. À la validation, seul l'écart
+// constaté au moment de chaque comptage est appliqué au stock (les ventes et
+// transferts faits depuis — colonne "Autres mvts" — sont conservés), tracé
+// dans les mouvements de stock — voir backend/routes/inventaires.js.
 function AdminInventaires() {
   const token = localStorage.getItem('token');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
-  const [sessions, setSessions] = useState([]);
-  const [chargement, setChargement] = useState(true);
   const [magasins, setMagasins] = useState([]);
   const [boutiques, setBoutiques] = useState([]);
-  const [sessionOuverte, setSessionOuverte] = useState(null); // détail complet (avec lignes) en cours de consultation/comptage
+  const [cible, setCible] = useState(null); // { type: 'magasin' | 'comptoir', id }
+  const [feuille, setFeuille] = useState(null); // réponse de GET /api/inventaires/feuille
+  const [chargement, setChargement] = useState(false);
+  const [erreur, setErreur] = useState('');
+  const [recherche, setRecherche] = useState('');
+  const [onglet, setOnglet] = useState('tout'); // tout | a_compter | ecarts
+  const [enregistrement, setEnregistrement] = useState({}); // { [produitId]: 'ok' | 'erreur' | undefined }
+  const [envoi, setEnvoi] = useState(false);
+  // Historique des sessions, et session passée consultée (lecture seule)
+  const [vueHistorique, setVueHistorique] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [sessionConsultee, setSessionConsultee] = useState(null);
 
-  const charger = () => {
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API_URL}/api/magasins`, authHeaders).then(r => r.json()).catch(() => []),
+      fetch(`${API_URL}/api/comptoirs`, authHeaders).then(r => r.json()).catch(() => []),
+    ]).then(([m, b]) => {
+      const mags = Array.isArray(m) ? m.filter(x => x.actif) : [];
+      const bouts = Array.isArray(b) ? b.filter(x => x.actif) : [];
+      setMagasins(mags);
+      setBoutiques(bouts);
+      if (bouts[0]) setCible({ type: 'comptoir', id: bouts[0]._id });
+      else if (mags[0]) setCible({ type: 'magasin', id: mags[0]._id });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const chargerFeuille = () => {
+    if (!cible) return;
     setChargement(true);
-    fetch(`${API_URL}/api/inventaires`, authHeaders)
-      .then(r => r.json()).then(d => { setSessions(Array.isArray(d) ? d : []); setChargement(false); })
-      .catch(() => setChargement(false));
-  };
-  const chargerCibles = () => {
-    fetch(`${API_URL}/api/magasins`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setMagasins(d.filter(m => m.actif)); });
-    fetch(`${API_URL}/api/comptoirs`, authHeaders).then(r => r.json()).then(d => { if (Array.isArray(d)) setBoutiques(d.filter(b => b.actif)); });
+    setErreur('');
+    fetch(`${API_URL}/api/inventaires/feuille?cibleType=${cible.type}&cibleId=${cible.id}`, authHeaders)
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.message || 'Erreur'); setFeuille(d); })
+      .catch(e => { setFeuille(null); setErreur(e.message); })
+      .finally(() => setChargement(false));
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { charger(); chargerCibles(); }, []);
+  useEffect(() => { chargerFeuille(); }, [cible?.type, cible?.id]);
 
-  const ouvrirDetail = async (id) => {
-    const res = await fetch(`${API_URL}/api/inventaires/${id}`, authHeaders);
-    const data = await res.json();
-    if (res.ok) setSessionOuverte(data);
-    else window.alert(data.message || 'Erreur');
+  const chargerHistorique = () => {
+    fetch(`${API_URL}/api/inventaires`, authHeaders)
+      .then(r => r.json()).then(d => setSessions(Array.isArray(d) ? d : [])).catch(() => {});
   };
 
-  // ---------- Nouvelle session ----------
-  const [nouvelleSession, setNouvelleSession] = useState(null); // { cibleType, cibleId, referenceType }
-  const [envoiOuverture, setEnvoiOuverture] = useState(false);
-  const [erreurOuverture, setErreurOuverture] = useState('');
+  const session = feuille?.session || null;
 
-  const ouvrirFormNouvelle = () => {
-    setErreurOuverture('');
-    setNouvelleSession({ cibleType: 'magasin', cibleId: magasins[0]?._id || '', referenceType: 'historique_mouvements' });
-  };
-
-  const confirmerNouvelleSession = async () => {
-    if (!nouvelleSession.cibleId) { setErreurOuverture('Choisissez une cible.'); return; }
-    setEnvoiOuverture(true);
-    setErreurOuverture('');
+  // ---------- Actions de session ----------
+  const ouvrirInventaire = async () => {
+    if (!window.confirm(`Ouvrir un inventaire pour « ${feuille.cible.nom} » ? Vous pourrez continuer à vendre pendant le comptage.`)) return;
+    setEnvoi(true);
     try {
       const res = await fetch(`${API_URL}/api/inventaires`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(nouvelleSession),
+        body: JSON.stringify({ cibleType: cible.type, cibleId: cible.id, referenceType: 'historique_mouvements' }),
       });
       const data = await res.json();
-      if (!res.ok) { setErreurOuverture(data.message || 'Erreur'); return; }
-      setNouvelleSession(null);
-      charger();
-      setSessionOuverte(data);
-    } catch (e) {
-      setErreurOuverture(e.message);
+      if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
+      chargerFeuille();
     } finally {
-      setEnvoiOuverture(false);
+      setEnvoi(false);
     }
   };
-
-  // ---------- Comptage ----------
-  const [enregistrement, setEnregistrement] = useState({}); // { [produitId]: 'ok' | 'erreur' | undefined }
 
   const enregistrerCompte = async (produitId, valeur) => {
     if (valeur === '' || valeur === null) return;
     const qte = Number(valeur);
     if (isNaN(qte) || qte < 0) return;
-
     setEnregistrement(p => ({ ...p, [produitId]: undefined }));
     try {
-      const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/compter`, {
+      const res = await fetch(`${API_URL}/api/inventaires/${session._id}/compter`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ produitId, quantiteReelle: qte }),
       });
       const data = await res.json();
       if (!res.ok) { setEnregistrement(p => ({ ...p, [produitId]: 'erreur' })); window.alert(data.message || 'Erreur'); return; }
-      setSessionOuverte(prev => ({
+      const maj = { ...data };
+      delete maj.produitId;
+      setFeuille(prev => ({
         ...prev,
-        lignes: prev.lignes.map(l => l.produit === produitId ? { ...l, quantiteReelle: qte, compteLe: data.compteLe } : l),
+        session: { ...prev.session, lignes: prev.session.lignes.map(l => l.produit === produitId ? { ...l, ...maj } : l) },
       }));
       setEnregistrement(p => ({ ...p, [produitId]: 'ok' }));
       setTimeout(() => setEnregistrement(p => (p[produitId] === 'ok' ? { ...p, [produitId]: undefined } : p)), 1500);
@@ -2233,268 +2260,370 @@ function AdminInventaires() {
     }
   };
 
-  const [envoiCloture, setEnvoiCloture] = useState(false);
-
   const validerSession = async () => {
-    const compte = sessionOuverte.lignes.filter(l => l.quantiteReelle !== null).length;
-    const total = sessionOuverte.lignes.length;
+    const compte = session.lignes.filter(l => l.quantiteReelle !== null).length;
+    const total = session.lignes.length;
     const texte = compte < total
       ? `${compte} produit(s) compté(s) sur ${total}. Les ${total - compte} non comptés garderont leur stock actuel. Valider quand même ?`
-      : `Valider cet inventaire ? Le stock de chaque produit compté sera corrigé pour correspondre exactement à la quantité saisie.`;
+      : `Valider cet inventaire ? Le stock de chaque produit compté sera corrigé de l'écart constaté au moment du comptage (les ventes et transferts faits depuis restent pris en compte).`;
     if (!window.confirm(texte)) return;
-    setEnvoiCloture(true);
+    setEnvoi(true);
     try {
-      const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/valider`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/inventaires/${session._id}/valider`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
       window.alert(`✅ Inventaire validé : ${data.nbAjustes} produit(s) ajusté(s)${data.nbNonComptes > 0 ? `, ${data.nbNonComptes} non compté(s)` : ''}.`);
-      setSessionOuverte(null);
-      charger();
+      chargerFeuille();
     } catch (e) {
       window.alert(e.message);
     } finally {
-      setEnvoiCloture(false);
+      setEnvoi(false);
     }
   };
 
   const annulerSession = async () => {
-    if (!window.confirm('Annuler cette session ? Le comptage saisi sera perdu, le stock ne sera pas touché.')) return;
-    const res = await fetch(`${API_URL}/api/inventaires/${sessionOuverte._id}/annuler`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+    if (!window.confirm('Annuler cet inventaire ? Le comptage saisi sera perdu, le stock ne sera pas touché.')) return;
+    const res = await fetch(`${API_URL}/api/inventaires/${session._id}/annuler`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
     if (!res.ok) { window.alert(data.message || 'Erreur'); return; }
-    setSessionOuverte(null);
-    charger();
+    chargerFeuille();
   };
 
+  const consulterSession = async (s) => {
+    if (s.statut === 'en_cours') {
+      // Une session en cours se reprend directement sur la feuille de sa cible
+      setVueHistorique(false);
+      setCible({ type: s.cibleType, id: s.cibleId });
+      return;
+    }
+    const res = await fetch(`${API_URL}/api/inventaires/${s._id}`, authHeaders);
+    const data = await res.json();
+    if (res.ok) setSessionConsultee(data);
+    else window.alert(data.message || 'Erreur');
+  };
+
+  // ---------- Lignes affichées ----------
+  // Une ligne comptée affiche le détail FIGÉ au moment du comptage (repli
+  // sur le calcul en direct pour les comptages antérieurs à ce détail) ;
+  // "Autres mvts" = ce qui a bougé depuis le comptage, conservé à la
+  // validation. Une ligne non comptée affiche le calcul en direct.
+  const lignesFeuille = () => {
+    const parProduit = new Map((session?.lignes || []).map(l => [l.produit, l]));
+    return (feuille?.lignes || []).map(f => {
+      const s = parProduit.get(f.produit);
+      const compte = s && s.quantiteReelle !== null ? s.quantiteReelle : null;
+      const fige = compte !== null && s.attenduAuComptage !== null && s.attenduAuComptage !== undefined;
+      const attendu = fige ? s.attenduAuComptage : f.attendu;
+      return {
+        produit: f.produit, nom: f.nom, ref: f.ref, prix: f.prix,
+        dernierInv: fige ? s.dernierInv : f.dernierInv,
+        dernierInvEstime: fige ? !!s.dernierInvEstime : !!f.dernierInvEstime,
+        entrees: fige ? s.entrees : f.entrees,
+        sorties: fige ? s.sorties : f.sorties,
+        attendu, compte,
+        compteLe: s?.compteLe || null,
+        autres: compte !== null && s.stockAuComptage !== null && s.stockAuComptage !== undefined ? f.stockEnregistre - s.stockAuComptage : null,
+        horsSession: !!session && !s, // produit créé après l'ouverture : pas comptable dans cette session
+      };
+    });
+  };
+  const lignesSession = (inv) => inv.lignes.map(l => ({
+    produit: l.produit, nom: l.nom, ref: l.ref, prix: l.prix || 0,
+    dernierInv: l.dernierInv ?? null, dernierInvEstime: !!l.dernierInvEstime, entrees: l.entrees ?? null, sorties: l.sorties ?? null,
+    attendu: l.attenduAuComptage ?? l.quantiteTheorique,
+    compte: l.quantiteReelle, compteLe: l.compteLe,
+    autres: l.stockApresValidation !== null && l.stockApresValidation !== undefined && l.quantiteReelle !== null
+      ? l.stockApresValidation - l.quantiteReelle : null,
+  }));
+
+  const avecCalculs = (lignes) => lignes.map(l => {
+    const ecart = l.compte !== null ? l.compte - l.attendu : null;
+    return { ...l, ecart, valeur: ecart !== null ? ecart * (l.prix || 0) : null };
+  });
+
+  const formatFcfa = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
+  const signe = (n) => (n > 0 ? `+${n}` : `${n}`);
+  const dateFr = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
   const STATUTS = {
     en_cours: ['⏳ En cours', '#fef9c3', '#a16207'],
     valide: ['✅ Validé', '#dcfce7', '#166534'],
     annule: ['🚫 Annulé', '#f1f5f9', '#64748b'],
   };
-  const dateFr = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-  const LIBELLES_REFERENCE = {
-    historique_mouvements: '🤖 Calcul automatique',
-    stock_initial: 'Stock initial',
-    dernier_approvisionnement: 'Dernier approvisionnement',
-  };
 
-  // ---------- Vue "comptage" d'une session (ouverte ou consultée) ----------
-  if (sessionOuverte) {
-    const enCours = sessionOuverte.statut === 'en_cours';
-    const nbComptes = sessionOuverte.lignes.filter(l => l.quantiteReelle !== null).length;
+  // ---------- Rendu de la feuille (direct ou session passée) ----------
+  const rendreFeuille = ({ lignes, cibleType, enCours, entete }) => {
+    const toutes = avecCalculs(lignes);
+    const nbComptes = toutes.filter(l => l.compte !== null).length;
+    const avecEcart = toutes.filter(l => l.ecart !== null && l.ecart !== 0);
+    const manquants = avecEcart.filter(l => l.ecart < 0).reduce((s, l) => s + l.ecart, 0);
+    const surplus = avecEcart.filter(l => l.ecart > 0).reduce((s, l) => s + l.ecart, 0);
+    const totalSorties = toutes.reduce((s, l) => s + (l.sorties || 0), 0);
+    const totalValeur = toutes.reduce((s, l) => s + (l.valeur || 0), 0);
+    const libelleSorties = cibleType === 'magasin' ? 'Sorties' : 'Vendu';
+    const libelleEntrees = cibleType === 'magasin' ? 'Entrées' : 'Reçu';
+
+    const q = recherche.trim().toLowerCase();
+    const affichees = toutes.filter(l => {
+      if (q && !(l.nom.toLowerCase().includes(q) || (l.ref || '').toLowerCase().includes(q))) return false;
+      if (onglet === 'a_compter') return l.compte === null;
+      if (onglet === 'ecarts') return l.ecart !== null && l.ecart !== 0;
+      return true;
+    });
+
+    const exporter = async () => {
+      const entetes = ['Produit', 'Réf', 'Dernier inv.', libelleEntrees, libelleSorties, 'Attendu', 'Compté', 'Écart', 'Valeur (FCFA)', 'Autres mvts'];
+      const rows = toutes.map(l => [l.nom, l.ref || '', l.dernierInv ?? '', l.entrees ?? '', l.sorties ?? '', l.attendu, l.compte ?? '', l.ecart ?? '', l.valeur ?? '', l.autres ?? '']);
+      await telechargerXLSX(`inventaire-${Date.now()}.xlsx`, 'Inventaire', entetes, rows);
+    };
+
+    const tuile = (titre, valeur, sous, couleur = '#0f172a') => (
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', padding: '10px 16px', minWidth: '120px', flex: '1 1 120px' }}>
+        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{titre}</div>
+        <div style={{ fontSize: '20px', fontWeight: '800', color: couleur, margin: '2px 0' }}>{valeur}</div>
+        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{sous}</div>
+      </div>
+    );
+    const cellule = { padding: '10px 8px', fontSize: '13px', textAlign: 'right', whiteSpace: 'nowrap' };
+    const vide = <span style={{ color: '#cbd5e1' }}>—</span>;
+    const couleurEcart = (e) => (e === null ? '#94a3b8' : e === 0 ? '#16a34a' : e > 0 ? '#2563eb' : '#dc2626');
+
     return (
       <div>
-        <button onClick={() => setSessionOuverte(null)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginBottom: '12px', padding: 0 }}>
-          ← Retour aux inventaires
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '4px' }}>
-          <h2 style={{ margin: 0, color: '#0f172a' }}>{sessionOuverte.cibleType === 'magasin' ? '🏬' : '🏪'} {sessionOuverte.cibleNom}</h2>
-          {(() => { const [libelle, fond, couleur] = STATUTS[sessionOuverte.statut]; return <span style={{ background: fond, color: couleur, padding: '3px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{libelle}</span>; })()}
-        </div>
-        <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#666' }}>
-          Ouvert le {dateFr(sessionOuverte.createdAt)} par {sessionOuverte.nomCreePar || '—'} · Référence : {LIBELLES_REFERENCE[sessionOuverte.referenceType] || sessionOuverte.referenceType} · {nbComptes}/{sessionOuverte.lignes.length} produit(s) compté(s)
-          {sessionOuverte.statut === 'valide' && ` · Validé le ${dateFr(sessionOuverte.valideLe)} par ${sessionOuverte.nomValidePar || '—'}`}
-        </p>
+        {entete}
 
-        {enCours && (
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1e40af', marginBottom: '16px' }}>
-            ℹ️ Saisissez la quantité réellement comptée pour chaque produit — chaque saisie est enregistrée immédiatement. Les produits non comptés garderont leur stock actuel à la validation.
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {tuile('À compter', `${nbComptes} / ${toutes.length}`, `${toutes.length - nbComptes} en attente`)}
+          {tuile(libelleSorties, totalSorties, 'sur la période')}
+          {tuile('Écarts', avecEcart.length, `${manquants || '-0'} · +${surplus}`, avecEcart.length ? '#dc2626' : '#0f172a')}
+          {tuile('Valeur', formatFcfa(totalValeur), 'au prix de vente', totalValeur < 0 ? '#dc2626' : totalValeur > 0 ? '#2563eb' : '#0f172a')}
+        </div>
 
         <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', padding: '12px' }}>
+            <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="🔍 Chercher un produit, une réf..."
+              style={{ height: '36px', padding: '0 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', width: '220px', maxWidth: '100%', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
+              {[['tout', 'Tout'], ['a_compter', 'À compter'], ['ecarts', 'Écarts']].map(([id, libelle]) => (
+                <button key={id} onClick={() => setOnglet(id)} style={{
+                  padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+                  background: onglet === id ? 'white' : 'transparent', color: onglet === id ? '#0f172a' : '#64748b',
+                  boxShadow: onglet === id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                }}>{libelle}</button>
+              ))}
+            </div>
+            <button onClick={exporter} title="Exporter en Excel" style={{ marginLeft: 'auto', height: '36px', padding: '0 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>⬇️ Excel</button>
+          </div>
+
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                  {['Produit', 'Réf', 'Théorique', 'Compté', 'Écart', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                  {[['Produit', 'left'], ['Dernier inv.'], [libelleEntrees], [libelleSorties], ['Attendu'], ['Compté'], ['Écart'], ['Valeur'], ['Autres mvts']].map(([h, align = 'right']) => (
+                    <th key={h} style={{ padding: '10px 8px', textAlign: align, fontSize: '12px', color: '#666', fontWeight: '600', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {sessionOuverte.lignes.map(l => {
-                  const ecart = l.quantiteReelle !== null ? l.quantiteReelle - l.quantiteTheorique : null;
-                  return (
-                    <tr key={l.produit} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{l.nom}</td>
-                      <td style={{ padding: '10px 8px', color: '#2563eb', fontSize: '13px' }}>{l.ref || '—'}</td>
-                      <td style={{ padding: '10px 8px', color: '#666' }}>
-                        {l.quantiteTheorique}
-                        {l.referenceDate && <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(l.referenceDate).toLocaleDateString('fr-FR')}</div>}
-                      </td>
-                      <td style={{ padding: '10px 8px' }}>
-                        {enCours ? (
-                          <input type="number" min="0" defaultValue={l.quantiteReelle ?? ''} placeholder="—"
-                            onBlur={e => enregistrerCompte(l.produit, e.target.value)}
+                {affichees.length === 0 && (
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '13px' }}>Aucun produit ne correspond.</td></tr>
+                )}
+                {affichees.map(l => (
+                  <tr key={l.produit} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '10px 8px' }}>
+                      <div style={{ fontWeight: '600', color: '#333', fontSize: '13px' }}>{l.nom}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{l.ref || '—'}</div>
+                    </td>
+                    <td style={{ ...cellule, color: l.dernierInvEstime ? '#94a3b8' : '#475569', fontStyle: l.dernierInvEstime ? 'italic' : 'normal' }}
+                      title={l.dernierInvEstime ? "Jamais inventorié : stock de départ estimé d'après le stock enregistré" : ''}>
+                      {l.dernierInv === null ? vide : `${l.dernierInvEstime ? '≈ ' : ''}${l.dernierInv}`}
+                    </td>
+                    <td style={{ ...cellule, color: '#475569' }}>{l.entrees ?? vide}</td>
+                    <td style={{ ...cellule, color: '#475569' }}>{l.sorties === null ? vide : `-${l.sorties}`}</td>
+                    <td style={{ ...cellule, fontWeight: '700', color: '#0f172a' }}>{l.attendu}</td>
+                    <td style={{ ...cellule }}>
+                      {enCours && !l.horsSession ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <input type="number" min="0" defaultValue={l.compte ?? ''} placeholder="—"
+                            onBlur={e => { if (String(l.compte ?? '') !== e.target.value) enregistrerCompte(l.produit, e.target.value); }}
                             onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
                             style={{
-                              width: '80px', padding: '6px 8px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box',
+                              width: '70px', padding: '5px 6px', borderRadius: '6px', fontSize: '13px', textAlign: 'right', boxSizing: 'border-box',
                               border: '1px solid ' + (enregistrement[l.produit] === 'erreur' ? '#fecaca' : '#e2e8f0'),
                             }} />
-                        ) : (l.quantiteReelle ?? '—')}
-                        {enregistrement[l.produit] === 'ok' && <span style={{ marginLeft: '6px', color: '#16a34a', fontSize: '12px' }}>✓</span>}
-                      </td>
-                      <td style={{ padding: '10px 8px', fontWeight: '700', color: ecart === null ? '#94a3b8' : ecart === 0 ? '#16a34a' : ecart > 0 ? '#2563eb' : '#dc2626' }}>
-                        {ecart === null ? '—' : ecart > 0 ? `+${ecart}` : ecart}
-                      </td>
-                      <td style={{ padding: '10px 8px', fontSize: '12px', color: '#94a3b8' }}>{l.compteLe ? dateFr(l.compteLe) : ''}</td>
-                    </tr>
-                  );
-                })}
+                          <span style={{ width: '10px', color: '#16a34a', fontSize: '12px' }}>{enregistrement[l.produit] === 'ok' ? '✓' : ''}</span>
+                        </span>
+                      ) : l.horsSession ? (
+                        <span title="Produit créé après l'ouverture de cet inventaire" style={{ fontSize: '11px', color: '#94a3b8' }}>hors session</span>
+                      ) : (l.compte ?? vide)}
+                    </td>
+                    <td style={{ ...cellule, fontWeight: '700', color: couleurEcart(l.ecart) }}>{l.ecart === null ? vide : signe(l.ecart)}</td>
+                    <td style={{ ...cellule, color: couleurEcart(l.valeur) }}>{l.valeur === null ? vide : formatFcfa(l.valeur)}</td>
+                    <td style={{ ...cellule, color: '#64748b' }} title={l.autres ? 'Mouvements survenus après le comptage — conservés à la validation' : ''}>
+                      {l.autres === null || l.autres === 0 ? vide : signe(l.autres)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
+      </div>
+    );
+  };
 
-        {enCours && (
-          <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-            <button onClick={annulerSession} style={{ padding: '10px 20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#dc2626', fontWeight: '600' }}>
-              Annuler la session
-            </button>
-            <button onClick={validerSession} disabled={envoiCloture} style={{
-              padding: '10px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px',
-              cursor: envoiCloture ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiCloture ? 0.7 : 1
-            }}>{envoiCloture ? 'Validation...' : '✅ Valider l\'inventaire'}</button>
+  const boutonSecondaire = { padding: '9px 14px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#475569' };
+  const lienRetour = (onClick, texte) => (
+    <button onClick={onClick} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginBottom: '12px', padding: 0 }}>{texte}</button>
+  );
+
+  // ---------- Session passée consultée ----------
+  if (sessionConsultee) {
+    const s = sessionConsultee;
+    const [libelle, fond, couleur] = STATUTS[s.statut];
+    return rendreFeuille({
+      lignes: lignesSession(s), cibleType: s.cibleType, enCours: false,
+      entete: (
+        <div style={{ marginBottom: '16px' }}>
+          {lienRetour(() => setSessionConsultee(null), '← Retour à l\'historique')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, color: '#0f172a' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</h2>
+            <span style={{ background: fond, color: couleur, padding: '3px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{libelle}</span>
           </div>
-        )}
+          <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666' }}>
+            Ouvert le {dateFr(s.createdAt)} par {s.nomCreePar || '—'}
+            {s.statut === 'valide' && ` · Validé le ${dateFr(s.valideLe)} par ${s.nomValidePar || '—'}`}
+          </p>
+        </div>
+      ),
+    });
+  }
+
+  // ---------- Historique des sessions ----------
+  if (vueHistorique) {
+    return (
+      <div>
+        {lienRetour(() => setVueHistorique(false), '← Retour à la feuille')}
+        <h2 style={{ margin: '0 0 16px', color: '#0f172a' }}>Historique des inventaires</h2>
+        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          {sessions.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '13px' }}>Aucun inventaire pour l'instant.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                    {['Cible', 'Ouvert le', 'Par', 'Statut', ''].map(h => (
+                      <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map(s => {
+                    const [libelle, fond, couleur] = STATUTS[s.statut];
+                    return (
+                      <tr key={s._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                        <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</td>
+                        <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{dateFr(s.createdAt)}</td>
+                        <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.nomCreePar || '—'}</td>
+                        <td style={{ padding: '10px 8px' }}>
+                          <span style={{ background: fond, color: couleur, padding: '2px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{libelle}</span>
+                        </td>
+                        <td style={{ padding: '10px 8px' }}>
+                          <button onClick={() => consulterSession(s)} style={{ padding: '5px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>
+                            {s.statut === 'en_cours' ? 'Continuer le comptage' : 'Voir le détail'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  // ---------- Vue "liste des sessions" ----------
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Icone nom="inventaires" size={30} /> Inventaires
-        </h2>
-        <button onClick={ouvrirFormNouvelle} disabled={magasins.length === 0 && boutiques.length === 0} style={{
-          padding: '10px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px',
-          cursor: 'pointer', fontSize: '13px', fontWeight: '700'
-        }}>+ Nouvel inventaire</button>
-      </div>
-      <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#666' }}>
-        Comptez le stock réel d'un magasin ou d'une boutique et comparez-le au stock enregistré ; à la validation, le stock est corrigé pour correspondre au compte réel.
-      </p>
-
-      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-        {chargement ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Chargement...</div>
-        ) : sessions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '13px' }}>Aucun inventaire pour l'instant.</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                  {['Cible', 'Référence', 'Ouvert le', 'Par', 'Statut', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: '13px', color: '#666', fontWeight: '600' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map(s => {
-                  const [libelle, fond, couleur] = STATUTS[s.statut];
-                  return (
-                    <tr key={s._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '10px 8px', fontWeight: '600', color: '#333' }}>{s.cibleType === 'magasin' ? '🏬' : '🏪'} {s.cibleNom}</td>
-                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{LIBELLES_REFERENCE[s.referenceType] || s.referenceType}</td>
-                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{dateFr(s.createdAt)}</td>
-                      <td style={{ padding: '10px 8px', color: '#666', fontSize: '13px' }}>{s.nomCreePar || '—'}</td>
-                      <td style={{ padding: '10px 8px' }}>
-                        <span style={{ background: fond, color: couleur, padding: '2px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>{libelle}</span>
-                      </td>
-                      <td style={{ padding: '10px 8px' }}>
-                        <button onClick={() => ouvrirDetail(s._id)} style={{ padding: '5px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>
-                          {s.statut === 'en_cours' ? 'Continuer le comptage' : 'Voir le détail'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {nouvelleSession && (
-        <div onClick={() => setNouvelleSession(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
-            <h3 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: '16px' }}>Nouvel inventaire</h3>
-
-            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Que voulez-vous compter ?</label>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-              {[['magasin', '🏬 Un magasin'], ['comptoir', '🏪 Une boutique']].map(([val, libelle]) => (
-                <button key={val} onClick={() => setNouvelleSession({
-                  cibleType: val, cibleId: (val === 'magasin' ? magasins[0]?._id : boutiques[0]?._id) || '',
-                  // Une boutique ne reçoit que des transferts, jamais d'entrée directe :
-                  // "dernier approvisionnement" n'a pas de sens ici, on repasse sur "stock initial".
-                  referenceType: val === 'comptoir' && nouvelleSession.referenceType === 'dernier_approvisionnement' ? 'stock_initial' : nouvelleSession.referenceType,
-                })} style={{
-                  flex: 1, padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
-                  background: nouvelleSession.cibleType === val ? '#2563eb' : '#f1f5f9', color: nouvelleSession.cibleType === val ? 'white' : '#475569'
-                }}>{libelle}</button>
-              ))}
-            </div>
-
-            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>
-              {nouvelleSession.cibleType === 'magasin' ? 'Magasin' : 'Boutique'}
-            </label>
-            {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#dc2626', marginBottom: '14px' }}>
-                Aucun{nouvelleSession.cibleType === 'magasin' ? ' magasin actif' : 'e boutique active'} — créez-en un(e) dans Stocks.
-              </div>
-            ) : (
-              <select value={nouvelleSession.cibleId} onChange={e => setNouvelleSession({ ...nouvelleSession, cibleId: e.target.value })}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '14px' }}>
-                {(nouvelleSession.cibleType === 'magasin' ? magasins : boutiques).map(c => <option key={c._id} value={c._id}>{c.nom}</option>)}
-              </select>
-            )}
-
-            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Comparer le compte réel à...</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {[
-                ['historique_mouvements', '🤖 Calcul automatique', "Recalculé depuis les transferts reçus moins les ventes (boutique), ou les entrées moins les sorties et transferts sortants (magasin) — ignore le stock actuellement enregistré."],
-                ['stock_initial', 'Stock initial', 'Ce qui avait été corrigé au dernier inventaire de cette cible (ou le stock actuel s\'il n\'y en a jamais eu).'],
-                ['dernier_approvisionnement', 'Dernier approvisionnement', 'Le stock juste après le dernier réapprovisionnement de chaque produit.'],
-              ].map(([val, libelle, desc]) => {
-                const indisponible = val === 'dernier_approvisionnement' && nouvelleSession.cibleType === 'comptoir';
-                return (
-                  <label key={val} style={{
-                    display: 'flex', gap: '8px', padding: '9px 10px', borderRadius: '8px', cursor: indisponible ? 'not-allowed' : 'pointer',
-                    border: '1px solid ' + (nouvelleSession.referenceType === val ? '#93c5fd' : '#e2e8f0'),
-                    background: nouvelleSession.referenceType === val ? '#eff6ff' : 'white', opacity: indisponible ? 0.5 : 1,
-                  }}>
-                    <input type="radio" name="referenceType" checked={nouvelleSession.referenceType === val} disabled={indisponible}
-                      onChange={() => setNouvelleSession({ ...nouvelleSession, referenceType: val })} style={{ marginTop: '3px' }} />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{libelle}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>{indisponible ? "Indisponible pour une boutique : elle ne reçoit que des transferts, jamais d'entrée directe." : desc}</div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-
-            {erreurOuverture && <div style={{ color: '#dc2626', fontSize: '13px', marginTop: '10px' }}>⚠️ {erreurOuverture}</div>}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-              <button onClick={() => setNouvelleSession(null)} style={{
-                flex: 1, padding: '10px', background: '#f1f5f9', border: 'none',
-                borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#666', fontWeight: '600'
-              }}>Annuler</button>
-              <button onClick={confirmerNouvelleSession} disabled={envoiOuverture} style={{
-                flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none',
-                borderRadius: '8px', cursor: envoiOuverture ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700', opacity: envoiOuverture ? 0.7 : 1
-              }}>{envoiOuverture ? '...' : 'Ouvrir la session'}</button>
-            </div>
-          </div>
-        </div>
+  // ---------- Feuille du moment ----------
+  const selecteurCible = (
+    <select value={cible ? `${cible.type}:${cible.id}` : ''} onChange={e => { const [type, id] = e.target.value.split(':'); setCible({ type, id }); }}
+      style={{ height: '38px', padding: '0 10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', background: 'white', maxWidth: '100%' }}>
+      {boutiques.length > 0 && (
+        <optgroup label="Boutiques">{boutiques.map(b => <option key={b._id} value={`comptoir:${b._id}`}>🏪 {b.nom}</option>)}</optgroup>
       )}
+      {magasins.length > 0 && (
+        <optgroup label="Magasins">{magasins.map(m => <option key={m._id} value={`magasin:${m._id}`}>🏬 {m.nom}</option>)}</optgroup>
+      )}
+    </select>
+  );
+
+  const entete = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+      <div>
+        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Icone nom="inventaires" size={30} /> Inventaire
+        </h2>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666' }}>
+          {session
+            ? <>⏳ Inventaire en cours — ouvert le {dateFr(session.createdAt)} par {session.nomCreePar || '—'}</>
+            : <>Aucun inventaire en cours — {feuille?.depuis ? `depuis le dernier inventaire du ${dateFr(feuille.depuis)}` : "aucun inventaire validé : stock de départ estimé (≈) d'après le stock enregistré"}</>}
+        </p>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {selecteurCible}
+        <button onClick={() => { chargerHistorique(); setVueHistorique(true); }} style={boutonSecondaire}>🕘 Historique</button>
+        {feuille && (session ? (
+          <>
+            <button onClick={annulerSession} style={{ ...boutonSecondaire, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>Annuler</button>
+            <button onClick={validerSession} disabled={envoi} style={{
+              padding: '9px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px',
+              cursor: envoi ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '700', opacity: envoi ? 0.7 : 1,
+            }}>{envoi ? 'Validation...' : '✅ Valider l\'inventaire'}</button>
+          </>
+        ) : (
+          <button onClick={ouvrirInventaire} disabled={envoi} style={{
+            padding: '9px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px',
+            cursor: envoi ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '700', opacity: envoi ? 0.7 : 1,
+          }}>▶ Ouvrir l'inventaire</button>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!cible) {
+    return (
+      <div>
+        {entete}
+        <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '13px', background: 'white', borderRadius: '12px' }}>
+          Aucun magasin ni boutique actif — créez-en un(e) dans Stocks.
+        </div>
+      </div>
+    );
+  }
+  if (!feuille) {
+    return (
+      <div>
+        {entete}
+        <div style={{ textAlign: 'center', padding: '40px', color: erreur ? '#dc2626' : '#999', fontSize: '13px', background: 'white', borderRadius: '12px' }}>
+          {erreur ? `⚠️ ${erreur}` : 'Chargement...'}
+        </div>
+      </div>
+    );
+  }
+
+  const bandeau = session && (
+    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1e40af', marginBottom: '12px' }}>
+      ℹ️ Saisissez la quantité comptée pour chaque produit — chaque saisie est enregistrée immédiatement. Vous pouvez continuer à vendre : ce qui bouge après un comptage apparaît dans « Autres mvts » et reste pris en compte à la validation.
+    </div>
+  );
+
+  return (
+    <div style={{ opacity: chargement ? 0.6 : 1 }}>
+      {/* key : remonte les champs de saisie (defaultValue) quand on change de cible ou de session */}
+      <div key={`${cible.type}:${cible.id}:${session?._id || 'aucune'}`}>
+        {rendreFeuille({ lignes: lignesFeuille(), cibleType: cible.type, enCours: !!session, entete: <>{entete}{bandeau}</> })}
+      </div>
     </div>
   );
 }
@@ -3357,6 +3486,54 @@ async function lireFichierImportProduits(fichier) {
   return lignes;
 }
 
+// Rapport "État des stocks" : une colonne par Magasin (réserve) et une par
+// Boutique (stock vendable, décompté à la vente), avec leurs totaux. Les
+// magasins/boutiques listés sont ceux qui apparaissent dans les stocks des
+// produits (déjà populés par GET /api/produits, en ligne comme sur le
+// desktop). "État" suit la même règle que la cloche d'alertes : une boutique
+// est en alerte quand son stock du produit est au seuil ou en dessous.
+function construireRapportStocks(produits) {
+  const lieux = (cle, champ) => {
+    const parId = new Map();
+    produits.forEach(p => (p[cle] || []).forEach(s => {
+      const lieu = s[champ];
+      if (lieu && typeof lieu === 'object' && !parId.has(lieu._id)) parId.set(lieu._id, lieu.nom || '—');
+    }));
+    return [...parId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+  };
+  const magasins = lieux('stockMagasins', 'magasin');
+  const boutiques = lieux('stockComptoirs', 'comptoir');
+  const qteDans = (liste, champ, id) => {
+    const s = (liste || []).find(x => (x[champ]?._id ?? x[champ]) === id);
+    return s ? s.quantite : null; // null = produit jamais placé à cet endroit
+  };
+
+  const entetes = [
+    'Nom', 'Référence', 'Catégorie', 'Prix (FCFA)',
+    ...magasins.map(([, nom]) => `Magasin · ${nom}`), 'Total magasins',
+    ...boutiques.map(([, nom]) => `Boutique · ${nom}`), 'Total boutiques',
+    'Stock total', "Seuil d'alerte", 'État',
+  ];
+  const lignes = produits.map(p => {
+    const seuil = p.seuilAlerte ?? 5;
+    const parMagasin = magasins.map(([id]) => qteDans(p.stockMagasins, 'magasin', id));
+    const parBoutique = boutiques.map(([id]) => qteDans(p.stockComptoirs, 'comptoir', id));
+    const totalMagasins = p.quantite || 0; // tenu à jour = somme de stockMagasins (voir models/Produit.js)
+    const totalBoutiques = parBoutique.reduce((s, q) => s + (q || 0), 0);
+    const enAlerte = boutiques.filter((_, i) => parBoutique[i] !== null && parBoutique[i] <= seuil).map(([, nom]) => nom);
+    const etat = totalMagasins + totalBoutiques === 0 ? 'Rupture'
+      : enAlerte.length > 0 ? `Stock bas : ${enAlerte.join(', ')}`
+      : 'OK';
+    return [
+      p.nom || '', p.ref || '', p.categorie || '', p.prix || 0,
+      ...parMagasin.map(q => q ?? ''), totalMagasins,
+      ...parBoutique.map(q => q ?? ''), totalBoutiques,
+      totalMagasins + totalBoutiques, seuil, etat,
+    ];
+  });
+  return { titre: 'État des stocks', nomFichier: `etat-stocks-${Date.now()}.xlsx`, entetes, lignes };
+}
+
 function AdminRapports() {
   const [export_, setExport_] = useState('');
   // Rapport chargé, affiché dans l'appli avant tout téléchargement :
@@ -3388,11 +3565,7 @@ function AdminRapports() {
     try {
       const res = await fetch(`${API_URL}/api/produits`, { headers: { Authorization: `Bearer ${token}` } });
       const produits = await res.json();
-      const entetes = ['Nom', 'Référence', 'Catégorie', 'Prix (FCFA)', 'Stock', "Seuil d'alerte"];
-      const lignes = (Array.isArray(produits) ? produits : []).map(p => [
-        p.nom || '', p.ref || '', p.categorie || '', p.prix || 0, p.quantite || 0, p.seuilAlerte || 0
-      ]);
-      setApercuRapport({ titre: 'État des stocks', nomFichier: `etat-stocks-${Date.now()}.xlsx`, entetes, lignes });
+      setApercuRapport(construireRapportStocks(Array.isArray(produits) ? produits : []));
     } catch (err) {
       alert('Erreur : ' + err.message);
     } finally {
@@ -3431,7 +3604,7 @@ function AdminRapports() {
 
   const rapports = [
     { iconKey: 'ventes', label: 'Rapport des ventes', desc: 'Ventes par période, par vendeur', color: '#dbeafe', action: chargerVentes, key: 'ventes' },
-    { iconKey: 'stock', label: 'État des stocks', desc: 'Niveaux de stock, alertes', color: '#dcfce7', action: chargerStocks, key: 'stocks' },
+    { iconKey: 'stock', label: 'État des stocks', desc: 'Stock par magasin et par boutique, alertes', color: '#dcfce7', action: chargerStocks, key: 'stocks' },
     { iconKey: 'produits', label: 'Rapport fournisseurs', desc: 'Liste des fournisseurs', color: '#ede9fe', action: chargerFournisseurs, key: 'fournisseurs' },
   ];
 
@@ -3466,7 +3639,7 @@ function AdminRapports() {
         }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: 'white', borderRadius: '14px', padding: '24px',
-            width: '100%', maxWidth: '820px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
+            width: '100%', maxWidth: '1100px', maxHeight: '85vh', display: 'flex', flexDirection: 'column'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
               <h3 style={{ margin: 0, color: '#0f172a' }}>{apercuRapport.titre}</h3>

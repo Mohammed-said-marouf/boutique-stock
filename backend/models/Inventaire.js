@@ -6,8 +6,10 @@ const { v4: uuidv4 } = require('uuid');
 // le comptage), calculée selon Inventaire.referenceType — voir plus bas ;
 // referenceDate indique de quand date cette référence (null = pas de
 // référence trouvée, repli sur le stock actuel). quantiteReelle est saisie
-// par l'admin (null = pas encore compté). Voir routes/inventaires.js pour
-// comment l'écart est appliqué au stock à la validation.
+// par l'admin (null = pas encore compté) ; stockAuComptage est le stock
+// enregistré au moment de cette saisie, pour n'appliquer à la validation que
+// l'écart constaté, sans écraser les ventes/transferts survenus entre le
+// comptage et la validation. Voir routes/inventaires.js (PUT /:id/valider).
 const ligneInventaireSchema = new mongoose.Schema({
   produit: { type: String, ref: 'Produit', required: true },
   nom: { type: String, required: true },   // figés au moment de l'ouverture :
@@ -16,13 +18,26 @@ const ligneInventaireSchema = new mongoose.Schema({
   referenceDate: { type: Date, default: null },
   quantiteReelle: { type: Number, default: null },
   compteLe: { type: Date, default: null },
+  stockAuComptage: { type: Number, default: null },
+  // Détail de la feuille figé au moment du comptage (voir calculerFeuille
+  // dans routes/inventaires.js) : stock au dernier inventaire, entrées et
+  // sorties depuis, et stock attendu qui en découle. null = pas compté.
+  dernierInv: { type: Number, default: null },
+  dernierInvEstime: { type: Boolean, default: false }, // jamais inventorié : départ déduit du stock enregistré
+  entrees: { type: Number, default: null },
+  sorties: { type: Number, default: null },
+  attenduAuComptage: { type: Number, default: null },
+  // Stock de la cible juste après la validation (compté + mouvements
+  // survenus depuis le comptage) — point de départ du prochain inventaire.
+  // null = pas compté, ou session validée avant l'ajout de ce champ.
+  stockApresValidation: { type: Number, default: null },
 }, { _id: false });
 
 // Une session d'inventaire = le comptage physique du stock d'UNE cible
 // (un Magasin ou une Boutique/Comptoir) à un instant donné, pour un Compte.
-// À la validation, le stock de chaque produit compté est mis à jour pour
-// correspondre exactement à la quantité réelle saisie (pas un simple
-// journal : ça corrige le stock, voir PUT /:id/valider).
+// À la validation, le stock de chaque produit compté est corrigé de l'écart
+// constaté au moment du comptage, tracé par un MouvementStock 'inventaire'
+// (pas un simple journal : ça corrige le stock, voir PUT /:id/valider).
 const inventaireSchema = new mongoose.Schema({
   _id: { type: String, default: uuidv4 },
   boutiqueId: { type: String, ref: 'Boutique', required: true },
