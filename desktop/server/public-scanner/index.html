@@ -48,6 +48,8 @@
   .btn-deconnexion { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; }
 
   .zone-scan { padding: 14px 16px; }
+  .zone-comptoir { margin-bottom: 12px; padding: 10px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .zone-comptoir select { padding: 6px 10px; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 13px; background: white; font-weight: 600; color: #1e40af; }
   #lecteur-qr { width: 100%; max-width: 340px; margin: 0 auto; border-radius: 12px; overflow: hidden; }
   .msg-scan { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; }
   .msg-scan.ok { background: #dcfce7; color: var(--vert); }
@@ -117,6 +119,11 @@
     </div>
 
     <div class="zone-scan">
+      <div id="zone-comptoir" class="zone-comptoir masque">
+        <span style="font-size:13px;color:#2563eb;font-weight:600;">🏪 Comptoir de vente :</span>
+        <select id="select-comptoir" onchange="changerComptoir(this.value)"></select>
+      </div>
+      <div id="zone-aucun-comptoir" class="msg-scan err masque">⚠️ Aucun comptoir actif — demandez à l'admin d'en créer un avant de pouvoir vendre.</div>
       <button class="bouton" id="btn-toggle-scan" onclick="basculerScan()" style="background:#059669;color:white;">📷 Scanner un QR</button>
       <div id="lecteur-qr" style="margin-top:10px;"></div>
       <div id="msg-scan" class="msg-scan masque"></div>
@@ -162,6 +169,15 @@ let scanner = null;
 let scanActif = false;
 let dernierScan = { code: null, ts: 0 };
 let derniereFacture = null;
+let comptoirs = [];
+let comptoirId = localStorage.getItem('bs_comptoir_id') || null;
+
+// Stock vendable d'un produit AU COMPTOIR sélectionné (pas produit.quantite,
+// qui est le stock Magasin, non vendable directement).
+function stockComptoirDe(produit) {
+  const entree = (produit.stockComptoirs || []).find(sc => (sc.comptoir && sc.comptoir._id) === comptoirId);
+  return entree ? entree.quantite : 0;
+}
 
 function afficherEcran(id) {
   document.querySelectorAll('.ecran').forEach(e => e.classList.remove('actif'));
@@ -235,7 +251,44 @@ async function entrerDansCaisse() {
   document.getElementById('txt-nom-boutique').textContent = (utilisateur.boutique && utilisateur.boutique.nom) || 'Boutique';
   document.getElementById('txt-nom-vendeur').textContent = utilisateur.nom || '';
   afficherEcran('ecran-caisse');
+  await chargerComptoirs();
   await chargerProduits();
+}
+
+async function chargerComptoirs() {
+  try {
+    const res = await fetch(`${API}/api/comptoirs`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error();
+    const tous = await res.json();
+    comptoirs = tous.filter(c => c.actif);
+  } catch (e) {
+    comptoirs = [];
+  }
+
+  const zoneComptoir = document.getElementById('zone-comptoir');
+  const zoneAucun = document.getElementById('zone-aucun-comptoir');
+  const select = document.getElementById('select-comptoir');
+
+  if (comptoirs.length === 0) {
+    zoneComptoir.classList.add('masque');
+    zoneAucun.classList.remove('masque');
+    comptoirId = null;
+    return;
+  }
+  zoneAucun.classList.add('masque');
+  zoneComptoir.classList.remove('masque');
+
+  if (!comptoirId || !comptoirs.some(c => c._id === comptoirId)) {
+    comptoirId = comptoirs[0]._id;
+  }
+  localStorage.setItem('bs_comptoir_id', comptoirId);
+
+  select.innerHTML = comptoirs.map(c => `<option value="${c._id}" ${c._id === comptoirId ? 'selected' : ''}>${escapeHtml(c.nom)}</option>`).join('');
+}
+
+function changerComptoir(id) {
+  comptoirId = id;
+  localStorage.setItem('bs_comptoir_id', comptoirId);
 }
 
 async function chargerProduits() {
@@ -308,7 +361,8 @@ function onScanReussi(texteDecode) {
 
   const produit = produits.find(p => p._id === donnees.id);
   if (!produit) { bipErreur(); afficherMessageScan('err', `Produit introuvable : ${donnees.nom || ''}`); return; }
-  if (produit.quantite <= 0) { bipErreur(); afficherMessageScan('err', `Rupture de stock : ${produit.nom}`); return; }
+  if (!comptoirId) { bipErreur(); afficherMessageScan('err', 'Choisissez un comptoir de vente en haut de l\'écran.'); return; }
+  if (stockComptoirDe(produit) <= 0) { bipErreur(); afficherMessageScan('err', `Rupture de stock à ce comptoir : ${produit.nom}`); return; }
 
   bipSucces();
   afficherMessageScan('ok', `${produit.nom} ajouté au panier`);
@@ -321,7 +375,7 @@ function onScanReussi(texteDecode) {
 function ajouterAuPanier(produit) {
   const existant = panier[produit._id];
   if (existant) {
-    if (existant.qte >= produit.quantite) return; // ne dépasse pas le stock connu
+    if (existant.qte >= stockComptoirDe(produit)) return; // ne dépasse pas le stock connu à ce comptoir
     existant.qte += 1;
   } else {
     panier[produit._id] = { produit, qte: 1 };
@@ -373,6 +427,7 @@ function escapeHtml(s) {
 async function validerVente() {
   const items = Object.values(panier);
   if (items.length === 0) { alert('Le panier est vide.'); return; }
+  if (!comptoirId) { alert("Choisissez d'abord un comptoir de vente en haut de l'écran."); return; }
 
   const produitsVente = items.map(({ produit, qte }) => ({
     produit: produit._id,
@@ -393,6 +448,7 @@ async function validerVente() {
         nomVendeur: utilisateur.nom,
         clientNom: 'Client anonyme',
         boutiqueId: utilisateur.boutique ? utilisateur.boutique._id : null,
+        comptoirId,
       }),
     });
     const data = await res.json();

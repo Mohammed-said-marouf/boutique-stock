@@ -58,6 +58,13 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
 db.exec(schema);
 
+// Comble l'écart de schéma pour les postes ayant déjà lancé l'app avant
+// l'ajout du système Magasin/Comptoir (voir migrations.js pour le détail —
+// schema.sql seul ne suffit pas car CREATE TABLE IF NOT EXISTS ne modifie
+// jamais une table déjà créée).
+const { executerMigrations } = require('./migrations');
+executerMigrations(db);
+
 console.log(`✅ Base SQLite locale initialisée : ${cheminBase}`);
 
 module.exports = db;
