@@ -31,14 +31,18 @@ function versFormatApi(ligne) {
   };
 }
 
-// GET - Lister les clients (filtrable par boutiqueId)
+// GET - Liste des clients de la boutique de l'utilisateur connecté — même
+// règle que le backend en ligne (routes/clients.js) : boutiqueId vient
+// TOUJOURS de l'identité pour un admin/vendeur, jamais d'un paramètre
+// envoyé par le client (qu'aucun appel réel du frontend n'envoie de toute
+// façon — voir VendeurLayout.js listerClients()).
 router.get('/', (req, res) => {
   try {
     let sql = 'SELECT * FROM clients WHERE is_deleted = 0';
     const params = [];
-    if (req.query.boutiqueId) {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'vendeur') && req.user.boutiqueId) {
       sql += ' AND boutique_id = ?';
-      params.push(req.query.boutiqueId);
+      params.push(req.user.boutiqueId);
     }
     sql += ' ORDER BY created_at DESC';
 
@@ -49,12 +53,19 @@ router.get('/', (req, res) => {
   }
 });
 
-// POST - Créer un client
+// POST - Créer un client, rattaché automatiquement à la boutique de
+// l'utilisateur connecté (même règle que le backend en ligne) — jamais à un
+// boutiqueId envoyé par le client, qu'aucun appel réel du frontend n'envoie
+// de toute façon (voir VendeurLayout.js creerClient()).
 router.post('/', (req, res) => {
   try {
-    const { nom, telephone, email, boutiqueId } = req.body;
-    if (!nom || !boutiqueId) {
-      return res.status(400).json({ message: 'nom et boutiqueId sont requis.' });
+    const { nom, telephone, email } = req.body;
+    const boutiqueId = req.user?.boutiqueId;
+    if (!boutiqueId) {
+      return res.status(400).json({ message: 'Aucune boutique associée à ce compte.' });
+    }
+    if (!nom) {
+      return res.status(400).json({ message: 'nom est requis.' });
     }
 
     const id = crypto.randomUUID();

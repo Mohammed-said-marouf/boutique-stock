@@ -211,8 +211,8 @@ router.get('/:id', (req, res) => {
 
 // POST - Créer un produit (multipart/form-data, champ fichier "image" optionnel)
 router.post('/', upload.single('image'), (req, res) => {
-  const transaction = db.transaction((body, fichier) => {
-    const { nom, description, prix, quantite, categorie, fournisseur, boutiqueId, seuilAlerte, magasinId } = body;
+  const transaction = db.transaction((body, fichier, boutiqueId) => {
+    const { nom, description, prix, quantite, categorie, fournisseur, seuilAlerte, magasinId } = body;
 
     if (!nom || prix === undefined || prix === '' || !categorie) {
       throw Object.assign(new Error('nom, prix et categorie sont requis.'), { statut: 400 });
@@ -261,7 +261,18 @@ router.post('/', upload.single('image'), (req, res) => {
   });
 
   try {
-    const id = transaction(req.body, req.file);
+    // boutiqueId vient TOUJOURS du token pour un admin (jamais du corps
+    // envoyé par le client — AdminLayout.js ne l'envoie même pas, il
+    // suppose que le serveur le déduit) — même règle que le backend en
+    // ligne (routes/produits.js : "if (req.user.role === 'admin')
+    // data.boutiqueId = req.user.boutiqueId"). Sans ça, le produit était
+    // créé avec boutique_id = NULL, et ne matchait donc plus jamais le
+    // filtre "AND boutique_id = ?" de GET / : créé avec succès, mais
+    // invisible dans la liste.
+    const boutiqueId = req.user?.role === 'admin'
+      ? req.user.boutiqueId
+      : (req.body.boutiqueId || null);
+    const id = transaction(req.body, req.file, boutiqueId);
     const ligne = db.prepare('SELECT * FROM produits WHERE id = ?').get(id);
     const produitCree = versFormatApi(ligne);
 
