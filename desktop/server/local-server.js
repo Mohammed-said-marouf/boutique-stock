@@ -124,6 +124,8 @@ function demarrerServeurLocal() {
   app.use('/api/sync', require('../routes/sync'));
   app.use('/api/poste', require('../routes/poste'));
   app.use('/api/inventaires', require('../routes/inventaires'));
+  app.use('/api/licences', require('../routes/licences'));
+  app.use('/api/maintenance', require('../routes/maintenance'));
 
   // Sert le build React lui-même, pour que la fenêtre Electron charge la
   // page via http://localhost:4000 (voir main.js) plutôt que file:// :
