@@ -138,6 +138,48 @@ async function pousserEntree(entree, token) {
         return 'synchronisee';
       }
       if (operation === 'update') {
+        // Si le logo a été changé localement (routes/boutiques.js desktop,
+        // PUT /:id avec upload.single('logo')), payload.logo est un chemin
+        // local (/uploads/boutiques/xxx) — envoyer cette chaîne telle quelle
+        // en JSON écraserait le logo en ligne avec une valeur inutilisable.
+        // Même traitement que pour la photo d'un user (cas 'users' ci-dessous) :
+        // on relit le fichier et on le pousse en multipart.
+        if (payload?.logo && payload.logo.startsWith('/uploads/')) {
+          const cheminAbsolu = path.join(electronApp.getPath('userData'), payload.logo);
+          const nomFichier = path.basename(payload.logo);
+          const extension = path.extname(nomFichier).toLowerCase();
+          const TYPES_MIME_ACCEPTES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jfif': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+          const typeMime = TYPES_MIME_ACCEPTES[extension];
+          if (!typeMime) {
+            // Format non supporté par le backend : abandonné silencieusement
+            // (comme pour les images de produits/la photo d'un user).
+            marquerNonDirty(collection, record_id);
+            return 'synchronisee';
+          }
+          let octets;
+          try {
+            octets = fs.readFileSync(cheminAbsolu);
+          } catch {
+            // Fichier introuvable sur le disque : rien à pousser, on marque
+            // quand même synchronisé plutôt que de retenter indéfiniment.
+            marquerNonDirty(collection, record_id);
+            return 'synchronisee';
+          }
+          const formData = new FormData();
+          formData.append('logo', new Blob([octets], { type: typeMime }), nomFichier);
+          // Les autres champs texte (nom/adresse/telephone/niu/activite)
+          // voyagent avec le même FormData — le backend (upload.single
+          // + ...req.body côté route) les lit normalement.
+          for (const champ of ['nom', 'adresse', 'telephone', 'email', 'niu', 'activite']) {
+            if (payload[champ] !== null && payload[champ] !== undefined) {
+              formData.append(champ, String(payload[champ]));
+            }
+          }
+          await appelApiMultipart(`${API_EN_LIGNE}/api/boutiques/${record_id}`, 'PUT', token, formData);
+          marquerNonDirty(collection, record_id);
+          return 'synchronisee';
+        }
+
         await appelApi(`${API_EN_LIGNE}/api/boutiques/${record_id}`, 'PUT', headers, payload);
         marquerNonDirty(collection, record_id);
         return 'synchronisee';
