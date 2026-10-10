@@ -8,6 +8,11 @@ const boutiqueSchema = new mongoose.Schema({
   adresse: String,
   telephone: String,
   email: String,
+  // Numéro d'Identifiant Unique (DGI, Cameroun) — affiché sur les factures
+  // (voir VendeurLayout.js/AdminLayout.js, genererFacturePdfA4/voirFacture).
+  // Facultatif : une boutique qui n'en a pas (ou ne l'a pas encore renseigné)
+  // n'affiche simplement pas la ligne sur ses factures.
+  niu: { type: String, default: '' },
   logo: { type: String, default: null },
   abonnement: { type: String, enum: ['gratuit', 'standard', 'premium'], default: 'gratuit' },
   // Fin de la licence en cours (voir models/Licence.js). null = sans échéance

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS boutiques (
   telephone     TEXT,
   email         TEXT,
   logo          TEXT,
+  -- Numéro d'Identifiant Unique (DGI, Cameroun), affiché sur les factures.
+  niu           TEXT DEFAULT '',
   abonnement    TEXT DEFAULT 'gratuit' CHECK (abonnement IN ('gratuit', 'standard', 'premium')),
   actif         INTEGER DEFAULT 1,
   created_at    TEXT,

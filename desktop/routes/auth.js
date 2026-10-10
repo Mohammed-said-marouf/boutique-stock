@@ -107,6 +107,7 @@ function formaterUtilisateur(ligne) {
         telephone: ligneBoutique.telephone,
         email: ligneBoutique.email,
         logo: ligneBoutique.logo,
+        niu: ligneBoutique.niu || '',
         abonnement: ligneBoutique.abonnement,
         actif: !!ligneBoutique.actif,
       };

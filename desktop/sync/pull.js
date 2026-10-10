@@ -84,6 +84,7 @@ const COLLECTIONS = {
       telephone: item.telephone || null,
       email: item.email || null,
       logo: item.logo || null,
+      niu: item.niu || '',
       abonnement: item.abonnement || 'gratuit',
       actif: item.actif ? 1 : 0,
       created_at: item.createdAt || maintenant(),

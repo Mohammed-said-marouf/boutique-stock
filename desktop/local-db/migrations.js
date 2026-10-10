@@ -109,6 +109,16 @@ function migrerVentesVersCaisse(db) {
   console.log('✅ Migration ventes (caisse_id) terminée.');
 }
 
+// boutiques a été créée, sur les postes existants, sans la colonne niu
+// (Numéro d'Identifiant Unique, affiché sur les factures). Simple ALTER
+// TABLE ADD COLUMN.
+function migrerBoutiquesVersNiu(db) {
+  if (colonneExiste(db, 'boutiques', 'niu')) return;
+  console.log('🔧 Migration : ajout de niu à boutiques...');
+  db.exec(`ALTER TABLE boutiques ADD COLUMN niu TEXT DEFAULT ''`);
+  console.log('✅ Migration boutiques (niu) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
@@ -116,6 +126,7 @@ function executerMigrations(db) {
   migrerUsersVersPhoto(db);
   migrerUsersVersCaisse(db);
   migrerVentesVersCaisse(db);
+  migrerBoutiquesVersNiu(db);
 }
 
 module.exports = { executerMigrations };

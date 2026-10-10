@@ -3228,6 +3228,7 @@ function AdminFactures({ user }) {
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
+        if (user?.boutique?.niu) doc.text(`NIU : ${user.boutique.niu}`, 14, yBase + 40);
         doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
         doc.text(`Vendeur : ${f.nomVendeur || '—'}`, 120, yBase + 46);
         doc.text(`Client : ${f.clientNom || 'Client anonyme'}`, 120, yBase + 52);
@@ -3802,7 +3803,8 @@ function AdminParametres({ user }) {
   const [boutiqueForm, setBoutiqueForm] = useState({
     nom: user?.boutique?.nom || '',
     adresse: user?.boutique?.adresse || '',
-    telephone: user?.boutique?.telephone || ''
+    telephone: user?.boutique?.telephone || '',
+    niu: user?.boutique?.niu || ''
   });
   const [envoiBoutique, setEnvoiBoutique] = useState(false);
   const [messageBoutique, setMessageBoutique] = useState('');
@@ -3966,6 +3968,11 @@ function AdminParametres({ user }) {
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Téléphone</label>
             <input value={boutiqueForm.telephone} onChange={e => setBoutiqueForm(p => ({ ...p, telephone: e.target.value }))} style={inputStyle} placeholder="Ex: +237 6XX XXX XXX" />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>NIU (Numéro d'Identifiant Unique)</label>
+            <input value={boutiqueForm.niu} onChange={e => setBoutiqueForm(p => ({ ...p, niu: e.target.value }))} style={inputStyle} placeholder="Ex: M012312345678A" />
+            <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>Affiché sur les factures, s'il est renseigné.</div>
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Abonnement</label>
