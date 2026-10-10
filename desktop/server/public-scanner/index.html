@@ -483,6 +483,7 @@ function imprimerTicketThermique() {
   const f = derniereFacture;
   const boutique = (utilisateur.boutique && utilisateur.boutique.nom) || 'BOUTIQUE';
   const niu = utilisateur.boutique && utilisateur.boutique.niu;
+  const activite = utilisateur.boutique && utilisateur.boutique.activite;
   const date = new Date(f.dateVente || Date.now());
   const dateStr = date.toLocaleDateString('fr-FR') + '  ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -493,6 +494,7 @@ function imprimerTicketThermique() {
 
   document.getElementById('ticket-thermique').innerHTML = `
     <div class="centre titre">${escapeHtml(boutique)}</div>
+    ${activite ? `<div class="centre">${escapeHtml(activite)}</div>` : ''}
     ${niu ? `<div class="centre">NIU : ${escapeHtml(niu)}</div>` : ''}
     <div class="separateur"></div>
     <div>Facture N° ${escapeHtml(f.numFacture)}</div>

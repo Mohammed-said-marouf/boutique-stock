@@ -28,6 +28,7 @@ function versFormatApi(ligne) {
     email: ligne.email,
     logo: ligne.logo,
     niu: ligne.niu || '',
+    activite: ligne.activite || '',
     abonnement: ligne.abonnement,
     actif: !!ligne.actif,
     createdAt: ligne.created_at,
@@ -88,15 +89,15 @@ router.get('/:id', (req, res) => {
 // POST - Créer une boutique
 router.post('/', (req, res) => {
   try {
-    const { nom, proprietaire, adresse, telephone, email, logo, niu, abonnement } = req.body;
+    const { nom, proprietaire, adresse, telephone, email, logo, niu, activite, abonnement } = req.body;
     if (!nom) return res.status(400).json({ message: 'nom est requis.' });
 
     const id = crypto.randomUUID();
     const maintenantIso = maintenant();
 
     db.prepare(`
-      INSERT INTO boutiques (id, nom, proprietaire, adresse, telephone, email, logo, niu, abonnement, actif, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @proprietaire, @adresse, @telephone, @email, @logo, @niu, @abonnement, 1, @createdAt, @updatedAt, 1, 0)
+      INSERT INTO boutiques (id, nom, proprietaire, adresse, telephone, email, logo, niu, activite, abonnement, actif, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @nom, @proprietaire, @adresse, @telephone, @email, @logo, @niu, @activite, @abonnement, 1, @createdAt, @updatedAt, 1, 0)
     `).run({
       id,
       nom,
@@ -106,6 +107,7 @@ router.post('/', (req, res) => {
       email: email || null,
       logo: logo || null,
       niu: niu || '',
+      activite: activite || '',
       abonnement: abonnement || 'gratuit',
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
@@ -127,13 +129,13 @@ router.put('/:id', (req, res) => {
     const existant = db.prepare('SELECT * FROM boutiques WHERE id = ? AND is_deleted = 0').get(req.params.id);
     if (!existant) return res.status(404).json({ message: 'Boutique introuvable.' });
 
-    const { nom, adresse, telephone, email, logo, niu, abonnement, actif } = req.body;
+    const { nom, adresse, telephone, email, logo, niu, activite, abonnement, actif } = req.body;
     const maintenantIso = maintenant();
 
     db.prepare(`
       UPDATE boutiques SET
         nom = @nom, adresse = @adresse, telephone = @telephone, email = @email,
-        logo = @logo, niu = @niu, abonnement = @abonnement, actif = @actif,
+        logo = @logo, niu = @niu, activite = @activite, abonnement = @abonnement, actif = @actif,
         updated_at = @updatedAt, is_dirty = 1
       WHERE id = @id
     `).run({
@@ -144,6 +146,7 @@ router.put('/:id', (req, res) => {
       email: email ?? existant.email,
       logo: logo ?? existant.logo,
       niu: niu ?? existant.niu,
+      activite: activite ?? existant.activite,
       abonnement: abonnement ?? existant.abonnement,
       actif: actif !== undefined ? (actif ? 1 : 0) : existant.actif,
       updatedAt: maintenantIso,

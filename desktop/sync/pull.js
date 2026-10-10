@@ -85,6 +85,7 @@ const COLLECTIONS = {
       email: item.email || null,
       logo: item.logo || null,
       niu: item.niu || '',
+      activite: item.activite || '',
       abonnement: item.abonnement || 'gratuit',
       actif: item.actif ? 1 : 0,
       created_at: item.createdAt || maintenant(),

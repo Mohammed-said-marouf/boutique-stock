@@ -3219,7 +3219,8 @@ function AdminFactures({ user }) {
         doc.text(nomBoutique, xTexte, yBase + 12);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Facture N° ${f.numFacture || ''}`, xTexte, yBase + 18);
+        doc.text(user?.boutique?.activite || 'Votre boutique de confiance', xTexte, yBase + 18);
+        doc.text(`Facture N° ${f.numFacture || ''}`, xTexte, yBase + 25);
 
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
@@ -3804,6 +3805,7 @@ function AdminParametres({ user }) {
     nom: user?.boutique?.nom || '',
     adresse: user?.boutique?.adresse || '',
     telephone: user?.boutique?.telephone || '',
+    activite: user?.boutique?.activite || '',
     niu: user?.boutique?.niu || ''
   });
   const [envoiBoutique, setEnvoiBoutique] = useState(false);
@@ -3968,6 +3970,11 @@ function AdminParametres({ user }) {
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Téléphone</label>
             <input value={boutiqueForm.telephone} onChange={e => setBoutiqueForm(p => ({ ...p, telephone: e.target.value }))} style={inputStyle} placeholder="Ex: +237 6XX XXX XXX" />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>Activité</label>
+            <input value={boutiqueForm.activite} onChange={e => setBoutiqueForm(p => ({ ...p, activite: e.target.value }))} style={inputStyle} placeholder="Ex: Vente de vêtements, Accessoires informatiques..." />
+            <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>Affiché près du logo sur les factures, à la place du slogan par défaut.</div>
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', color: '#666', fontWeight: '600', display: 'block', marginBottom: '4px' }}>NIU (Numéro d'Identifiant Unique)</label>

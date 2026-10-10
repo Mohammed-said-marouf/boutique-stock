@@ -13,6 +13,9 @@ const boutiqueSchema = new mongoose.Schema({
   // Facultatif : une boutique qui n'en a pas (ou ne l'a pas encore renseigné)
   // n'affiche simplement pas la ligne sur ses factures.
   niu: { type: String, default: '' },
+  // Secteur d'activité (ex: "Vente de vêtements", "Accessoires informatiques")
+  // — affiché près du logo sur les factures, à la place du slogan générique.
+  activite: { type: String, default: '' },
   logo: { type: String, default: null },
   abonnement: { type: String, enum: ['gratuit', 'standard', 'premium'], default: 'gratuit' },
   // Fin de la licence en cours (voir models/Licence.js). null = sans échéance

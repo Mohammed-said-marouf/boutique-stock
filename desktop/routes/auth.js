@@ -108,6 +108,7 @@ function formaterUtilisateur(ligne) {
         email: ligneBoutique.email,
         logo: ligneBoutique.logo,
         niu: ligneBoutique.niu || '',
+        activite: ligneBoutique.activite || '',
         abonnement: ligneBoutique.abonnement,
         actif: !!ligneBoutique.actif,
       };

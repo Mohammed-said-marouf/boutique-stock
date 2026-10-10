@@ -119,6 +119,15 @@ function migrerBoutiquesVersNiu(db) {
   console.log('✅ Migration boutiques (niu) terminée.');
 }
 
+// boutiques a été créée, sur les postes existants, sans la colonne activite
+// (secteur d'activité, affiché sur les factures). Simple ALTER TABLE ADD COLUMN.
+function migrerBoutiquesVersActivite(db) {
+  if (colonneExiste(db, 'boutiques', 'activite')) return;
+  console.log('🔧 Migration : ajout de activite à boutiques...');
+  db.exec(`ALTER TABLE boutiques ADD COLUMN activite TEXT DEFAULT ''`);
+  console.log('✅ Migration boutiques (activite) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
@@ -127,6 +136,7 @@ function executerMigrations(db) {
   migrerUsersVersCaisse(db);
   migrerVentesVersCaisse(db);
   migrerBoutiquesVersNiu(db);
+  migrerBoutiquesVersActivite(db);
 }
 
 module.exports = { executerMigrations };

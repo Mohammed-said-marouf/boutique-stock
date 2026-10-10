@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS boutiques (
   logo          TEXT,
   -- Numéro d'Identifiant Unique (DGI, Cameroun), affiché sur les factures.
   niu           TEXT DEFAULT '',
+  -- Secteur d'activité (ex: "Vente de vêtements"), affiché près du logo sur
+  -- les factures à la place du slogan générique.
+  activite      TEXT DEFAULT '',
   abonnement    TEXT DEFAULT 'gratuit' CHECK (abonnement IN ('gratuit', 'standard', 'premium')),
   actif         INTEGER DEFAULT 1,
   created_at    TEXT,
