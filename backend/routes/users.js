@@ -108,6 +108,41 @@ router.put('/:id/photo', verifierToken, (req, res) => {
   });
 });
 
+// Format d'un hash bcrypt (voir models/User.js) — seule valeur acceptée ici,
+// jamais un mot de passe en clair.
+const REGEX_HASH_BCRYPT = /^\$2[aby]\$\d{2}\$.{53}$/;
+
+// Pousser un changement de mot de passe fait HORS-LIGNE sur le desktop (soi-
+// même, ou un admin/superadmin gérant cet utilisateur) — même raison que
+// PUT /:id/photo ci-dessus : le token de synchro desktop appartient à UN
+// SEUL compte du poste, qui peut avoir besoin de pousser le changement de
+// mot de passe d'un AUTRE utilisateur (ex: un vendeur a changé le sien hors-
+// ligne) — /me/motdepasse ne le permettrait pas (toujours self-référent).
+// N'accepte qu'un hash déjà calculé (jamais un mot de passe en clair) : le
+// hook pre('save') du modèle le détecte et ne le re-hache pas.
+router.put('/:id/motdepasse-hache', verifierToken, async (req, res) => {
+  try {
+    const { motDePasseHache } = req.body;
+    if (!motDePasseHache || !REGEX_HASH_BCRYPT.test(motDePasseHache)) {
+      return res.status(400).json({ message: 'Hash de mot de passe invalide.' });
+    }
+
+    const cible = await User.findById(req.params.id);
+    if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    const estSoiMeme = req.user.id === req.params.id;
+    const estGestionnaire = req.user.role === 'superadmin'
+      || (req.user.role === 'admin' && String(cible.boutiqueId) === String(req.user.boutiqueId));
+    if (!estSoiMeme && !estGestionnaire) {
+      return res.status(403).json({ message: 'Accès refusé.' });
+    }
+
+    cible.motDePasse = motDePasseHache;
+    cible.doitChangerMotDePasse = false;
+    await cible.save();
+    res.json({ message: '✅ Mot de passe mis à jour' });
+  } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
 // Changer mon propre mot de passe
 router.put('/me/motdepasse', verifierToken, async (req, res) => {
   try {

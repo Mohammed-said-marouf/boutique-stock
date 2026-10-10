@@ -128,6 +128,16 @@ function migrerBoutiquesVersActivite(db) {
   console.log('✅ Migration boutiques (activite) terminée.');
 }
 
+// users a été créée, sur les postes existants, sans la colonne
+// doit_changer_mot_de_passe (forcer le remplacement d'un mot de passe
+// temporaire posé par le super admin). Simple ALTER TABLE ADD COLUMN.
+function migrerUsersVersDoitChangerMotDePasse(db) {
+  if (colonneExiste(db, 'users', 'doit_changer_mot_de_passe')) return;
+  console.log('🔧 Migration : ajout de doit_changer_mot_de_passe à users...');
+  db.exec(`ALTER TABLE users ADD COLUMN doit_changer_mot_de_passe INTEGER DEFAULT 0`);
+  console.log('✅ Migration users (doit_changer_mot_de_passe) terminée.');
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
@@ -137,6 +147,7 @@ function executerMigrations(db) {
   migrerVentesVersCaisse(db);
   migrerBoutiquesVersNiu(db);
   migrerBoutiquesVersActivite(db);
+  migrerUsersVersDoitChangerMotDePasse(db);
 }
 
 module.exports = { executerMigrations };

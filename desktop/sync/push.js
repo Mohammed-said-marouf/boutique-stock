@@ -210,6 +210,17 @@ async function pousserEntree(entree, token) {
       }
       break;
 
+    // Changement de mot de passe fait hors-ligne (routes/users.js desktop,
+    // PUT /me/motdepasse) — payload.motDePasseHache est déjà haché (bcrypt),
+    // jamais le mot de passe en clair.
+    case 'mot_de_passe':
+      if (operation === 'update') {
+        await appelApi(`${API_EN_LIGNE}/api/users/${record_id}/motdepasse-hache`, 'PUT', headers, payload);
+        marquerNonDirty('users', record_id);
+        return 'synchronisee';
+      }
+      break;
+
     case 'depenses':
       if (operation === 'create') {
         await appelApi(`${API_EN_LIGNE}/api/depenses`, 'POST', headers, payload);

@@ -136,6 +136,7 @@ function formaterUtilisateur(ligne) {
     caisseId: ligne.caisse_id || null,
     caisse,
     boutique,
+    doitChangerMotDePasse: !!ligne.doit_changer_mot_de_passe,
   };
 }
 
@@ -160,16 +161,55 @@ router.post('/login', async (req, res) => {
       }
 
       const motDePasseValide = await bcrypt.compare(motDePasse, utilisateurLocal.mot_de_passe);
-      if (!motDePasseValide) {
-        return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
+      if (motDePasseValide) {
+        res.json({
+          token: genererTokenLocal(utilisateurLocal),
+          user: formaterUtilisateur(utilisateurLocal),
+        });
+        rafraichirSessionSyncEnArrierePlan(email, motDePasse, utilisateurLocal.role);
+        return;
       }
 
-      res.json({
-        token: genererTokenLocal(utilisateurLocal),
-        user: formaterUtilisateur(utilisateurLocal),
-      });
-      rafraichirSessionSyncEnArrierePlan(email, motDePasse, utilisateurLocal.role);
-      return;
+      // Le mot de passe local ne correspond pas — AVANT de refuser, relai
+      // de secours vers l'API en ligne : le pull ne synchronise JAMAIS le
+      // mot de passe (le backend ne le renvoie jamais, voir
+      // sync/pull.js/tirerUsers), donc un mot de passe réinitialisé par le
+      // super admin (ou changé depuis le site web) resterait sinon
+      // inutilisable pour toujours sur ce poste, même en tapant exactement
+      // le bon mot de passe temporaire/nouveau.
+      if (await estEnLigne()) {
+        try {
+          const reponseSecours = await fetch(`${API_EN_LIGNE}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, motDePasse }),
+          });
+          if (reponseSecours.ok) {
+            const donneesSecours = await reponseSecours.json();
+            // Mot de passe valide en ligne : on met à jour le hash local
+            // (les prochaines connexions, même hors-ligne, fonctionneront
+            // directement) et le flag doitChangerMotDePasse, puis on
+            // renvoie une session locale comme pour une connexion normale.
+            const motDePasseHache = await bcrypt.hash(motDePasse, 10);
+            db.prepare(`
+              UPDATE users SET mot_de_passe = ?, doit_changer_mot_de_passe = ?, updated_at = ? WHERE id = ?
+            `).run(motDePasseHache, donneesSecours.user?.doitChangerMotDePasse ? 1 : 0, maintenant(), utilisateurLocal.id);
+
+            const utilisateurMisAJour = db.prepare('SELECT * FROM users WHERE id = ?').get(utilisateurLocal.id);
+            res.json({
+              token: genererTokenLocal(utilisateurMisAJour),
+              user: formaterUtilisateur(utilisateurMisAJour),
+            });
+            enregistrerSession(donneesSecours);
+            return;
+          }
+        } catch {
+          // Serveur en ligne injoignable malgré estEnLigne() (ex: coupure
+          // juste après le test) — on retombe sur le refus normal ci-dessous.
+        }
+      }
+
+      return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
     }
 
     // --- Cas 2 : le compte n'existe pas en local — tentative en ligne ---
@@ -247,12 +287,13 @@ router.post('/login', async (req, res) => {
     const caisseExisteLocalement = caisseIdDistante && db.prepare('SELECT id FROM caisses WHERE id = ?').get(caisseIdDistante);
 
     db.prepare(`
-      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, 1, @createdAt, @updatedAt, 0, 0)
+      INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, doit_changer_mot_de_passe, actif, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, @doitChangerMotDePasse, 1, @createdAt, @updatedAt, 0, 0)
       ON CONFLICT(id) DO UPDATE SET
         nom = excluded.nom, email = excluded.email, mot_de_passe = excluded.mot_de_passe,
         role = excluded.role, boutique_id = excluded.boutique_id, caisse_id = excluded.caisse_id,
-        photo = excluded.photo, actif = 1, updated_at = excluded.updated_at
+        photo = excluded.photo, doit_changer_mot_de_passe = excluded.doit_changer_mot_de_passe,
+        actif = 1, updated_at = excluded.updated_at
     `).run({
       id: utilisateurDistant.id,
       nom: utilisateurDistant.nom,
@@ -262,6 +303,7 @@ router.post('/login', async (req, res) => {
       role: utilisateurDistant.role,
       boutiqueId: idRef(utilisateurDistant.boutique),
       photo: utilisateurDistant.photo || null,
+      doitChangerMotDePasse: utilisateurDistant.doitChangerMotDePasse ? 1 : 0,
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
     });

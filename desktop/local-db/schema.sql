@@ -49,6 +49,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- URL Cloudinary (comme en ligne) une fois synchronisée, ou chemin local
   -- /uploads/... si changée depuis ce poste hors-ligne (voir routes/users.js).
   photo         TEXT,
+  -- Vrai après une réinitialisation par le super admin (en ligne) : il doit
+  -- remplacer le mot de passe temporaire par le sien dès sa connexion — voir
+  -- routes/auth.js (cas 1, relai en ligne de secours) et
+  -- frontend/src/components/ChangementMotDePasseObligatoire.js.
+  doit_changer_mot_de_passe INTEGER DEFAULT 0,
   actif         INTEGER DEFAULT 1,
   created_at    TEXT,
   updated_at    TEXT,

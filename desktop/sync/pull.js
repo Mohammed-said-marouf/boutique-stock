@@ -469,6 +469,7 @@ async function tirerUsers() {
       caisseId: existeLocal('caisses', caisseId) ? caisseId : null,
       photo: item.photo || null,
       actif: item.actif ? 1 : 0,
+      doitChangerMotDePasse: item.doitChangerMotDePasse ? 1 : 0,
       updatedAt: item.updatedAt || maintenant(),
     };
 
@@ -477,7 +478,8 @@ async function tirerUsers() {
         db.prepare(`
           UPDATE users SET
             nom = @nom, email = @email, role = @role, boutique_id = @boutiqueId,
-            caisse_id = @caisseId, photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
+            caisse_id = @caisseId, photo = @photo, actif = @actif,
+            doit_changer_mot_de_passe = @doitChangerMotDePasse, updated_at = @updatedAt, is_dirty = 0
           WHERE id = @id
         `).run(colonnes);
         misesAJour++;
@@ -489,8 +491,8 @@ async function tirerUsers() {
         // et routes/auth.js) : sa première vraie connexion sur ce poste
         // passera par le relai en ligne, qui posera le vrai hash.
         db.prepare(`
-          INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, actif, created_at, updated_at, is_dirty, is_deleted)
-          VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, @actif, @createdAt, @updatedAt, 0, 0)
+          INSERT INTO users (id, nom, email, mot_de_passe, role, boutique_id, caisse_id, photo, actif, doit_changer_mot_de_passe, created_at, updated_at, is_dirty, is_deleted)
+          VALUES (@id, @nom, @email, @motDePasse, @role, @boutiqueId, @caisseId, @photo, @actif, @doitChangerMotDePasse, @createdAt, @updatedAt, 0, 0)
         `).run({
           ...colonnes,
           motDePasse: MOT_DE_PASSE_NON_LOCAL,
@@ -551,6 +553,7 @@ async function tirerMonProfil() {
     caisseId: existeLocal('caisses', caisseId) ? caisseId : null,
     photo: item.photo || null,
     actif: item.actif ? 1 : 0,
+    doitChangerMotDePasse: item.doitChangerMotDePasse ? 1 : 0,
     updatedAt: item.updatedAt || maintenant(),
   };
 
@@ -558,7 +561,8 @@ async function tirerMonProfil() {
     db.prepare(`
       UPDATE users SET
         nom = @nom, email = @email, role = @role, boutique_id = @boutiqueId,
-        caisse_id = @caisseId, photo = @photo, actif = @actif, updated_at = @updatedAt, is_dirty = 0
+        caisse_id = @caisseId, photo = @photo, actif = @actif,
+        doit_changer_mot_de_passe = @doitChangerMotDePasse, updated_at = @updatedAt, is_dirty = 0
       WHERE id = @id
     `).run(colonnes);
   }
