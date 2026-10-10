@@ -112,8 +112,8 @@ router.put('/:id/photo', verifierToken, (req, res) => {
 router.put('/me/motdepasse', verifierToken, async (req, res) => {
   try {
     const { ancienMotDePasse, nouveauMotDePasse } = req.body;
-    if (!ancienMotDePasse || !nouveauMotDePasse) {
-      return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
+    if (!nouveauMotDePasse) {
+      return res.status(400).json({ message: 'Nouveau mot de passe requis' });
     }
     if (nouveauMotDePasse.length < 6) {
       return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
@@ -122,11 +122,24 @@ router.put('/me/motdepasse', verifierToken, async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
-    const correct = await user.verifierMotDePasse(ancienMotDePasse);
-    if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
-
-    if (user.doitChangerMotDePasse && nouveauMotDePasse === ancienMotDePasse) {
-      return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+    if (user.doitChangerMotDePasse) {
+      // Premier changement obligatoire après une réinitialisation par le
+      // super admin (voir PUT /:id/reinitialiser-mot-de-passe) : obtenir un
+      // token valide a déjà exigé de se connecter avec le mot de passe
+      // temporaire, donc le faire retaper ici n'apporte rien et n'est
+      // qu'un point d'échec de plus (ex: caractère mal transmis). On
+      // vérifie seulement que le nouveau diffère du temporaire actuel.
+      if (await user.verifierMotDePasse(nouveauMotDePasse)) {
+        return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+      }
+    } else {
+      // Changement volontaire (Paramètres) : on exige toujours l'ancien mot
+      // de passe, pour qu'une session restée ouverte ne suffise pas seule.
+      if (!ancienMotDePasse) {
+        return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
+      }
+      const correct = await user.verifierMotDePasse(ancienMotDePasse);
+      if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
     }
 
     user.motDePasse = nouveauMotDePasse;
