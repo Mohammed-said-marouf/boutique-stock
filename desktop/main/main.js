@@ -8,8 +8,28 @@
  *  4. Ouvrir une fenêtre Electron qui charge le frontend React.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+
+// Rendu sans carte graphique : sur les PC de boutique aux pilotes graphiques
+// anciens ou génériques, l'accélération matérielle de Chromium faisait figer
+// la machine (pilote d'affichage bloqué, curseur qui disparaît). Une appli
+// de caisse n'a pas besoin du GPU. Doit être appelé avant "ready".
+app.disableHardwareAcceleration();
+
+// Une seule instance à la fois : un double-clic répété pendant un démarrage
+// lent lançait plusieurs copies (Electron + SQLite + synchro chacune), qui
+// saturaient les petites machines, la deuxième ne pouvant de toute façon pas
+// ouvrir le port 4000. La copie en trop se ferme et réaffiche la première.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+app.on('second-instance', () => {
+  if (!fenetrePrincipale) return;
+  if (fenetrePrincipale.isMinimized()) fenetrePrincipale.restore();
+  fenetrePrincipale.focus();
+});
 
 // Initialise la base SQLite dès le démarrage (crée le fichier si besoin, applique le schéma).
 const db = require('../local-db/db');
@@ -68,6 +88,17 @@ app.whenReady().then(() => {
   console.log('✅ Application Electron démarrée.');
 
   serveurLocal = demarrerServeurLocal();
+  // Sans ce gestionnaire, un port 4000 déjà pris (autre logiciel) laissait
+  // l'appli tourner en arrière-plan sans jamais ouvrir de fenêtre.
+  serveurLocal.on('error', (err) => {
+    dialog.showErrorBox(
+      'Boutique Stock',
+      err.code === 'EADDRINUSE'
+        ? "Le port 4000 est déjà utilisé par un autre programme sur ce PC. Fermez-le (ou redémarrez l'ordinateur), puis relancez Boutique Stock."
+        : 'Impossible de démarrer le serveur local : ' + err.message
+    );
+    app.quit();
+  });
   demarrerSynchronisationAutomatique();
 
   // La fenêtre charge http://localhost:4000 (voir creerFenetre) : elle ne

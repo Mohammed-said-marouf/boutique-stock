@@ -5,10 +5,32 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const { app: electronApp } = require('electron');
 const db = require('../local-db/db');
 const { estEnLigne, API_EN_LIGNE } = require('../sync/connectivite');
 
 const maintenant = () => new Date().toISOString();
+
+// Stockage du logo sur le disque local (dossier userData d'Electron), comme
+// pour les images de produits (routes/produits.js) — PUT /:id est appelé en
+// multipart/form-data pour changer le logo (AdminLayout.js, enregistrerLogo),
+// et en JSON classique pour le reste des infos (enregistrerBoutique) :
+// multer ignore les requêtes non-multipart et laisse passer le req.body déjà
+// parsé par express.json(), donc une seule route gère les deux cas.
+const DOSSIER_UPLOADS = path.join(electronApp.getPath('userData'), 'uploads', 'boutiques');
+fs.mkdirSync(DOSSIER_UPLOADS, { recursive: true });
+
+const stockage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, DOSSIER_UPLOADS),
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname) || '';
+    cb(null, `${crypto.randomUUID()}${extension}`);
+  },
+});
+const upload = multer({ storage: stockage });
 
 function ajouterAOutbox(operation, recordId, payload) {
   db.prepare(`
@@ -27,6 +49,8 @@ function versFormatApi(ligne) {
     telephone: ligne.telephone,
     email: ligne.email,
     logo: ligne.logo,
+    niu: ligne.niu || '',
+    activite: ligne.activite || '',
     abonnement: ligne.abonnement,
     actif: !!ligne.actif,
     createdAt: ligne.created_at,
@@ -87,15 +111,15 @@ router.get('/:id', (req, res) => {
 // POST - Créer une boutique
 router.post('/', (req, res) => {
   try {
-    const { nom, proprietaire, adresse, telephone, email, logo, abonnement } = req.body;
+    const { nom, proprietaire, adresse, telephone, email, logo, niu, activite, abonnement } = req.body;
     if (!nom) return res.status(400).json({ message: 'nom est requis.' });
 
     const id = crypto.randomUUID();
     const maintenantIso = maintenant();
 
     db.prepare(`
-      INSERT INTO boutiques (id, nom, proprietaire, adresse, telephone, email, logo, abonnement, actif, created_at, updated_at, is_dirty, is_deleted)
-      VALUES (@id, @nom, @proprietaire, @adresse, @telephone, @email, @logo, @abonnement, 1, @createdAt, @updatedAt, 1, 0)
+      INSERT INTO boutiques (id, nom, proprietaire, adresse, telephone, email, logo, niu, activite, abonnement, actif, created_at, updated_at, is_dirty, is_deleted)
+      VALUES (@id, @nom, @proprietaire, @adresse, @telephone, @email, @logo, @niu, @activite, @abonnement, 1, @createdAt, @updatedAt, 1, 0)
     `).run({
       id,
       nom,
@@ -104,6 +128,8 @@ router.post('/', (req, res) => {
       telephone: telephone || null,
       email: email || null,
       logo: logo || null,
+      niu: niu || '',
+      activite: activite || '',
       abonnement: abonnement || 'gratuit',
       createdAt: maintenantIso,
       updatedAt: maintenantIso,
@@ -119,19 +145,32 @@ router.post('/', (req, res) => {
   }
 });
 
-// PUT - Modifier une boutique
-router.put('/:id', (req, res) => {
+// PUT - Modifier une boutique (multipart/form-data, champ fichier "logo"
+// optionnel — si absent, le logo existant est conservé)
+router.put('/:id', upload.single('logo'), (req, res) => {
   try {
     const existant = db.prepare('SELECT * FROM boutiques WHERE id = ? AND is_deleted = 0').get(req.params.id);
     if (!existant) return res.status(404).json({ message: 'Boutique introuvable.' });
 
-    const { nom, adresse, telephone, email, logo, abonnement, actif } = req.body;
+    const { nom, adresse, telephone, email, niu, activite, abonnement, actif } = req.body;
     const maintenantIso = maintenant();
+
+    let cheminLogo = existant.logo;
+    if (req.file) {
+      cheminLogo = `/uploads/boutiques/${req.file.filename}`;
+      // Nettoyage : supprime l'ancien fichier logo local s'il y en avait un,
+      // pour ne pas accumuler des fichiers orphelins sur le disque (même
+      // logique que pour les images de produits — voir routes/produits.js).
+      if (existant.logo && existant.logo.startsWith('/uploads/')) {
+        const ancienChemin = path.join(electronApp.getPath('userData'), existant.logo);
+        fs.unlink(ancienChemin, () => {}); // best-effort, on ignore l'erreur si le fichier n'existe déjà plus
+      }
+    }
 
     db.prepare(`
       UPDATE boutiques SET
         nom = @nom, adresse = @adresse, telephone = @telephone, email = @email,
-        logo = @logo, abonnement = @abonnement, actif = @actif,
+        logo = @logo, niu = @niu, activite = @activite, abonnement = @abonnement, actif = @actif,
         updated_at = @updatedAt, is_dirty = 1
       WHERE id = @id
     `).run({
@@ -140,7 +179,9 @@ router.put('/:id', (req, res) => {
       adresse: adresse ?? existant.adresse,
       telephone: telephone ?? existant.telephone,
       email: email ?? existant.email,
-      logo: logo ?? existant.logo,
+      logo: cheminLogo,
+      niu: niu ?? existant.niu,
+      activite: activite ?? existant.activite,
       abonnement: abonnement ?? existant.abonnement,
       actif: actif !== undefined ? (actif ? 1 : 0) : existant.actif,
       updatedAt: maintenantIso,

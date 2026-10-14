@@ -109,6 +109,90 @@ function migrerVentesVersCaisse(db) {
   console.log('✅ Migration ventes (caisse_id) terminée.');
 }
 
+// boutiques a été créée, sur les postes existants, sans la colonne niu
+// (Numéro d'Identifiant Unique, affiché sur les factures). Simple ALTER
+// TABLE ADD COLUMN.
+function migrerBoutiquesVersNiu(db) {
+  if (colonneExiste(db, 'boutiques', 'niu')) return;
+  console.log('🔧 Migration : ajout de niu à boutiques...');
+  db.exec(`ALTER TABLE boutiques ADD COLUMN niu TEXT DEFAULT ''`);
+  console.log('✅ Migration boutiques (niu) terminée.');
+}
+
+// boutiques a été créée, sur les postes existants, sans la colonne activite
+// (secteur d'activité, affiché sur les factures). Simple ALTER TABLE ADD COLUMN.
+function migrerBoutiquesVersActivite(db) {
+  if (colonneExiste(db, 'boutiques', 'activite')) return;
+  console.log('🔧 Migration : ajout de activite à boutiques...');
+  db.exec(`ALTER TABLE boutiques ADD COLUMN activite TEXT DEFAULT ''`);
+  console.log('✅ Migration boutiques (activite) terminée.');
+}
+
+// users a été créée, sur les postes existants, sans la colonne
+// doit_changer_mot_de_passe (forcer le remplacement d'un mot de passe
+// temporaire posé par le super admin). Simple ALTER TABLE ADD COLUMN.
+function migrerUsersVersDoitChangerMotDePasse(db) {
+  if (colonneExiste(db, 'users', 'doit_changer_mot_de_passe')) return;
+  console.log('🔧 Migration : ajout de doit_changer_mot_de_passe à users...');
+  db.exec(`ALTER TABLE users ADD COLUMN doit_changer_mot_de_passe INTEGER DEFAULT 0`);
+  console.log('✅ Migration users (doit_changer_mot_de_passe) terminée.');
+}
+
+// Avant la 1.0.30, POST /api/produits (desktop) créait les produits avec
+// boutique_id = NULL (voir routes/produits.js) : enregistrés, mais
+// invisibles dans la liste, filtrée par boutique. On les rattache :
+//  1. à la boutique du magasin qui porte leur stock, quand il y en a un ;
+//  2. sinon à l'unique boutique du poste — seulement s'il n'y en a qu'une,
+//     pour ne jamais deviner entre plusieurs boutiques.
+// Les payloads encore en attente dans sync_outbox sont corrigés aussi, pour
+// que le serveur en ligne reçoive la bonne boutique.
+function reparerProduitsSansBoutique(db) {
+  const orphelins = db.prepare('SELECT id FROM produits WHERE boutique_id IS NULL').all();
+  if (orphelins.length === 0) return;
+
+  const viaMagasin = db.prepare(`
+    SELECT m.boutique_id FROM stock_magasins sm
+    JOIN magasins m ON m.id = sm.magasin_id
+    WHERE sm.produit_id = ? AND m.boutique_id IS NOT NULL
+    LIMIT 1
+  `);
+  const boutiques = db.prepare('SELECT id FROM boutiques WHERE is_deleted = 0').all();
+  const boutiqueUnique = boutiques.length === 1 ? boutiques[0].id : null;
+
+  const majProduit = db.prepare('UPDATE produits SET boutique_id = ? WHERE id = ?');
+  const outboxEnAttente = db.prepare(`
+    SELECT id, payload FROM sync_outbox
+    WHERE collection = 'produits' AND record_id = ? AND synced = 0 AND payload IS NOT NULL
+  `);
+  const majOutbox = db.prepare('UPDATE sync_outbox SET payload = ? WHERE id = ?');
+
+  let repares = 0;
+  db.transaction(() => {
+    for (const { id } of orphelins) {
+      const boutiqueId = viaMagasin.get(id)?.boutique_id || boutiqueUnique;
+      if (!boutiqueId) continue;
+      majProduit.run(boutiqueId, id);
+      for (const entree of outboxEnAttente.all(id)) {
+        try {
+          const payload = JSON.parse(entree.payload);
+          if (!payload.boutiqueId) {
+            payload.boutiqueId = boutiqueId;
+            majOutbox.run(JSON.stringify(payload), entree.id);
+          }
+        } catch {
+          // payload illisible : laissé tel quel
+        }
+      }
+      repares++;
+    }
+  })();
+
+  if (repares > 0) console.log(`✅ Réparation : ${repares} produit(s) sans boutique rattaché(s) à leur boutique.`);
+  if (repares < orphelins.length) {
+    console.warn(`⚠️ ${orphelins.length - repares} produit(s) sans boutique non rattaché(s) (boutique impossible à déterminer).`);
+  }
+}
+
 function executerMigrations(db) {
   migrerMouvementsStockVersComptoirs(db);
   migrerVentesVersComptoirs(db);
@@ -116,6 +200,10 @@ function executerMigrations(db) {
   migrerUsersVersPhoto(db);
   migrerUsersVersCaisse(db);
   migrerVentesVersCaisse(db);
+  migrerBoutiquesVersNiu(db);
+  migrerBoutiquesVersActivite(db);
+  migrerUsersVersDoitChangerMotDePasse(db);
+  reparerProduitsSansBoutique(db);
 }
 
 module.exports = { executerMigrations };

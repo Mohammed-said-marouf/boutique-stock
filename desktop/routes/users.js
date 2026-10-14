@@ -134,6 +134,56 @@ router.put('/me/photo', (req, res) => {
   });
 });
 
+// PUT - Changer mon propre mot de passe — même contrat que le backend en
+// ligne (PUT /api/users/me/motdepasse) : si doit_changer_mot_de_passe est
+// vrai (réinitialisation par le super admin), l'ancien mot de passe n'est
+// pas redemandé (le token prouve déjà qu'on vient de s'en servir pour se
+// connecter — voir routes/auth.js, cas 1 et son relai de secours). Poussé
+// via une entrée dédiée ('mot_de_passe', pas 'users' générique) : la route
+// en ligne correspondante (PUT /:id/motdepasse-hache) attend
+// {motDePasseHache}, pas un objet users complet.
+router.put('/me/motdepasse', async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Non authentifié.' });
+    const { ancienMotDePasse, nouveauMotDePasse } = req.body;
+    if (!nouveauMotDePasse) {
+      return res.status(400).json({ message: 'Nouveau mot de passe requis' });
+    }
+    if (nouveauMotDePasse.length < 6) {
+      return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
+    }
+
+    const existant = db.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').get(req.user.id);
+    if (!existant) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    if (existant.doit_changer_mot_de_passe) {
+      if (await bcrypt.compare(nouveauMotDePasse, existant.mot_de_passe)) {
+        return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+      }
+    } else {
+      if (!ancienMotDePasse) {
+        return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
+      }
+      const correct = await bcrypt.compare(ancienMotDePasse, existant.mot_de_passe);
+      if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+    }
+
+    const motDePasseHache = await bcrypt.hash(nouveauMotDePasse, 10);
+    const maintenantIso = maintenant();
+    db.prepare('UPDATE users SET mot_de_passe = ?, doit_changer_mot_de_passe = 0, updated_at = ?, is_dirty = 1 WHERE id = ?')
+      .run(motDePasseHache, maintenantIso, req.user.id);
+
+    db.prepare(`
+      INSERT INTO sync_outbox (collection, operation, record_id, payload, created_at)
+      VALUES ('mot_de_passe', 'update', ?, ?, ?)
+    `).run(req.user.id, JSON.stringify({ motDePasseHache }), maintenantIso);
+
+    res.json({ message: '✅ Mot de passe mis à jour' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 // PUT - (Ré)assigner la caisse fixe d'un vendeur — décision de l'admin,
 // jamais du vendeur lui-même. caisseId: null retire l'assignation.
 router.put('/:id/caisse', (req, res) => {

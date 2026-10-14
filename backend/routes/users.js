@@ -108,12 +108,47 @@ router.put('/:id/photo', verifierToken, (req, res) => {
   });
 });
 
+// Format d'un hash bcrypt (voir models/User.js) — seule valeur acceptée ici,
+// jamais un mot de passe en clair.
+const REGEX_HASH_BCRYPT = /^\$2[aby]\$\d{2}\$.{53}$/;
+
+// Pousser un changement de mot de passe fait HORS-LIGNE sur le desktop (soi-
+// même, ou un admin/superadmin gérant cet utilisateur) — même raison que
+// PUT /:id/photo ci-dessus : le token de synchro desktop appartient à UN
+// SEUL compte du poste, qui peut avoir besoin de pousser le changement de
+// mot de passe d'un AUTRE utilisateur (ex: un vendeur a changé le sien hors-
+// ligne) — /me/motdepasse ne le permettrait pas (toujours self-référent).
+// N'accepte qu'un hash déjà calculé (jamais un mot de passe en clair) : le
+// hook pre('save') du modèle le détecte et ne le re-hache pas.
+router.put('/:id/motdepasse-hache', verifierToken, async (req, res) => {
+  try {
+    const { motDePasseHache } = req.body;
+    if (!motDePasseHache || !REGEX_HASH_BCRYPT.test(motDePasseHache)) {
+      return res.status(400).json({ message: 'Hash de mot de passe invalide.' });
+    }
+
+    const cible = await User.findById(req.params.id);
+    if (!cible) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    const estSoiMeme = req.user.id === req.params.id;
+    const estGestionnaire = req.user.role === 'superadmin'
+      || (req.user.role === 'admin' && String(cible.boutiqueId) === String(req.user.boutiqueId));
+    if (!estSoiMeme && !estGestionnaire) {
+      return res.status(403).json({ message: 'Accès refusé.' });
+    }
+
+    cible.motDePasse = motDePasseHache;
+    cible.doitChangerMotDePasse = false;
+    await cible.save();
+    res.json({ message: '✅ Mot de passe mis à jour' });
+  } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
 // Changer mon propre mot de passe
 router.put('/me/motdepasse', verifierToken, async (req, res) => {
   try {
     const { ancienMotDePasse, nouveauMotDePasse } = req.body;
-    if (!ancienMotDePasse || !nouveauMotDePasse) {
-      return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
+    if (!nouveauMotDePasse) {
+      return res.status(400).json({ message: 'Nouveau mot de passe requis' });
     }
     if (nouveauMotDePasse.length < 6) {
       return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
@@ -122,11 +157,24 @@ router.put('/me/motdepasse', verifierToken, async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
 
-    const correct = await user.verifierMotDePasse(ancienMotDePasse);
-    if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
-
-    if (user.doitChangerMotDePasse && nouveauMotDePasse === ancienMotDePasse) {
-      return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+    if (user.doitChangerMotDePasse) {
+      // Premier changement obligatoire après une réinitialisation par le
+      // super admin (voir PUT /:id/reinitialiser-mot-de-passe) : obtenir un
+      // token valide a déjà exigé de se connecter avec le mot de passe
+      // temporaire, donc le faire retaper ici n'apporte rien et n'est
+      // qu'un point d'échec de plus (ex: caractère mal transmis). On
+      // vérifie seulement que le nouveau diffère du temporaire actuel.
+      if (await user.verifierMotDePasse(nouveauMotDePasse)) {
+        return res.status(400).json({ message: 'Choisissez un mot de passe différent du mot de passe temporaire.' });
+      }
+    } else {
+      // Changement volontaire (Paramètres) : on exige toujours l'ancien mot
+      // de passe, pour qu'une session restée ouverte ne suffise pas seule.
+      if (!ancienMotDePasse) {
+        return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
+      }
+      const correct = await user.verifierMotDePasse(ancienMotDePasse);
+      if (!correct) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
     }
 
     user.motDePasse = nouveauMotDePasse;

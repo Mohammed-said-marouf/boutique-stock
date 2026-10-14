@@ -677,7 +677,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       doc.text(nomBoutique, xTexte, yBase + 12);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text('Votre boutique de confiance', xTexte, yBase + 18);
+      doc.text(boutique?.activite || 'Votre boutique de confiance', xTexte, yBase + 18);
       doc.text(`Facture N° ${numFacture}`, xTexte, yBase + 25);
 
       doc.setFontSize(11);
@@ -687,6 +687,7 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
+      if (boutique?.niu) doc.text(`NIU : ${boutique.niu}`, 14, yBase + 40);
       doc.text(`Date : ${date} a ${heure}`, 120, yBase + 40);
       doc.text(`Vendeur : ${nomVendeur || 'Vendeur'}`, 120, yBase + 46);
       doc.text(`Client : ${vente.clientNom}`, 120, yBase + 52);
@@ -993,6 +994,8 @@ function CaisseVendeur({ nomVendeur, vendeurId, boutique, caisseId, caisseInfo }
       {venteThermique && (
         <div id="ticket-thermique-print">
           <div className="centre titre">{boutique?.nom || 'BOUTIQUE'}</div>
+          {boutique?.activite && <div className="centre">{boutique.activite}</div>}
+          {boutique?.niu && <div className="centre">NIU : {boutique.niu}</div>}
           <div className="separateur" />
           <div>Facture N° {venteThermique.numFacture}</div>
           <div>{venteThermique.date}  {venteThermique.heure}</div>
