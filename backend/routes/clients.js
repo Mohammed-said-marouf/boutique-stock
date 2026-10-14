@@ -23,7 +23,10 @@ router.post('/', verifierToken, async (req, res) => {
     if (!req.user.boutiqueId) {
       return res.status(400).json({ message: "Aucune boutique associée à ce compte." });
     }
+    // _id explicite optionnel (même raison que routes/depenses.js) — la
+    // synchro de l'APK garde ainsi le même id des deux côtés.
     const client = new Client({
+      _id: req.body._id || undefined,
       nom: req.body.nom,
       telephone: req.body.telephone,
       email: req.body.email,

@@ -71,7 +71,9 @@ router.post('/', verifierToken, async (req, res) => {
         { $inc: { 'stockComptoirs.$.quantite': -item.quantite } }
       );
     }
-    const numFacture = 'FAC-' + Date.now().toString().slice(-6);
+    // Une vente faite hors-ligne (desktop, APK) arrive avec le numéro déjà
+    // imprimé sur le reçu du client : on le garde pour que les deux concordent.
+    const numFacture = req.body.numFacture || ('FAC-' + Date.now().toString().slice(-6));
     const boutiqueId = req.user.boutiqueId || null;
 
     // comptoirId (la Boutique) dénormalisé depuis la caisse, pour pouvoir
