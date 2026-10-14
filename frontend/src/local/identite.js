@@ -28,6 +28,7 @@ export function decoderToken(token) {
       if (payload) {
         return {
           id: payload.id,
+          nom: payload.nom || '',
           role: payload.role,
           boutiqueId: (payload.boutique && payload.boutique._id) || payload.boutiqueId || null,
           caisseId: (payload.caisse && payload.caisse._id) || payload.caisseId || null,
@@ -44,6 +45,7 @@ export function decoderToken(token) {
     const payload = decoderBase64Url(token);
     return {
       id: payload.id,
+      nom: payload.nom || '',
       role: payload.role,
       boutiqueId: payload.boutiqueId || null,
       caisseId: payload.caisseId || null,

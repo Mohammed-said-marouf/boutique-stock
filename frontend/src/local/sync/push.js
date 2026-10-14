@@ -161,7 +161,17 @@ export async function pousserOutbox() {
         details.push({ id: entree.id, collection: entree.collection, operation: entree.operation, resultat: 'echec', erreur: "Aucun token connu pour l'auteur de cette entrée." });
         continue;
       }
-      const resultat = await pousserEntree(entree, token);
+      let resultat;
+      try {
+        resultat = await pousserEntree(entree, token);
+      } catch (err) {
+        // Création déjà enregistrée par le serveur lors d'un envoi précédent
+        // dont la réponse s'est perdue (réseau coupé) : même _id, donc clé
+        // en double. C'est un succès, pas une erreur à retenter sans fin.
+        if (entree.operation !== 'create' || !/E11000|duplicate key/i.test(err.message)) throw err;
+        await marquerNonDirty(entree.collection, entree.record_id);
+        resultat = 'synchronisee';
+      }
       if (resultat === 'ignoree') {
         ignorees++;
         details.push({ id: entree.id, collection: entree.collection, operation: entree.operation, resultat: 'ignoree (pas encore prise en charge)' });

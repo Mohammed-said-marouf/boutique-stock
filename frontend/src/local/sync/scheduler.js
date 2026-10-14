@@ -3,16 +3,9 @@
 // desktop/sync/scheduler.js, adapté à l'identité unique de l'appareil mobile
 // (voir ci-dessous) plutôt qu'à une session de synchro partagée.
 //
-// Non fait ici, à ajouter en Phase 4/5 :
-//  - pause/reprise sur @capacitor/app (appStateChange) : Android peut
-//    throttle/tuer les timers JS en arrière-plan, contrairement à Electron
-//    qui ne passe jamais en arrière-plan — pas de dépendance ajoutée tant
-//    que le spike SQLite (Phase 1) n'est pas confirmé par la CI, pour ne pas
-//    élargir la surface de risque en même temps.
-//  - AuthContext.js (déjà en place, Phase 0) doit, à chaque login/refresh
-//    réussi EN LIGNE, aussi appeler enregistrerSession(userId, {...}) ici
-//    (token-store.js) pour que push.js puisse résoudre le token de CET
-//    utilisateur même après qu'un autre se soit connecté sur cet appareil.
+// Démarré par AuthContext.js quand un vendeur est connecté dans l'APK, qui
+// mémorise aussi chaque session en ligne (local/services/auth.js) pour que
+// push.js puisse résoudre le token de chaque auteur.
 
 import { pousserOutbox } from './push';
 import { tirerTout } from './pull';
@@ -40,6 +33,15 @@ function detecterBesoinReconnexion(resultatPush) {
   return resultatPush.details.some(d =>
     typeof d.erreur === 'string' && /token invalide|jwt expired|401/i.test(d.erreur)
   );
+}
+
+function tokenActuelExpire() {
+  try {
+    const { exp } = JSON.parse(atob(localStorage.getItem('token').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return !!exp && exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
 }
 
 export async function executerCycleSynchronisation() {
@@ -74,6 +76,13 @@ export async function executerCycleSynchronisation() {
     if (detecterBesoinReconnexion(resultatPush)) {
       etat.necessiteReconnexion = true;
       etat.message = '🔒 Session expirée — reconnexion nécessaire pour poursuivre la synchronisation.';
+      // Le serveur est joignable mais refuse le token (expiré après une
+      // longue période hors-ligne) : AuthContext ramène à l'écran de
+      // connexion, où une connexion en ligne donnera un token neuf. Rien
+      // n'est perdu, la file d'attente repartira avec ce nouveau token.
+      // Seulement si c'est bien SON token qui a expiré : un refus sur une
+      // entrée d'un autre vendeur ayant utilisé ce téléphone ne le concerne pas.
+      if (tokenActuelExpire()) window.dispatchEvent(new Event('bs-reconnexion-requise'));
       return;
     }
 
@@ -91,18 +100,43 @@ export async function executerCycleSynchronisation() {
   }
 }
 
+let delaiInitialId = null;
+let declencheurId = null;
+
+// Android ralentit ou suspend les minuteurs d'une appli en arrière-plan : on
+// relance un cycle dès qu'elle revient au premier plan.
+const auRetourAuPremierPlan = () => {
+  if (document.visibilityState === 'visible') declencherSynchronisation();
+};
+
+// Idempotent : AuthContext l'appelle à chaque connexion/restauration de session.
 export function demarrerSynchronisationAutomatique() {
-  setTimeout(() => {
+  if (intervalleId || delaiInitialId) return;
+  delaiInitialId = setTimeout(() => {
+    delaiInitialId = null;
     executerCycleSynchronisation();
     intervalleId = setInterval(executerCycleSynchronisation, INTERVALLE_MS);
   }, DELAI_INITIAL_MS);
+  document.addEventListener('visibilitychange', auRetourAuPremierPlan);
 }
 
 export function arreterSynchronisationAutomatique() {
+  clearTimeout(delaiInitialId);
+  clearTimeout(declencheurId);
+  delaiInitialId = null;
+  declencheurId = null;
   if (intervalleId) {
     clearInterval(intervalleId);
     intervalleId = null;
   }
+  document.removeEventListener('visibilitychange', auRetourAuPremierPlan);
+}
+
+// Cycle anticipé (ex. juste après une vente), regroupé si plusieurs
+// demandes arrivent coup sur coup.
+export function declencherSynchronisation() {
+  clearTimeout(declencheurId);
+  declencheurId = setTimeout(() => { declencheurId = null; executerCycleSynchronisation(); }, 2000);
 }
 
 export function obtenirEtat() {

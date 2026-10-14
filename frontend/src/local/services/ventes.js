@@ -136,33 +136,40 @@ export async function creerVente(corps) {
       statement: 'UPDATE stock_comptoirs SET quantite = quantite - ?, updated_at = ? WHERE produit_id = ? AND comptoir_id = ?',
       values: [item.quantite, ts, item.produit, comptoirId],
     });
-    instructions.push(ajouterAOutboxInstruction('produits', 'update', item.produit, null, identite?.id));
   }
 
-  // Création/mise à jour automatique de la fiche client.
+  // Création/mise à jour automatique de la fiche client, en local seulement :
+  // au push, le serveur fait lui-même cette mise à jour à partir de la vente
+  // (backend/routes/ventes.js), la pousser en plus la compterait deux fois.
+  // is_dirty reste à 0 pour que le pull suivant remplace la ligne par celle
+  // du serveur (même id que le client local seulement s'il existait déjà).
   const nomClient = (clientNom || '').trim();
   if (nomClient && nomClient.toLowerCase() !== 'client anonyme' && boutiqueId) {
-    const clientExistant = await interrogerUne('SELECT * FROM clients WHERE nom = ? AND boutique_id = ?', [nomClient, boutiqueId]);
+    const clientExistant = await interrogerUne('SELECT * FROM clients WHERE nom = ? AND boutique_id = ? AND is_deleted = 0', [nomClient, boutiqueId]);
     if (clientExistant) {
       instructions.push({
-        statement: 'UPDATE clients SET achats = achats + 1, total = total + ?, updated_at = ?, is_dirty = 1 WHERE id = ?',
+        statement: 'UPDATE clients SET achats = achats + 1, total = total + ?, updated_at = ? WHERE id = ?',
         values: [montantTotal, ts, clientExistant.id],
       });
-      instructions.push(ajouterAOutboxInstruction('clients', 'update', clientExistant.id, null, identite?.id));
     } else {
-      const clientId = nouvelId();
       instructions.push({
-        statement: 'INSERT INTO clients (id, nom, boutique_id, achats, total, created_at, updated_at, is_dirty, is_deleted) VALUES (?, ?, ?, 1, ?, ?, ?, 1, 0)',
-        values: [clientId, nomClient, boutiqueId, montantTotal, ts, ts],
+        statement: 'INSERT INTO clients (id, nom, boutique_id, achats, total, created_at, updated_at, is_dirty, is_deleted) VALUES (?, ?, ?, 1, ?, ?, ?, 0, 0)',
+        values: [`local-${nouvelId()}`, nomClient, boutiqueId, montantTotal, ts, ts],
       });
-      instructions.push(ajouterAOutboxInstruction('clients', 'create', clientId, null, identite?.id));
     }
   }
 
-  // La vente elle-même (payload complet, contrairement aux outbox
-  // "produits"/"clients" ci-dessus qui ne portent qu'un signal — voir
-  // desktop/sync/push.js pour la résolution des ids manquants à l'envoi).
-  instructions.push(ajouterAOutboxInstruction('ventes', 'create', venteId, null, identite?.id));
+  // La vente elle-même, avec tout ce dont POST /api/ventes a besoin. _id
+  // est conservé par le serveur (...req.body) : la vente revient au pull
+  // sous le même id, sans doublon.
+  instructions.push(ajouterAOutboxInstruction('ventes', 'create', venteId, {
+    _id: venteId,
+    produits: produits.map(p => ({ produit: p.produit, quantite: p.quantite, prixUnitaire: p.prixUnitaire })),
+    montantTotal, typeVente: typeVente || 'presentiel',
+    vendeur: vendeur || null, nomVendeur: nomVendeur || null,
+    clientNom: clientNom || 'Client anonyme', notes: notes || null,
+    caisseId, dateVente: ts, numFacture,
+  }, identite?.id));
 
   await executerLot(instructions);
   return { data: await chargerVenteComplete(venteId) };

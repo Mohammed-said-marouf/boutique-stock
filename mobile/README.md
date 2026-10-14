@@ -1,8 +1,22 @@
 # Application Android (APK) — Boutique Stock
 
 Enveloppe [Capacitor](https://capacitorjs.com) autour du frontend React (`../frontend`).
-L'appli parle à la même API que la version web (`https://boutique-stock-api.onrender.com`),
-donc les ventes faites sur téléphone arrivent directement dans le système.
+
+## En ligne et hors-ligne
+
+Comme la version desktop, l'espace **vendeur** travaille toujours sur une base SQLite du
+téléphone (`@capacitor-community/sqlite`), avec ou sans internet : vente, encaissement,
+catalogue, clients, dépenses et versements. La synchronisation avec le serveur en ligne
+(`https://boutique-stock-api.onrender.com`) est automatique : à la connexion, toutes les
+5 minutes, au retour de l'appli au premier plan et juste après chaque vente.
+
+- Code : `frontend/src/local/` (services, synchro) et `frontend/src/local-db/` (schéma) ;
+  l'aiguillage se fait dans `frontend/src/api/*` via `local/mode.js`.
+- Connexion hors-ligne : possible pour un vendeur qui s'est déjà connecté **une fois avec
+  internet** sur ce téléphone (empreinte PBKDF2 du mot de passe, jamais le mot de passe en clair).
+- Après une longue période hors-ligne (token de plus de 24h), la synchro ramène à l'écran de
+  connexion dès que le serveur est joignable ; rien n'est perdu, la file d'attente repart.
+- Restent en ligne uniquement : l'espace admin, la photo de profil, le changement de mot de passe.
 
 ## Obtenir l'APK (sans rien installer)
 

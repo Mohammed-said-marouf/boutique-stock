@@ -239,6 +239,7 @@ CREATE TABLE IF NOT EXISTS sessions_sync (
   role            TEXT,
   boutique_id     TEXT,
   caisse_id       TEXT,
+  user_json       TEXT,
   enregistre_le   TEXT
 );
 

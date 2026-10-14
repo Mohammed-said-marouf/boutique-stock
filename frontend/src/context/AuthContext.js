@@ -2,8 +2,27 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 import { login as loginApi, refreshToken } from '../api/auth';
+import { estApk } from '../local/mode';
+import { memoriserCompte, mettreAJourSessionMemorisee, connexionHorsLigne } from '../local/services/auth';
+import {
+  demarrerSynchronisationAutomatique, arreterSynchronisationAutomatique, executerCycleSynchronisation,
+} from '../local/sync/scheduler';
 
 const AuthContext = createContext();
+
+// Dans l'APK, un vendeur travaille sur la base du téléphone (local/mode.js) :
+// sa session doit survivre à l'expiration du token (24h) tant qu'il est
+// hors-ligne — c'est la synchro qui demande une reconnexion dès que le
+// serveur est joignable et refuse le token (événement bs-reconnexion-requise).
+const vendeurApk = (u) => estApk() && u?.role === 'vendeur';
+
+// Le premier login en ligne d'un vendeur sur le téléphone doit remplir la
+// base locale avant d'ouvrir l'écran de vente — sans bloquer plus de 20 s
+// (la synchro continue alors en arrière-plan).
+const premiereSynchro = () => Promise.race([
+  executerCycleSynchronisation(),
+  new Promise(resolve => setTimeout(resolve, 20000)),
+]);
 
 // Date d'expiration (ms) d'un token JWT du serveur en ligne, ou null si le
 // token n'en a pas (token local du desktop, qui n'expire jamais) ou est illisible.
@@ -33,8 +52,9 @@ export const AuthProvider = ({ children }) => {
     // ci-dessous ne tourne que tant qu'elle est ouverte) ne doit pas
     // restaurer la session : l'utilisateur semblait connecté, mais toutes
     // ses actions échouaient avec "Token invalide".
-    if (token && userData && !tokenExpire(token)) {
-      setUser(JSON.parse(userData));
+    const utilisateurStocke = userData ? JSON.parse(userData) : null;
+    if (token && utilisateurStocke && (!tokenExpire(token) || vendeurApk(utilisateurStocke))) {
+      setUser(utilisateurStocke);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else if (token) {
       localStorage.removeItem('token');
@@ -47,7 +67,7 @@ export const AuthProvider = ({ children }) => {
   // hors-ligne au moment du renouvellement) : retour à l'écran de connexion
   // plutôt qu'une appli qui semble marcher mais refuse tout.
   useEffect(() => {
-    if (!user) return undefined;
+    if (!user || vendeurApk(user)) return undefined;
     const fermerSiExpire = () => {
       if (tokenExpire(localStorage.getItem('token'))) {
         localStorage.removeItem('token');
@@ -78,6 +98,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(utilisateurFrais));
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         setUser(utilisateurFrais);
+        if (estApk()) mettreAJourSessionMemorisee(token, utilisateurFrais).catch(() => {});
       } catch {
         // Hors-ligne, ou token déjà expiré (session restaurée très ancienne) :
         // rien à faire ici, une vraie reconnexion sera nécessaire dans ce cas.
@@ -89,13 +110,54 @@ export const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const login = async (email, motDePasse) => {
-   const res = await loginApi(email, motDePasse);
-    const { token, user } = res.data;
+  // Synchro automatique de la base du téléphone, tant qu'un vendeur y est connecté.
+  useEffect(() => {
+    if (!vendeurApk(user)) return undefined;
+    demarrerSynchronisationAutomatique();
+    return () => arreterSynchronisationAutomatique();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
+
+  const ouvrirSession = (token, utilisateur) => {
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(utilisateur));
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(user);
+    setUser(utilisateur);
+  };
+
+  const login = async (email, motDePasse) => {
+    if (!estApk()) {
+      const res = await loginApi(email, motDePasse);
+      const { token, user } = res.data;
+      ouvrirSession(token, user);
+      return user;
+    }
+
+    // APK : en ligne d'abord (le serveur Render gratuit peut mettre ~50 s à
+    // se réveiller) ; hors-ligne seulement si le serveur ne répond pas du
+    // tout — un refus (mauvais mot de passe, compte désactivé, maintenance)
+    // reste un refus.
+    let res;
+    try {
+      res = navigator.onLine === false ? null : await loginApi(email, motDePasse, { timeout: 60000 });
+    } catch (err) {
+      if (err.response) throw err;
+    }
+    if (!res) {
+      const session = await connexionHorsLigne(email, motDePasse);
+      ouvrirSession(session.token, session.user);
+      return session.user;
+    }
+
+    const { token, user } = res.data;
+    try {
+      await memoriserCompte(email, motDePasse, token, user);
+    } catch {
+      // Base locale indisponible : la connexion en ligne reste valable,
+      // seule la connexion hors-ligne ultérieure ne sera pas possible.
+    }
+    ouvrirSession(token, user);
+    if (vendeurApk(user)) await premiereSynchro();
     return user;
   };
 
@@ -105,6 +167,14 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
+
+  // Token refusé par le serveur alors qu'il est joignable (expiré après une
+  // longue période hors-ligne) : retour à l'écran de connexion, une
+  // connexion en ligne redonnera un token valide (voir sync/scheduler.js).
+  useEffect(() => {
+    window.addEventListener('bs-reconnexion-requise', logout);
+    return () => window.removeEventListener('bs-reconnexion-requise', logout);
+  }, []);
 
   // Met à jour des champs de l'utilisateur connecté (ex: après avoir changé son
   // mot de passe temporaire) et les garde dans le stockage local.

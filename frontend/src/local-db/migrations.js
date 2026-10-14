@@ -7,18 +7,22 @@
 // contrainte CHECK). Ce fichier comble cet écart pour les appareils qui ont
 // déjà lancé une version antérieure de l'appli.
 //
-// Vide pour l'instant : le schéma mobile est neuf (aucun appareil n'a encore
-// installé de version antérieure). Chaque futur changement de schéma ajoute
-// ici une fonction sur le modèle de celles de desktop/local-db/migrations.js
-// (vérification idempotente puis ALTER TABLE / reconstruction si nécessaire),
-// ajoutée à la liste dans executerMigrations().
+// Chaque changement de schéma ajoute ici une fonction sur le modèle de celles
+// de desktop/local-db/migrations.js (vérification idempotente puis ALTER
+// TABLE / reconstruction si nécessaire), ajoutée à executerMigrations().
 
 export async function colonneExiste(sqlite, database, table, colonne) {
   const { values } = await sqlite.query({ database, statement: `PRAGMA table_info(${table})` });
   return (values || []).some(c => c.name === colonne);
 }
 
-// eslint-disable-next-line no-unused-vars
+// sessions_sync a été créée, sur les APK de test du spike, sans user_json
+// (objet "user" gardé pour la connexion hors-ligne, voir local/services/auth.js).
+async function migrerSessionsVersUserJson(sqlite, database) {
+  if (await colonneExiste(sqlite, database, 'sessions_sync', 'user_json')) return;
+  await sqlite.execute({ database, statements: 'ALTER TABLE sessions_sync ADD COLUMN user_json TEXT', transaction: true });
+}
+
 export async function executerMigrations(sqlite, database) {
-  // (liste vide pour l'instant — voir commentaire ci-dessus)
+  await migrerSessionsVersUserJson(sqlite, database);
 }

@@ -8,7 +8,7 @@
 // vendeur n'en a pas besoin, seul stockComptoirs (stock vendable) compte
 // pour vendre (voir CaisseVendeur.stockBoutiqueDe côté frontend).
 
-import { interroger } from '../../local-db/db';
+import { interroger, interrogerUne } from '../../local-db/db';
 import { identiteActuelle } from '../identite';
 
 async function versFormatApi(ligne) {
@@ -58,4 +58,35 @@ export async function listerProduits() {
   const data = [];
   for (const ligne of lignes) data.push(await versFormatApi(ligne));
   return { data };
+}
+
+// GET /alertes-boutiques équivalent (cloche de notification) — port de
+// desktop/routes/produits.js : produits au seuil d'alerte ou en dessous dans
+// le stock de la boutique (comptoir) de la caisse du vendeur.
+export async function alertesStockBoutiques() {
+  const identite = identiteActuelle();
+  const caisse = identite?.caisseId
+    ? await interrogerUne('SELECT comptoir_id FROM caisses WHERE id = ? AND is_deleted = 0', [identite.caisseId])
+    : null;
+  if (!caisse) return { data: { total: 0, boutiques: [] } };
+
+  const comptoirs = await interroger('SELECT id, nom FROM comptoirs WHERE id = ? AND is_deleted = 0 AND actif = 1', [caisse.comptoir_id]);
+  const boutiques = [];
+  for (const c of comptoirs) {
+    const produits = await interroger(
+      `SELECT p.id, p.nom, p.ref, sc.quantite, COALESCE(p.seuil_alerte, 5) AS seuil
+       FROM stock_comptoirs sc JOIN produits p ON p.id = sc.produit_id
+       WHERE sc.comptoir_id = ? AND p.is_deleted = 0 AND sc.quantite <= COALESCE(p.seuil_alerte, 5)
+       ORDER BY sc.quantite ASC`,
+      [c.id]
+    );
+    if (produits.length > 0) {
+      boutiques.push({
+        comptoirId: c.id,
+        comptoirNom: c.nom,
+        produits: produits.map(p => ({ _id: p.id, nom: p.nom, ref: p.ref, quantite: p.quantite, seuilAlerte: p.seuil })),
+      });
+    }
+  }
+  return { data: { total: boutiques.reduce((s, b) => s + b.produits.length, 0), boutiques } };
 }

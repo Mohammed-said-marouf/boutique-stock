@@ -37,9 +37,14 @@ async function identiteConnectee() {
   return identiteActuelle();
 }
 
+// Le token de l'utilisateur connecté est en localStorage, toujours le plus
+// frais (AuthContext le renouvelle toutes les 30 min) ; sessions_sync n'est
+// qu'un repli.
 async function obtenirToken() {
   const identite = await identiteConnectee();
   if (!identite) return null;
+  const tokenActuel = localStorage.getItem('token');
+  if (tokenActuel) return tokenActuel;
   const session = await lireSession(identite.id);
   return session?.token || null;
 }
@@ -275,6 +280,17 @@ async function tirerProduits() {
           instructions.push({ statement: 'INSERT INTO stock_comptoirs (produit_id, comptoir_id, quantite, updated_at) VALUES (?, ?, ?, ?)', values: [produitId, comptoirId, ligne.quantite || 0, maintenant()] });
         }
       }
+      // Ventes faites sur ce téléphone et pas encore acceptées par le
+      // serveur (push en échec, ex. réseau coupé entre push et pull) : le
+      // stock reçu ne les a pas encore décomptées, on les retire ici pour ne
+      // pas réafficher (et revendre) des articles déjà vendus.
+      instructions.push({
+        statement: `UPDATE stock_comptoirs SET quantite = quantite - (
+                      SELECT COALESCE(SUM(vp.quantite), 0) FROM vente_produits vp JOIN ventes v ON v.id = vp.vente_id
+                      WHERE v.is_dirty = 1 AND v.is_deleted = 0 AND v.comptoir_id = stock_comptoirs.comptoir_id AND vp.produit_id = stock_comptoirs.produit_id)
+                    WHERE produit_id = ?`,
+        values: [produitId],
+      });
 
       await executerLot(instructions);
       if (existante) misesAJour++; else creees++;
@@ -282,6 +298,19 @@ async function tirerProduits() {
       echouees++;
       if (echantillonsErreurs.length < 3) echantillonsErreurs.push({ id: produitId, erreur: err.message });
     }
+  }
+
+  // Produits supprimés côté serveur : absents de la liste reçue (qui couvre
+  // toute la boutique de l'utilisateur), on les masque aussi localement pour
+  // qu'ils ne soient plus vendables.
+  const identite = await identiteConnectee();
+  if (identite?.boutiqueId) {
+    const recus = items.map(i => i._id).filter(Boolean);
+    const marqueurs = recus.map(() => '?').join(', ');
+    await lancer(
+      `UPDATE produits SET is_deleted = 1 WHERE boutique_id = ? AND is_dirty = 0 AND is_deleted = 0${recus.length ? ` AND id NOT IN (${marqueurs})` : ''}`,
+      [identite.boutiqueId, ...recus]
+    );
   }
 
   await metaSync('produits');
@@ -416,6 +445,14 @@ export async function tirerTout() {
   await etape(() => tirerCollection('depenses'), 'depenses');
   await etape(() => tirerCollection('versements'), 'versements');
   await etape(() => tirerCollection('clients'), 'clients');
+  // Fiches créées localement à la vente (id "local-…", voir
+  // local/services/ventes.js) : remplacées par celle du serveur dès qu'elle
+  // est arrivée, sinon le client apparaîtrait deux fois.
+  await etape(async () => {
+    await lancer(`DELETE FROM clients WHERE id LIKE 'local-%' AND EXISTS (
+                    SELECT 1 FROM clients c2 WHERE c2.nom = clients.nom AND c2.boutique_id = clients.boutique_id AND c2.id NOT LIKE 'local-%')`);
+    return { collection: 'clients_locaux' };
+  }, 'clients_locaux');
   await etape(tirerVentes, 'ventes');
   await etape(tirerMonProfil, 'mon_profil');
 

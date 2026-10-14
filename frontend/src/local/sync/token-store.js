@@ -22,15 +22,18 @@ const maintenant = () => new Date().toISOString();
 // Enregistre (ou remplace) le token en ligne connu pour un utilisateur local
 // donné — appelé après chaque login/refresh réussi EN LIGNE (voir
 // local/services/auth.js, Phase 5).
-export async function enregistrerSession(userId, { token, nom, role, boutiqueId, caisseId }) {
+// `user` : l'objet renvoyé par POST /api/auth/login, gardé tel quel pour la
+// connexion hors-ligne (local/services/auth.js).
+export async function enregistrerSession(userId, { token, nom, role, boutiqueId, caisseId, user }) {
   await lancer(
-    `INSERT INTO sessions_sync (user_id, token, nom, role, boutique_id, caisse_id, enregistre_le)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO sessions_sync (user_id, token, nom, role, boutique_id, caisse_id, user_json, enregistre_le)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        token = excluded.token, nom = excluded.nom, role = excluded.role,
        boutique_id = excluded.boutique_id, caisse_id = excluded.caisse_id,
+       user_json = COALESCE(excluded.user_json, sessions_sync.user_json),
        enregistre_le = excluded.enregistre_le`,
-    [userId, token, nom || '', role || '', boutiqueId || null, caisseId || null, maintenant()]
+    [userId, token, nom || '', role || '', boutiqueId || null, caisseId || null, user ? JSON.stringify(user) : null, maintenant()]
   );
 }
 

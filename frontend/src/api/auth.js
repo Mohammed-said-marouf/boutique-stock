@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { API_URL } from '../config';
 
-// POST /api/auth/login
-export function login(email, motDePasse) {
-  return axios.post(`${API_URL}/api/auth/login`, { email, motDePasse });
+// POST /api/auth/login — `options` axios facultatives (ex. timeout, voir AuthContext)
+export function login(email, motDePasse, options) {
+  return axios.post(`${API_URL}/api/auth/login`, { email, motDePasse }, options);
 }
 
 // POST /api/auth/refresh — renouvelle le token avant son expiration (24h côté
